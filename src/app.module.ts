@@ -8,7 +8,6 @@ import { validate } from '@/config/env.validation';
     DatabaseModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: [`.env.${process.env.NODE_ENV}.local`],
       validate: validate,
     }),
   ],
