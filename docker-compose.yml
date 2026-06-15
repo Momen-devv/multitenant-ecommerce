@@ -41,7 +41,7 @@ services:
       POSTGRES_PASSWORD: postgres123
       POSTGRES_DB: multitenant_ecommerce
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
