@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { Global, Module } from '@nestjs/common';
-import { DATABASE_CONNECTION } from '@/database/database.constants';
+import { DATABASE_CONNECTION } from '@/infrastructure/database/database.constants';
 import { drizzle } from 'drizzle-orm/node-postgres/driver';
 import { Pool } from 'pg';
 import * as schema from './schema';

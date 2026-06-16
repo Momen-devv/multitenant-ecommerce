@@ -1,10 +1,5 @@
+import { Environment } from '@/common/enums';
 import { z } from 'zod';
-
-enum Environment {
-  Development = 'development',
-  Production = 'production',
-  Test = 'test',
-}
 
 const envSchema = z.object({
   NODE_ENV: z.enum(Environment),

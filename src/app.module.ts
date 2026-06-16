@@ -1,18 +1,9 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '@/database/database.module';
-import { ConfigModule } from '@nestjs/config';
-import { validate } from '@/config/env.validation';
-import { LoggerModule } from '@/logger/logger.module';
+import { DatabaseModule, LoggerModule } from '@/infrastructure';
+import { CoreModule } from '@/core/core.module';
 
 @Module({
-  imports: [
-    DatabaseModule,
-    ConfigModule.forRoot({
-      isGlobal: true,
-      validate: validate,
-    }),
-    LoggerModule,
-  ],
+  imports: [CoreModule, DatabaseModule, LoggerModule],
   controllers: [],
   providers: [],
 })
