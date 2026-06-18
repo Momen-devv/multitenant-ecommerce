@@ -6,6 +6,7 @@ import { REDIS_CLIENT } from './redis.constants';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { redisOptions } from './redis.config';
 import { RedisService } from './redis.service';
+import { CACHE_SERVICE } from '@/common/constants/injection-tokens.constants';
 
 @Global()
 @Module({
@@ -38,8 +39,11 @@ import { RedisService } from './redis.service';
       },
       inject: [redisConfig.KEY, LoggerService],
     },
-    RedisService,
+    {
+      provide: CACHE_SERVICE,
+      useClass: RedisService,
+    },
   ],
-  exports: [REDIS_CLIENT, RedisService],
+  exports: [CACHE_SERVICE],
 })
 export class RedisModule {}
