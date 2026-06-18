@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import {
   appConfig,
   databaseConfig,
+  mailConfig,
   redisConfig,
   validate,
 } from '@/core/config';
@@ -13,7 +14,7 @@ import {
       cache: true,
       isGlobal: true,
       validate: validate,
-      load: [databaseConfig, appConfig, redisConfig],
+      load: [databaseConfig, appConfig, redisConfig, mailConfig],
     }),
   ],
 })

@@ -6,6 +6,8 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   DATABASE_URL: z.url('DATABASE_URL must be a valid URL'),
   REDIS_URL: z.url('REDIS_URL must be a valid URL'),
+  RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
+  MAIL_FROM: z.email().describe('MAIL_FROM must be a valid email address'),
 });
 
 export function validate(config: Record<string, unknown>) {

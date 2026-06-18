@@ -17,7 +17,7 @@ import { CACHE_SERVICE } from '@/common/constants/injection-tokens.constants';
         configuration: ConfigType<typeof redisConfig>,
         logger: LoggerService,
       ) => {
-        const client = new Redis(configuration.url!, redisOptions);
+        const client = new Redis(configuration.url, redisOptions);
 
         client.on('connect', () =>
           logger.log('Redis connected', RedisModule.name),

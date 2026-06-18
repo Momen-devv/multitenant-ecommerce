@@ -7,13 +7,7 @@ import {
 import { REDIS_CLIENT } from './redis.constants';
 import Redis from 'ioredis';
 import { LoggerService } from '../logger/logger.service';
-
-interface ICacheService {
-  set(key: string, value: string, expireInSeconds?: number): Promise<void>;
-  get(key: string): Promise<string | null>;
-  del(key: string): Promise<number>;
-  exists(key: string): Promise<boolean>;
-}
+import { ICacheService } from './redis.interface';
 @Injectable()
 export class RedisService
   implements ICacheService, OnModuleInit, OnModuleDestroy
