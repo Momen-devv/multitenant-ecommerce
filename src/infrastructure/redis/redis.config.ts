@@ -8,10 +8,19 @@ export const redisOptions: RedisOptions = {
   enableReadyCheck: true,
   enableOfflineQueue: true,
   maxRetriesPerRequest: 3,
-  connectionName: 'multitenant-ecommerce',
+  connectionName: 'app-redis',
 
   retryStrategy(times) {
     const delay = Math.min(times * 50, 2000);
     return delay;
   },
+};
+
+export const bullRedisOptions: RedisOptions = {
+  connectTimeout: 10000,
+  socketTimeout: 10000,
+  keepAlive: 30000,
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false,
+  connectionName: 'bullmq-redis',
 };
