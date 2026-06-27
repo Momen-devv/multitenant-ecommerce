@@ -5,81 +5,165 @@ import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from '@/infrastructure/database/schema/schema';
 import { Redis } from 'ioredis';
-import { Resend } from 'resend';
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { Environment } from '@/common/enums';
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+type AuthLogger = {
+  log: (message: string, context?: string) => void;
+  warn: (message: string, context?: string) => void;
+  error: (message: string, trace?: string, context?: string) => void;
+};
 
-const db = drizzle(pool, { schema });
+type AuthEmailQueue = {
+  addVerificationEmailJob: (
+    to: string,
+    url: string,
+    token: string,
+  ) => Promise<void>;
+  addResetPasswordJob: (to: string, url: string) => Promise<void>;
+};
 
-const redis = new Redis(process.env.REDIS_URL!);
+type AuthDependencies = {
+  logger: AuthLogger;
+  emailQueue: AuthEmailQueue;
+};
 
-export const auth = betterAuth({
-  secret: process.env.BETTER_AUTH_SECRET,
-  baseURL: process.env.BETTER_AUTH_URL,
+function parseTrustedOrigins(): string[] {
+  const baseUrlOrigin = process.env.BETTER_AUTH_URL
+    ? new URL(process.env.BETTER_AUTH_URL).origin
+    : undefined;
 
-  database: drizzleAdapter(db, {
-    provider: 'pg',
-    schema,
-  }),
+  const configuredOrigins =
+    process.env.TRUSTED_ORIGINS?.split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean) ?? [];
 
-  emailAndPassword: {
-    enabled: true,
-    requireEmailVerification: true,
-  },
+  return Array.from(
+    new Set([...(baseUrlOrigin ? [baseUrlOrigin] : []), ...configuredOrigins]),
+  );
+}
 
-  emailVerification: {
-    sendVerificationEmail: async ({ user, url, token }, request) => {
-      console.log('🚀 Attempting to send email to:', user.email);
-      try {
-        const res = await resend.emails.send({
-          from: 'onboarding@resend.dev', // Replace with verified domain in production
-          to: user.email,
-          subject: 'Verify your email',
-          html: `<a href="${url}">Click here to verify your email</a>`,
-        });
-        console.log('✅ Resend Response:', res);
-      } catch (err) {
-        console.error('❌ Verification email failed:', err);
-        throw err; // Important: let Better Auth know it failed
-      }
-    },
-  },
+export function createAuth({ logger, emailQueue }: AuthDependencies) {
+  const isProduction = process.env.NODE_ENV === Environment.Production;
 
-  secondaryStorage: {
-    get: async (key) => redis.get(key),
-    set: async (key, value, ttl) => {
-      if (ttl) {
-        await redis.set(key, value, 'EX', ttl);
-      } else {
-        await redis.set(key, value);
-      }
-    },
-    delete: async (key) => {
-      await redis.del(key);
-      return null;
-    },
-  },
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+  });
 
-  session: {
-    expiresIn: 60 * 60 * 24 * 7,
-    updateAge: 60 * 60 * 24,
-    cookieCache: {
+  const db = drizzle(pool, { schema });
+  const redis = new Redis(process.env.REDIS_URL!);
+
+  return betterAuth({
+    secret: process.env.BETTER_AUTH_SECRET,
+    baseURL: process.env.BETTER_AUTH_URL,
+
+    database: drizzleAdapter(db, {
+      provider: 'pg',
+      schema,
+    }),
+
+    trustedOrigins: parseTrustedOrigins(),
+
+    emailAndPassword: {
       enabled: true,
-      maxAge: 60 * 5,
+      requireEmailVerification: true,
+      sendResetPassword: async ({ user, url }) => {
+        try {
+          await emailQueue.addResetPasswordJob(user.email, url);
+          logger.log(
+            `Queued reset password email for ${user.email}`,
+            'BetterAuth',
+          );
+        } catch (error) {
+          logger.error(
+            `Failed to queue reset password email for ${user.email}`,
+            error instanceof Error ? error.stack : undefined,
+            'BetterAuth',
+          );
+          throw error;
+        }
+      },
     },
-  },
 
-  rateLimit: {
-    enabled: true,
-    window: 10,
-    max: 100,
-    storage: 'secondary-storage',
-  },
+    emailVerification: {
+      sendVerificationEmail: async ({ user, url, token }) => {
+        try {
+          await emailQueue.addVerificationEmailJob(user.email, url, token);
+          logger.log(
+            `Queued verification email for ${user.email}`,
+            'BetterAuth',
+          );
+        } catch (error) {
+          logger.error(
+            `Failed to queue verification email for ${user.email}`,
+            error instanceof Error ? error.stack : undefined,
+            'BetterAuth',
+          );
+          throw error;
+        }
+      },
+    },
 
-  plugins: [organization(), admin()],
+    secondaryStorage: {
+      get: async (key) => redis.get(key),
+      set: async (key, value, ttl) => {
+        if (ttl) {
+          await redis.set(key, value, 'EX', ttl);
+        } else {
+          await redis.set(key, value);
+        }
+      },
+      delete: async (key) => {
+        await redis.del(key);
+        return null;
+      },
+    },
 
-  databaseHooks: {},
-});
+    session: {
+      expiresIn: 60 * 60 * 24 * 7,
+      updateAge: 60 * 60 * 24,
+      cookieCache: {
+        enabled: true,
+        maxAge: 60 * 5,
+        strategy: 'compact',
+      },
+    },
+
+    rateLimit: {
+      enabled: true,
+      window: isProduction ? 10 : 60,
+      max: isProduction ? 100 : 500,
+      storage: 'secondary-storage',
+      customRules: isProduction
+        ? {
+            '/api/auth/sign-in/email': { window: 60, max: 5 },
+            '/api/auth/sign-up/email': { window: 60, max: 3 },
+            '/api/auth/request-password-reset': { window: 300, max: 3 },
+            '/api/auth/change-password': { window: 300, max: 3 },
+          }
+        : {},
+    },
+
+    advanced: {
+      useSecureCookies: isProduction,
+      disableCSRFCheck: false,
+      ipAddress: {
+        ipAddressHeaders: ['x-forwarded-for', 'x-real-ip', 'cf-connecting-ip'],
+        disableIpTracking: false,
+      },
+    },
+
+    plugins: [
+      organization({
+        allowUserToCreateOrganization: (user) => user.emailVerified === true,
+        organizationLimit: 10,
+        membershipLimit: 100,
+        invitationExpiresIn: 60 * 60 * 24 * 7,
+        invitationLimit: 100,
+        cancelPendingInvitationsOnReInvite: true,
+      }),
+      admin(),
+    ],
+
+    databaseHooks: {},
+  });
+}

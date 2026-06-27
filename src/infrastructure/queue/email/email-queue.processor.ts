@@ -8,12 +8,14 @@ import {
   welcomeTemplate,
   resetPasswordTemplate,
 } from '@/infrastructure/mail/templates';
+import { verificationEmailTemplate } from '@/infrastructure/mail/templates';
 
 type EmailJobData = {
   to: string;
   subject: string;
   name?: string;
   url?: string;
+  token?: string;
 };
 
 @Processor(QueueNames.EMAIL)
@@ -40,6 +42,14 @@ export class EmailQueueProcessor extends WorkerHost {
           job.data.to,
           'Reset Password',
           resetPasswordTemplate(job.data.url!),
+        );
+        break;
+
+      case JobNames.EMAIL.VERIFICATION:
+        await this.mailService.sendEmail(
+          job.data.to,
+          'Verify your email',
+          verificationEmailTemplate(job.data.url!),
         );
         break;
 

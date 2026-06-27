@@ -12,8 +12,16 @@ export class EmailQueueService {
     await this.emailQueue.add(JobNames.EMAIL.WELCOME, { to, name, token });
   }
 
-  async addResetPasswordJob(to: string, token: string) {
-    await this.emailQueue.add(JobNames.EMAIL.RESET_PASSWORD, { to, token });
+  async addResetPasswordJob(to: string, url: string) {
+    await this.emailQueue.add(JobNames.EMAIL.RESET_PASSWORD, { to, url });
+  }
+
+  async addVerificationEmailJob(to: string, url: string, token: string) {
+    await this.emailQueue.add(JobNames.EMAIL.VERIFICATION, {
+      to,
+      url,
+      token,
+    });
   }
 
   // Any other email-related jobs can be added here
