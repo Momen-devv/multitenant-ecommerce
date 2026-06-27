@@ -22,7 +22,8 @@
     "docker:up": "docker compose up",
     "docker:down": "docker compose down",
     "db:generate": "npx drizzle-kit generate --config=drizzle.config.ts",
-    "db:migrate": "npx drizzle-kit migrate --config=drizzle.config.ts"
+    "db:migrate": "npx drizzle-kit migrate --config=drizzle.config.ts",
+    "db:push": "npx drizzle-kit push --config=drizzle.config.ts"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.4",
@@ -30,6 +31,8 @@
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@thallesp/nestjs-better-auth": "^2.4.0",
+    "better-auth": "^1.6.20",
     "bullmq": "^5.79.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",

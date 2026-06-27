@@ -8,6 +8,8 @@ const envSchema = z.object({
   REDIS_URL: z.url('REDIS_URL must be a valid URL'),
   RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
   MAIL_FROM: z.email().describe('MAIL_FROM must be a valid email address'),
+  BETTER_AUTH_SECRET: z.string().min(1, 'BETTER_AUTH_SECRET is required'),
+  BETTER_AUTH_URL: z.string().min(1, 'BETTER_AUTH_URL must be a valid URL'),
 });
 
 export function validate(config: Record<string, unknown>) {

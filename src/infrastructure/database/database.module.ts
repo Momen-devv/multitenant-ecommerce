@@ -4,7 +4,7 @@ import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import { DATABASE_POOL } from './database.constants';
 import { drizzle } from 'drizzle-orm/node-postgres/driver';
 import { Pool } from 'pg';
-import * as schema from './schema';
+import * as schema from './schema/schema';
 import databaseConfig from '@/core/config/database.config';
 import { LoggerService } from '../logger/logger.service';
 
