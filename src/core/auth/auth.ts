@@ -7,12 +7,6 @@ import * as schema from '@/infrastructure/database/schema/schema';
 import { Redis } from 'ioredis';
 import { Environment } from '@/common/enums';
 
-type AuthLogger = {
-  log: (message: string, context?: string) => void;
-  warn: (message: string, context?: string) => void;
-  error: (message: string, trace?: string, context?: string) => void;
-};
-
 type AuthEmailQueue = {
   addVerificationEmailJob: (
     to: string,
@@ -23,8 +17,12 @@ type AuthEmailQueue = {
 };
 
 type AuthDependencies = {
-  logger: AuthLogger;
   emailQueue: AuthEmailQueue;
+};
+
+const noopEmailQueue: AuthEmailQueue = {
+  addVerificationEmailJob: () => Promise.resolve(),
+  addResetPasswordJob: () => Promise.resolve(),
 };
 
 function parseTrustedOrigins(): string[] {
@@ -42,7 +40,7 @@ function parseTrustedOrigins(): string[] {
   );
 }
 
-export function createAuth({ logger, emailQueue }: AuthDependencies) {
+export function createAuth({ emailQueue }: AuthDependencies) {
   const isProduction = process.env.NODE_ENV === Environment.Production;
 
   const pool = new Pool({
@@ -66,40 +64,14 @@ export function createAuth({ logger, emailQueue }: AuthDependencies) {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
-      sendResetPassword: async ({ user, url }) => {
-        try {
-          await emailQueue.addResetPasswordJob(user.email, url);
-          logger.log(
-            `Queued reset password email for ${user.email}`,
-            'BetterAuth',
-          );
-        } catch (error) {
-          logger.error(
-            `Failed to queue reset password email for ${user.email}`,
-            error instanceof Error ? error.stack : undefined,
-            'BetterAuth',
-          );
-          throw error;
-        }
+      sendResetPassword: ({ user, url }) => {
+        return emailQueue.addResetPasswordJob(user.email, url);
       },
     },
 
     emailVerification: {
-      sendVerificationEmail: async ({ user, url, token }) => {
-        try {
-          await emailQueue.addVerificationEmailJob(user.email, url, token);
-          logger.log(
-            `Queued verification email for ${user.email}`,
-            'BetterAuth',
-          );
-        } catch (error) {
-          logger.error(
-            `Failed to queue verification email for ${user.email}`,
-            error instanceof Error ? error.stack : undefined,
-            'BetterAuth',
-          );
-          throw error;
-        }
+      sendVerificationEmail: ({ user, url, token }) => {
+        return emailQueue.addVerificationEmailJob(user.email, url, token);
       },
     },
 
@@ -114,11 +86,11 @@ export function createAuth({ logger, emailQueue }: AuthDependencies) {
       },
       delete: async (key) => {
         await redis.del(key);
-        return null;
       },
     },
 
     session: {
+      storeSessionInDatabase: false,
       expiresIn: 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 24,
       cookieCache: {
@@ -167,3 +139,9 @@ export function createAuth({ logger, emailQueue }: AuthDependencies) {
     databaseHooks: {},
   });
 }
+
+export const auth = createAuth({
+  emailQueue: noopEmailQueue,
+});
+
+export default auth;
