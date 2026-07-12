@@ -5,29 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1782393229421,
-      "tag": "0000_melted_hammerhead",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1782578822272,
-      "tag": "0001_careful_stick",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1782579679978,
-      "tag": "0002_special_namora",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1783251688109,
-      "tag": "0003_regular_tomas",
+      "when": 1783884143680,
+      "tag": "0000_marvelous_gargoyle",
       "breakpoints": true
     }
   ]

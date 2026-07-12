@@ -1,11 +1,12 @@
 import { betterAuth } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { organization, admin } from 'better-auth/plugins';
+import { organization, admin, openAPI } from 'better-auth/plugins';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from '@/infrastructure/database/schema/schema';
 import { Redis } from 'ioredis';
 import { Environment } from '@/common/enums';
+import { generateUUIDv7 } from '@/common/utils';
 
 type AuthEmailQueue = {
   addVerificationEmailJob: (
@@ -59,7 +60,12 @@ export function createAuth({ emailQueue }: AuthDependencies) {
       schema,
     }),
 
-    trustedOrigins: parseTrustedOrigins(),
+    user: {
+      changeEmail: {
+        enabled: true,
+      },
+    },
+    // trustedOrigins: parseTrustedOrigins(),
 
     emailAndPassword: {
       enabled: true,
@@ -116,6 +122,9 @@ export function createAuth({ emailQueue }: AuthDependencies) {
     },
 
     advanced: {
+      database: {
+        generateId: () => generateUUIDv7(),
+      },
       useSecureCookies: isProduction,
       disableCSRFCheck: false,
       ipAddress: {
@@ -134,6 +143,7 @@ export function createAuth({ emailQueue }: AuthDependencies) {
         cancelPendingInvitationsOnReInvite: true,
       }),
       admin(),
+      openAPI(),
     ],
 
     databaseHooks: {},
