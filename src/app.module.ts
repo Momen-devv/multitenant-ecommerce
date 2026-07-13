@@ -6,9 +6,15 @@ import { EmailQueueService } from '@/infrastructure/queue/email/email-queue.serv
 import { createAuth } from '@/core/auth/auth';
 
 import { AllExceptionsFilter } from '@/common/filters/http-exception.filter';
+import { UsersModule } from './modules/users/users.module';
+import { APP_FILTER, RouterModule } from '@nestjs/core';
 
 @Module({
   imports: [
+    RouterModule.register([{ path: 'users', module: UsersModule }]),
+
+    CoreModule,
+    InfrastructureModule,
     AuthModule.forRootAsync({
       imports: [InfrastructureModule],
       inject: [EmailQueueService],
@@ -17,13 +23,12 @@ import { AllExceptionsFilter } from '@/common/filters/http-exception.filter';
         enableRawBodyParser: true,
       }),
     }),
-    CoreModule,
-    InfrastructureModule,
+    UsersModule,
   ],
   controllers: [],
   providers: [
     {
-      provide: 'APP_FILTER',
+      provide: APP_FILTER,
       useClass: AllExceptionsFilter,
     },
   ],

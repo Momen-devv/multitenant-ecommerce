@@ -1,4 +1,3 @@
-// all-exceptions.filter.ts
 import {
   ExceptionFilter,
   Catch,
@@ -48,12 +47,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }),
     };
 
-    this.logger.error(
-      `[${correlationId}] ${request.method} ${request.url}`,
-      errorResponse.stack,
-    );
+    if (status >= 500) {
+      this.logger.error(
+        `[${correlationId}] ${request.method} ${request.url} - ${status}`,
+        errorResponse.stack,
+        AllExceptionsFilter.name,
+      );
+    } else {
+      this.logger.warn(
+        `[${correlationId}] ${request.method} ${request.url} - ${status}`,
+        AllExceptionsFilter.name,
+      );
+    }
 
-    response.status(status).json(errorResponse);
+    response
+      .status(status)
+      .setHeader('X-Correlation-Id', correlationId)
+      .json(errorResponse);
   }
 
   private extractMessage(exception: unknown): string | string[] {
