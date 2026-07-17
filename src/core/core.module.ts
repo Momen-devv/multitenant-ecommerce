@@ -5,6 +5,7 @@ import {
   databaseConfig,
   mailConfig,
   redisConfig,
+  storageConfig,
   validate,
 } from '@/core/config';
 
@@ -14,7 +15,7 @@ import {
       cache: true,
       isGlobal: true,
       validate: validate,
-      load: [databaseConfig, appConfig, redisConfig, mailConfig],
+      load: [databaseConfig, appConfig, redisConfig, mailConfig, storageConfig],
     }),
   ],
 })

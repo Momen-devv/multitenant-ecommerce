@@ -10,7 +10,14 @@ const envSchema = z.object({
   MAIL_FROM: z.email().describe('MAIL_FROM must be a valid email address'),
   BETTER_AUTH_SECRET: z.string().min(1, 'BETTER_AUTH_SECRET is required'),
   BETTER_AUTH_URL: z.string().min(1, 'BETTER_AUTH_URL must be a valid URL'),
+
   TRUSTED_ORIGINS: z.string().optional(),
+
+  AWS_REGION: z.string(),
+  AWS_ACCESS_KEY_ID: z.string(),
+  AWS_SECRET_ACCESS_KEY: z.string(),
+  AWS_S3_BUCKET_NAME: z.string(),
+  AWS_ENDPOINT: z.string(),
 });
 
 export function validate(config: Record<string, unknown>) {

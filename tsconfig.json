@@ -18,6 +18,7 @@
     },
     "incremental": true,
     "skipLibCheck": true,
+    "types": ["node", "multer"],
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
