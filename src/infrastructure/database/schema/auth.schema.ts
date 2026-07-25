@@ -6,11 +6,10 @@ import {
   boolean,
   index,
   uniqueIndex,
-  uuid,
 } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('user', {
-  id: uuid('id').primaryKey(),
+  id: text('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').default(false).notNull(),
@@ -24,15 +23,16 @@ export const user = pgTable('user', {
   banned: boolean('banned').default(false),
   banReason: text('ban_reason'),
   banExpires: timestamp('ban_expires'),
+  imageKey: text('image_key'),
 });
 
 export const account = pgTable(
   'account',
   {
-    id: uuid('id').primaryKey(),
+    id: text('id').primaryKey(),
     accountId: text('account_id').notNull(),
     providerId: text('provider_id').notNull(),
-    userId: uuid('user_id')
+    userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     accessToken: text('access_token'),
@@ -53,7 +53,7 @@ export const account = pgTable(
 export const verification = pgTable(
   'verification',
   {
-    id: uuid('id').primaryKey(),
+    id: text('id').primaryKey(),
     identifier: text('identifier').notNull(),
     value: text('value').notNull(),
     expiresAt: timestamp('expires_at').notNull(),
@@ -69,7 +69,7 @@ export const verification = pgTable(
 export const organization = pgTable(
   'organization',
   {
-    id: uuid('id').primaryKey(),
+    id: text('id').primaryKey(),
     name: text('name').notNull(),
     slug: text('slug').notNull().unique(),
     logo: text('logo'),
@@ -82,11 +82,11 @@ export const organization = pgTable(
 export const member = pgTable(
   'member',
   {
-    id: uuid('id').primaryKey(),
-    organizationId: uuid('organization_id')
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
       .notNull()
       .references(() => organization.id, { onDelete: 'cascade' }),
-    userId: uuid('user_id')
+    userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     role: text('role').default('member').notNull(),
@@ -101,8 +101,8 @@ export const member = pgTable(
 export const invitation = pgTable(
   'invitation',
   {
-    id: uuid('id').primaryKey(),
-    organizationId: uuid('organization_id')
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
       .notNull()
       .references(() => organization.id, { onDelete: 'cascade' }),
     email: text('email').notNull(),
@@ -110,7 +110,7 @@ export const invitation = pgTable(
     status: text('status').default('pending').notNull(),
     expiresAt: timestamp('expires_at').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
-    inviterId: uuid('inviter_id')
+    inviterId: text('inviter_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
   },

@@ -32,4 +32,8 @@ async function bootstrap() {
   app.useLogger(app.get(LoggerService));
   await app.listen(process.env.PORT ?? 3000);
 }
-bootstrap();
+bootstrap().catch((error) => {
+  const logger = new LoggerService();
+  logger.error('Failed to bootstrap the application', error);
+  process.exit(1);
+});
