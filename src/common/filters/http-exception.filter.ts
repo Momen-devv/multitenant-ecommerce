@@ -9,10 +9,12 @@ import { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { Environment } from '../enums';
+import { getCorrelationId } from '../context/request-context';
 
 interface ErrorResponse {
   success: boolean;
   statusCode: number;
+  error: string;
   timestamp: string;
   path: string;
   correlationId: string;
@@ -28,7 +30,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
-    const correlationId = randomUUID();
+
+    const correlationId = getCorrelationId() ?? randomUUID();
 
     const status =
       exception instanceof HttpException
@@ -38,6 +41,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const errorResponse: ErrorResponse = {
       success: false,
       statusCode: status,
+      error: this.getErrorName(status),
       timestamp: new Date().toISOString(),
       path: request.url,
       correlationId,
@@ -49,13 +53,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (status >= 500) {
       this.logger.error(
-        `[${correlationId}] ${request.method} ${request.url} - ${status}`,
+        `${request.method} ${request.url} - ${status}`,
         errorResponse.stack,
         AllExceptionsFilter.name,
       );
     } else {
       this.logger.warn(
-        `[${correlationId}] ${request.method} ${request.url} - ${status}`,
+        `${request.method} ${request.url} - ${status}`,
         AllExceptionsFilter.name,
       );
     }
@@ -64,6 +68,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       .status(status)
       .setHeader('X-Correlation-Id', correlationId)
       .json(errorResponse);
+  }
+
+  private getErrorName(status: number): string {
+    return HttpStatus[status] ?? 'Error';
   }
 
   private extractMessage(exception: unknown): string | string[] {
