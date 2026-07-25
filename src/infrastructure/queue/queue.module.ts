@@ -4,6 +4,7 @@ import redisConfig from '@/core/config/redis.config';
 import { ConfigType } from '@nestjs/config';
 import { EmailQueueModule } from './email/email-queue.module';
 import { bullRedisOptions } from '@/infrastructure/redis/redis.config';
+import { ResourceCleanupQueueModule } from './resource-cleanup/resource-cleanup-queue.module';
 
 @Global()
 @Module({
@@ -27,7 +28,8 @@ import { bullRedisOptions } from '@/infrastructure/redis/redis.config';
       }),
     }),
     EmailQueueModule,
+    ResourceCleanupQueueModule,
   ],
-  exports: [EmailQueueModule],
+  exports: [EmailQueueModule, ResourceCleanupQueueModule],
 })
 export class QueueModule {}
