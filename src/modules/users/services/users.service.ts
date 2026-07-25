@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { UpdateProfileDto } from '../dto';
 import { StorageService } from '@/common/abstracts/storage.abstracts';
-import { ImageProcessingService } from './Image processing.service';
+import { ImageProcessingService } from '../../../common/services/Image-processing.service';
 import { randomUUID } from 'node:crypto';
 import { UserRepository } from '../repos/user.repository';
 import auth from '@/core/auth/auth';
