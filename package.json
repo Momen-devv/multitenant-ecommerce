@@ -23,7 +23,8 @@
     "docker:down": "docker compose down",
     "db:generate": "npx drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "npx drizzle-kit migrate --config=drizzle.config.ts",
-    "db:push": "npx drizzle-kit push --config=drizzle.config.ts"
+    "db:push": "npx drizzle-kit push --config=drizzle.config.ts",
+    "auth:generate": "npx @better-auth/cli generate --config ./src/core/auth/auth.ts --output ./src/infrastructure/database/schema/auth.schema.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1089.0",
@@ -47,6 +48,7 @@
     "reflect-metadata": "^0.2.2",
     "resend": "^6.14.0",
     "rxjs": "^7.8.1",
+    "sharp": "^0.35.3",
     "tsconfig-paths": "^4.2.0",
     "uuidv7": "^1.2.1",
     "winston": "^3.19.0",

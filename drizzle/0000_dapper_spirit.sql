@@ -1,8 +1,8 @@
 CREATE TABLE "account" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
 	"account_id" text NOT NULL,
 	"provider_id" text NOT NULL,
-	"user_id" uuid NOT NULL,
+	"user_id" text NOT NULL,
 	"access_token" text,
 	"refresh_token" text,
 	"id_token" text,
@@ -15,26 +15,26 @@ CREATE TABLE "account" (
 );
 --> statement-breakpoint
 CREATE TABLE "invitation" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" uuid NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
 	"email" text NOT NULL,
 	"role" text,
 	"status" text DEFAULT 'pending' NOT NULL,
 	"expires_at" timestamp NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"inviter_id" uuid NOT NULL
+	"inviter_id" text NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "member" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" uuid NOT NULL,
-	"user_id" uuid NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"user_id" text NOT NULL,
 	"role" text DEFAULT 'member' NOT NULL,
 	"created_at" timestamp NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "organization" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"slug" text NOT NULL,
 	"logo" text,
@@ -44,7 +44,7 @@ CREATE TABLE "organization" (
 );
 --> statement-breakpoint
 CREATE TABLE "user" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"email" text NOT NULL,
 	"email_verified" boolean DEFAULT false NOT NULL,
@@ -55,11 +55,12 @@ CREATE TABLE "user" (
 	"banned" boolean DEFAULT false,
 	"ban_reason" text,
 	"ban_expires" timestamp,
+	"image_key" text,
 	CONSTRAINT "user_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
 CREATE TABLE "verification" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
 	"identifier" text NOT NULL,
 	"value" text NOT NULL,
 	"expires_at" timestamp NOT NULL,

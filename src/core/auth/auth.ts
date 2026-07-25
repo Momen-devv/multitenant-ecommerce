@@ -1,4 +1,4 @@
-import { betterAuth } from 'better-auth/minimal';
+import { betterAuth, type BetterAuthOptions } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { organization, admin, openAPI } from 'better-auth/plugins';
 import { Pool } from 'pg';
@@ -26,21 +26,20 @@ const noopEmailQueue: AuthEmailQueue = {
   addResetPasswordJob: () => Promise.resolve(),
 };
 
-function parseTrustedOrigins(): string[] {
-  const baseUrlOrigin = process.env.BETTER_AUTH_URL
-    ? new URL(process.env.BETTER_AUTH_URL).origin
-    : undefined;
+// function parseTrustedOrigins(): string[] {
+//   const baseUrlOrigin = process.env.BETTER_AUTH_URL
+//     ? new URL(process.env.BETTER_AUTH_URL).origin
+//     : undefined;
 
-  const configuredOrigins =
-    process.env.TRUSTED_ORIGINS?.split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean) ?? [];
+//   const configuredOrigins =
+//     process.env.TRUSTED_ORIGINS?.split(',')
+//       .map((origin) => origin.trim())
+//       .filter(Boolean) ?? [];
 
-  return Array.from(
-    new Set([...(baseUrlOrigin ? [baseUrlOrigin] : []), ...configuredOrigins]),
-  );
-}
-
+//   return Array.from(
+//     new Set([...(baseUrlOrigin ? [baseUrlOrigin] : []), ...configuredOrigins]),
+//   );
+// }
 export function createAuth({ emailQueue }: AuthDependencies) {
   const isProduction = process.env.NODE_ENV === Environment.Production;
 
@@ -51,7 +50,7 @@ export function createAuth({ emailQueue }: AuthDependencies) {
   const db = drizzle(pool, { schema });
   const redis = new Redis(process.env.REDIS_URL!);
 
-  return betterAuth({
+  const authOptions = {
     secret: process.env.BETTER_AUTH_SECRET,
     baseURL: process.env.BETTER_AUTH_URL,
 
@@ -60,12 +59,31 @@ export function createAuth({ emailQueue }: AuthDependencies) {
       schema,
     }),
 
+    socialProviders: {
+      google: {
+        clientId: process.env.GOOGLE_CLIENT_ID!,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      },
+      github: {
+        clientId: process.env.GITHUB_CLIENT_ID!,
+        clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+      },
+    },
+
+    disabledPaths: ['/update-user'],
+
     user: {
       changeEmail: {
         enabled: true,
       },
+      additionalFields: {
+        imageKey: {
+          type: 'string',
+          required: false,
+          input: true,
+        },
+      },
     },
-    // trustedOrigins: parseTrustedOrigins(),
 
     emailAndPassword: {
       enabled: true,
@@ -99,11 +117,6 @@ export function createAuth({ emailQueue }: AuthDependencies) {
       storeSessionInDatabase: false,
       expiresIn: 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 24,
-      cookieCache: {
-        enabled: true,
-        maxAge: 60 * 5,
-        strategy: 'compact',
-      },
     },
 
     rateLimit: {
@@ -111,14 +124,12 @@ export function createAuth({ emailQueue }: AuthDependencies) {
       window: isProduction ? 10 : 60,
       max: isProduction ? 100 : 500,
       storage: 'secondary-storage',
-      customRules: isProduction
-        ? {
-            '/api/auth/sign-in/email': { window: 60, max: 5 },
-            '/api/auth/sign-up/email': { window: 60, max: 3 },
-            '/api/auth/request-password-reset': { window: 300, max: 3 },
-            '/api/auth/change-password': { window: 300, max: 3 },
-          }
-        : {},
+      customRules: {
+        '/api/auth/sign-in/email': { window: 60, max: 5 },
+        '/api/auth/sign-up/email': { window: 60, max: 3 },
+        '/api/auth/request-password-reset': { window: 300, max: 3 },
+        '/api/auth/change-password': { window: 300, max: 3 },
+      },
     },
 
     advanced: {
@@ -147,7 +158,9 @@ export function createAuth({ emailQueue }: AuthDependencies) {
     ],
 
     databaseHooks: {},
-  });
+  } satisfies BetterAuthOptions;
+
+  return betterAuth<typeof authOptions>(authOptions);
 }
 
 export const auth = createAuth({
