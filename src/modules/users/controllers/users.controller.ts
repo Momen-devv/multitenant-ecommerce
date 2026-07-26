@@ -8,7 +8,6 @@ import {
   Session,
   UploadedFile,
   UseInterceptors,
-  ParseFilePipeBuilder,
   HttpStatus,
   HttpCode,
 } from '@nestjs/common';
@@ -21,6 +20,7 @@ import {
 } from '@/infrastructure/storage/multer.config';
 import type { CurrentUser } from '@/core/auth/auth.types';
 import { ResponseMessage } from '@/common/decorators/response-message.decorator';
+import { createImageFileValidator } from '@/infrastructure/storage/file-validation.config';
 
 @Controller('profile')
 export class UsersController {
@@ -41,15 +41,7 @@ export class UsersController {
   @HttpCode(HttpStatus.OK)
   @Post('image')
   async uploadProfileImage(
-    @UploadedFile(
-      new ParseFilePipeBuilder()
-        .addMaxSizeValidator({ maxSize: MAX_PROFILE_IMAGE_SIZE })
-        .addFileTypeValidator({ fileType: /(jpeg|png|webp)$/ })
-        .build({
-          errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
-          fileIsRequired: true,
-        }),
-    )
+    @UploadedFile(createImageFileValidator({ maxSize: MAX_PROFILE_IMAGE_SIZE }))
     profileImage: Express.Multer.File,
     @Session() session: CurrentUser,
     @Headers() headers: Record<string, string>,
