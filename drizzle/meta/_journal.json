@@ -8,6 +8,13 @@
       "when": 1784545546179,
       "tag": "0000_dapper_spirit",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785074866975,
+      "tag": "0001_typical_inhumans",
+      "breakpoints": true
     }
   ]
 }

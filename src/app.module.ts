@@ -28,7 +28,9 @@ import { CommonModule } from './common/common.module';
       inject: [EmailQueueService],
       useFactory: (emailQueue: EmailQueueService) => ({
         auth: createAuth({ emailQueue }),
-        enableRawBodyParser: true,
+        bodyParser: {
+          rawBody: true,
+        },
       }),
     }),
     UsersModule,

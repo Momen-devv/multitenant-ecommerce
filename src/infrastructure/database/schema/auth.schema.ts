@@ -24,6 +24,7 @@ export const user = pgTable('user', {
   banReason: text('ban_reason'),
   banExpires: timestamp('ban_expires'),
   imageKey: text('image_key'),
+  isActive: boolean('is_active').default(true),
 });
 
 export const account = pgTable(

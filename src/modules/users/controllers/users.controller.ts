@@ -67,10 +67,4 @@ export class UsersController {
       headers,
     );
   }
-
-  @Post('activate')
-  activateAccount() {}
-
-  @Post('deactivate')
-  deactivateAccount() {}
 }

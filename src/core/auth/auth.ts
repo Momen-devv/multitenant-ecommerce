@@ -81,6 +81,13 @@ export function createAuth({ emailQueue }: AuthDependencies) {
           type: 'string',
           required: false,
           input: true,
+          defaultValue: null,
+        },
+        isActive: {
+          type: 'boolean',
+          required: false,
+          input: true,
+          defaultValue: true,
         },
       },
     },
@@ -157,7 +164,7 @@ export function createAuth({ emailQueue }: AuthDependencies) {
       openAPI(),
     ],
 
-    databaseHooks: {},
+    hooks: {},
   } satisfies BetterAuthOptions;
 
   return betterAuth<typeof authOptions>(authOptions);

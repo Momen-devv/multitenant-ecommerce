@@ -33,7 +33,7 @@
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
-    "@thallesp/nestjs-better-auth": "^2.4.0",
+    "@thallesp/nestjs-better-auth": "^2.7.0",
     "@types/multer-s3": "^3.0.3",
     "better-auth": "^1.6.20",
     "bullmq": "^5.79.0",
