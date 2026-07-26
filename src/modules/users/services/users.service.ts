@@ -77,4 +77,38 @@ export class UsersService {
     }
     this.logger.log('Profile image updated', UsersService.name, { userId });
   }
+
+  async deleteProfileImage(
+    imageKey: string | null,
+    userId: string,
+    headers: Record<string, string>,
+  ) {
+    if (!imageKey) return;
+
+    try {
+      await this.authService.api.updateUser({
+        body: { image: null, imageKey: null },
+        headers: fromNodeHeaders(headers),
+      });
+    } catch (error) {
+      this.logger.error(
+        'Failed to update user profile image',
+        error,
+        UsersService.name,
+      );
+      throw error;
+    }
+
+    await this.resourceCleanupQueue
+      .addDeleteOldFileJob(imageKey)
+      .catch((enqueueError) =>
+        this.logger.error(
+          `Failed to enqueue old file cleanup for "${imageKey}"`,
+          enqueueError,
+          UsersService.name,
+        ),
+      );
+
+    this.logger.log('Profile image deleted', UsersService.name, { userId });
+  }
 }

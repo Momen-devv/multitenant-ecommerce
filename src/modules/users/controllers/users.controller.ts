@@ -54,8 +54,19 @@ export class UsersController {
     );
   }
 
+  @ResponseMessage('Profile image deleted successfully')
+  @HttpCode(HttpStatus.OK)
   @Delete('image')
-  deleteProfileImage() {}
+  async deleteProfileImage(
+    @Session() session: CurrentUser,
+    @Headers() headers: Record<string, string>,
+  ) {
+    await this.usersService.deleteProfileImage(
+      session.user.imageKey ?? null,
+      session.user.id,
+      headers,
+    );
+  }
 
   @Post('activate')
   activateAccount() {}
