@@ -9,6 +9,7 @@ import {
   validate,
 } from '@/core/config';
 import { RestrictInternalFieldsHook } from './auth/hooks/restrict-internal-fields.hook';
+import { CheckActivationHook } from './auth/hooks/check-activation-hook';
 
 @Module({
   imports: [
@@ -19,6 +20,6 @@ import { RestrictInternalFieldsHook } from './auth/hooks/restrict-internal-field
       load: [databaseConfig, appConfig, redisConfig, mailConfig, storageConfig],
     }),
   ],
-  providers: [RestrictInternalFieldsHook],
+  providers: [RestrictInternalFieldsHook, CheckActivationHook],
 })
 export class CoreModule {}
