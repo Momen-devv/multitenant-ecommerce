@@ -4,7 +4,6 @@ import {
   Hook,
   type AuthHookContext,
 } from '@thallesp/nestjs-better-auth';
-
 interface RestrictedBody {
   imageKey?: unknown;
   isActive?: unknown;
@@ -15,11 +14,9 @@ interface RestrictedBody {
 @Injectable()
 export class RestrictInternalFieldsHook {
   @BeforeHook('/sign-up/email')
-  handle(ctx: AuthHookContext) {
+  handleSignUp(ctx: AuthHookContext) {
     const body = ctx.body as RestrictedBody;
-    if (body) {
-      delete body.imageKey;
-      delete body.isActive;
-    }
+    if (body.imageKey) delete body.imageKey;
+    if (body.isActive) delete body.isActive;
   }
 }
