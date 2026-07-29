@@ -6,7 +6,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from '@/infrastructure/database/schema/schema';
 import { Redis } from 'ioredis';
 import { Environment } from '@/common/enums';
-import { generateUUIDv7 } from '@/common/utils';
+import { generateUUIDv7, hashPassword, verifyPassword } from '@/common/utils';
 
 type AuthEmailQueue = {
   addVerificationEmailJob: (
@@ -95,6 +95,11 @@ export function createAuth({ emailQueue }: AuthDependencies) {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
+      password: {
+        hash: (password: string) => hashPassword(password),
+        verify: ({ hash, password }: { hash: string; password: string }) =>
+          verifyPassword(hash, password),
+      },
       sendResetPassword: ({ user, url }) => {
         return emailQueue.addResetPasswordJob(user.email, url);
       },
@@ -163,8 +168,8 @@ export function createAuth({ emailQueue }: AuthDependencies) {
       admin(),
       openAPI(),
     ],
-
     hooks: {},
+    databaseHooks: {},
   } satisfies BetterAuthOptions;
 
   return betterAuth<typeof authOptions>(authOptions);
