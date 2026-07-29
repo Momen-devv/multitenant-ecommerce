@@ -6,9 +6,10 @@ import { UserRepository } from './repos/user.repository';
 import { CommonModule } from '@/common/common.module';
 import { AccountController } from './controllers/account.controller';
 import { AccountService } from './services/account.service';
+import { AccountRepository } from './repos';
 @Module({
   imports: [StorageModule, CommonModule],
-  providers: [UsersService, AccountService, UserRepository],
+  providers: [UsersService, AccountService, UserRepository, AccountRepository],
   controllers: [UsersController, AccountController],
 })
 export class UsersModule {}

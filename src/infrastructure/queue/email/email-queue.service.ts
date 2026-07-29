@@ -44,5 +44,21 @@ export class EmailQueueService {
     );
   }
 
+  async addAccountDeactivatedJob(to: string): Promise<void> {
+    await this.emailQueue.add(
+      JobNames.EMAIL.ACCOUNT_DEACTIVATED,
+      { to },
+      this.jobOptions,
+    );
+  }
+
+  async addAccountReactivationJob(to: string, url: string): Promise<void> {
+    await this.emailQueue.add(
+      JobNames.EMAIL.ACCOUNT_REACTIVATION,
+      { to, url },
+      this.jobOptions,
+    );
+  }
+
   // Any other email-related jobs can be added here
 }

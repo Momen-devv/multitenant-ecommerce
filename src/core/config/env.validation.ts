@@ -4,6 +4,8 @@ import { z } from 'zod';
 const envSchema = z.object({
   NODE_ENV: z.enum(Environment),
   PORT: z.coerce.number().default(3000),
+  BASE_URL: z.string().min(1, 'BASE_URL must be a valid URL'),
+
   DATABASE_URL: z.url('DATABASE_URL must be a valid URL'),
   REDIS_URL: z.url('REDIS_URL must be a valid URL'),
   RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),

@@ -40,6 +40,14 @@ export class RedisService
     }
   }
 
+  async setex(
+    key: string,
+    expireInSeconds: number,
+    value: string,
+  ): Promise<void> {
+    await this.redisClient.setex(key, expireInSeconds, value);
+  }
+
   async get(key: string): Promise<string | null> {
     return this.redisClient.get(key);
   }
