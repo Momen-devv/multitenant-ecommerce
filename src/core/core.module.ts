@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import {
   appConfig,
+  betterAuthConfig,
   databaseConfig,
   mailConfig,
   redisConfig,
@@ -17,7 +18,14 @@ import { CheckActivationHook } from './auth/hooks/check-activation-hook';
       cache: true,
       isGlobal: true,
       validate: validate,
-      load: [databaseConfig, appConfig, redisConfig, mailConfig, storageConfig],
+      load: [
+        databaseConfig,
+        appConfig,
+        redisConfig,
+        mailConfig,
+        storageConfig,
+        betterAuthConfig,
+      ],
     }),
   ],
   providers: [RestrictInternalFieldsHook, CheckActivationHook],

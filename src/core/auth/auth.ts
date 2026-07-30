@@ -7,6 +7,8 @@ import { Environment } from '@/common/enums';
 import { generateUUIDv7, hashPassword, verifyPassword } from '@/common/utils';
 import * as Schema from '@/infrastructure/database/schema/schema';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { ConfigType } from '@nestjs/config';
+import { betterAuthConfig } from '../config';
 
 type AuthEmailQueue = {
   addVerificationEmailJob: (
@@ -21,6 +23,7 @@ type AuthDependencies = {
   emailQueue: AuthEmailQueue;
   redis: Redis;
   database: NodePgDatabase<typeof Schema>;
+  configuration: ConfigType<typeof betterAuthConfig>;
 };
 
 // function parseTrustedOrigins(): string[] {
@@ -37,14 +40,19 @@ type AuthDependencies = {
 //     new Set([...(baseUrlOrigin ? [baseUrlOrigin] : []), ...configuredOrigins]),
 //   );
 // }
-export function createAuth({ emailQueue, redis, database }: AuthDependencies) {
+export function createAuth({
+  emailQueue,
+  redis,
+  database,
+  configuration,
+}: AuthDependencies) {
   const isProduction = process.env.NODE_ENV === Environment.Production;
 
   const db = database;
 
   const authOptions = {
-    secret: process.env.BETTER_AUTH_SECRET,
-    baseURL: process.env.BETTER_AUTH_URL,
+    secret: configuration.secret,
+    baseURL: configuration.baseURL,
 
     database: drizzleAdapter(db, {
       provider: 'pg',
@@ -53,12 +61,12 @@ export function createAuth({ emailQueue, redis, database }: AuthDependencies) {
 
     socialProviders: {
       google: {
-        clientId: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        clientId: configuration.googleClientId,
+        clientSecret: configuration.googleClientSecret,
       },
       github: {
-        clientId: process.env.GITHUB_CLIENT_ID!,
-        clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+        clientId: configuration.githubClientId,
+        clientSecret: configuration.githubClientSecret,
       },
     },
 

@@ -11,7 +11,8 @@ import {
 } from '@nestjs/common';
 import { AccountService } from '../services/account.service';
 import { ResponseMessage } from '@/common/decorators/response-message.decorator';
-import { AllowAnonymous, type UserSession } from '@thallesp/nestjs-better-auth';
+import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
+import type { CurrentUser } from '@/core/auth/auth.types';
 import { ConfirmReactivationDto, RequestReactivationDto } from '../dto';
 import { seconds, Throttle } from '@nestjs/throttler';
 
@@ -24,7 +25,7 @@ export class AccountController {
   @HttpCode(HttpStatus.OK)
   @Post('deactivate')
   async deactivateAccount(
-    @Session() session: UserSession,
+    @Session() session: CurrentUser,
     @Headers() headers: Record<string, string>,
   ) {
     await this.accountService.deactivateAccount(

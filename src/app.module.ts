@@ -29,6 +29,8 @@ import { CorrelationIdMiddleware } from './common/middlewares/correlation-id.mid
 import { UsersModule } from './modules/users/users.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as Schema from '@/infrastructure/database/schema/schema';
+import type { ConfigType } from '@nestjs/config';
+import { betterAuthConfig } from './core/config';
 
 @Module({
   imports: [
@@ -47,16 +49,18 @@ import * as Schema from '@/infrastructure/database/schema/schema';
 
     AuthModule.forRootAsync({
       imports: [InfrastructureModule],
-      inject: [EmailQueueService, REDIS_CLIENT, DATABASE],
+      inject: [EmailQueueService, REDIS_CLIENT, DATABASE, betterAuthConfig.KEY],
       useFactory: (
         emailQueue: EmailQueueService,
-        redisClient: Redis,
+        redis: Redis,
         database: NodePgDatabase<typeof Schema>,
+        configuration: ConfigType<typeof betterAuthConfig>,
       ) => ({
         auth: createAuth({
           emailQueue,
-          redis: redisClient,
-          database: database,
+          redis,
+          database,
+          configuration,
         }),
         bodyParser: { rawBody: true },
       }),

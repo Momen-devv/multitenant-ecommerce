@@ -16,9 +16,9 @@ export class UsersService {
     private readonly authService: AuthService<Auth>,
     private readonly storage: StorageService,
     private readonly imageProcessingService: ImageProcessingService,
-    private readonly userRepository: UserRepository,
     private readonly logger: LoggerService,
     private readonly resourceCleanupQueue: ResourceCleanupQueueService,
+    private readonly userRepository: UserRepository,
   ) {}
 
   async updateProfile(dto: UpdateProfileDto, headers: Record<string, string>) {

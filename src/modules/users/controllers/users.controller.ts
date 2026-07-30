@@ -19,16 +19,15 @@ import {
   MAX_PROFILE_IMAGE_SIZE,
 } from '@/infrastructure/storage/multer.config';
 import type { CurrentUser } from '@/core/auth/auth.types';
-// import type { UserSession } from '@thallesp/nestjs-better-auth';
 import { ResponseMessage } from '@/common/decorators/response-message.decorator';
 import { createImageFileValidator } from '@/infrastructure/storage/file-validation.config';
-import { Throttle } from '@nestjs/throttler';
+import { seconds, Throttle } from '@nestjs/throttler';
 
 @Controller('profile')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Throttle({ burst: {} })
+  @Throttle({ default: { limit: 10, ttl: seconds(60) } })
   @ResponseMessage('Profile updated successfully')
   @HttpCode(HttpStatus.OK)
   @Patch()
@@ -39,6 +38,7 @@ export class UsersController {
     await this.usersService.updateProfile(dto, headers);
   }
 
+  @Throttle({ default: { limit: 5, ttl: seconds(60) } })
   @ResponseMessage('Profile image uploaded successfully')
   @UseInterceptors(FileInterceptor('profileImage', imageUploadOptions))
   @HttpCode(HttpStatus.OK)
@@ -57,6 +57,7 @@ export class UsersController {
     );
   }
 
+  @Throttle({ default: { limit: 5, ttl: seconds(60) } })
   @ResponseMessage('Profile image deleted successfully')
   @HttpCode(HttpStatus.OK)
   @Delete('image')
