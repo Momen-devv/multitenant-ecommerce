@@ -1,5 +1,5 @@
 import { CACHE_SERVICE } from '@/common/constants/injection-tokens.constants';
-import { auth } from '@/core/auth/auth';
+import type { Auth } from '@/core/auth/auth';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { EmailQueueService } from '@/infrastructure/queue/email/email-queue.service';
 import type { ICacheService } from '@/infrastructure/redis/redis.interface';
@@ -21,7 +21,7 @@ export class AccountService {
     @Inject(CACHE_SERVICE) private readonly cacheService: ICacheService,
     @Inject(appConfig.KEY)
     private readonly config: ConfigType<typeof appConfig>,
-    private readonly authService: AuthService<typeof auth>,
+    private readonly authService: AuthService<Auth>,
     private readonly logger: LoggerService,
     private readonly emailQueue: EmailQueueService,
     private readonly accountRepository: AccountRepository,
@@ -66,7 +66,7 @@ export class AccountService {
     );
 
     const reactivationUrl = `${this.config.baseUrl}/api/v1/users/account/reactivate/confirm?token=${token}&userId=${user.id}`;
-
+    console.log('Reactivation URL:', reactivationUrl);
     await this.emailQueue
       .addAccountReactivationJob(email, reactivationUrl)
       .catch((error) =>

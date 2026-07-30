@@ -1,3 +1,3 @@
-import type { auth } from '@/core/auth/auth';
+import type { Auth } from '@/core/auth/auth';
 
-export type CurrentUser = typeof auth.$Infer.Session;
+export type CurrentUser = Auth['$Infer']['Session'];

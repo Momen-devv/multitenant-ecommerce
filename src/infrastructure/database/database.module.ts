@@ -63,7 +63,7 @@ export class DatabaseModule implements OnApplicationShutdown {
     } catch (err) {
       this.logger.error(
         'Error closing database pool',
-        (err as Error).stack,
+        err,
         DatabaseModule.name,
       );
     }

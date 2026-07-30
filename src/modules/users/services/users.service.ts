@@ -4,7 +4,7 @@ import { StorageService } from '@/common/abstracts/storage.abstracts';
 import { ImageProcessingService } from '../../../common/services/Image-processing.service';
 import { randomUUID } from 'node:crypto';
 import { UserRepository } from '../repos/user.repository';
-import auth from '@/core/auth/auth';
+import { Auth } from '@/core/auth/auth';
 import { AuthService } from '@thallesp/nestjs-better-auth';
 import { fromNodeHeaders } from 'better-auth/node';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
@@ -13,7 +13,7 @@ import { ResourceCleanupQueueService } from '@/infrastructure/queue/resource-cle
 @Injectable()
 export class UsersService {
   constructor(
-    private readonly authService: AuthService<typeof auth>,
+    private readonly authService: AuthService<Auth>,
     private readonly storage: StorageService,
     private readonly imageProcessingService: ImageProcessingService,
     private readonly userRepository: UserRepository,

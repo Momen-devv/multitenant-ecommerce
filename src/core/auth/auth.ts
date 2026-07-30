@@ -1,12 +1,12 @@
 import { betterAuth, type BetterAuthOptions } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { organization, admin, openAPI } from 'better-auth/plugins';
-import { Pool } from 'pg';
-import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from '@/infrastructure/database/schema/schema';
-import { Redis } from 'ioredis';
+import type { Redis } from 'ioredis';
 import { Environment } from '@/common/enums';
 import { generateUUIDv7, hashPassword, verifyPassword } from '@/common/utils';
+import * as Schema from '@/infrastructure/database/schema/schema';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 type AuthEmailQueue = {
   addVerificationEmailJob: (
@@ -19,11 +19,8 @@ type AuthEmailQueue = {
 
 type AuthDependencies = {
   emailQueue: AuthEmailQueue;
-};
-
-const noopEmailQueue: AuthEmailQueue = {
-  addVerificationEmailJob: () => Promise.resolve(),
-  addResetPasswordJob: () => Promise.resolve(),
+  redis: Redis;
+  database: NodePgDatabase<typeof Schema>;
 };
 
 // function parseTrustedOrigins(): string[] {
@@ -40,15 +37,10 @@ const noopEmailQueue: AuthEmailQueue = {
 //     new Set([...(baseUrlOrigin ? [baseUrlOrigin] : []), ...configuredOrigins]),
 //   );
 // }
-export function createAuth({ emailQueue }: AuthDependencies) {
+export function createAuth({ emailQueue, redis, database }: AuthDependencies) {
   const isProduction = process.env.NODE_ENV === Environment.Production;
 
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-  });
-
-  const db = drizzle(pool, { schema });
-  const redis = new Redis(process.env.REDIS_URL!);
+  const db = database;
 
   const authOptions = {
     secret: process.env.BETTER_AUTH_SECRET,
@@ -175,8 +167,4 @@ export function createAuth({ emailQueue }: AuthDependencies) {
   return betterAuth<typeof authOptions>(authOptions);
 }
 
-export const auth = createAuth({
-  emailQueue: noopEmailQueue,
-});
-
-export default auth;
+export type Auth = ReturnType<typeof createAuth>;
