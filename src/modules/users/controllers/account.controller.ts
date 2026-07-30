@@ -11,19 +11,20 @@ import {
 } from '@nestjs/common';
 import { AccountService } from '../services/account.service';
 import { ResponseMessage } from '@/common/decorators/response-message.decorator';
-import type { CurrentUser } from '@/core/auth/auth.types';
-import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
-import { RequestReactivationDto } from '../dto';
+import { AllowAnonymous, type UserSession } from '@thallesp/nestjs-better-auth';
+import { ConfirmReactivationDto, RequestReactivationDto } from '../dto';
+import { seconds, Throttle } from '@nestjs/throttler';
 
 @Controller('account')
 export class AccountController {
   constructor(private readonly accountService: AccountService) {}
 
+  @Throttle({ default: { limit: 3, ttl: seconds(60) } })
   @ResponseMessage('Account deactivated successfully')
   @HttpCode(HttpStatus.OK)
   @Post('deactivate')
   async deactivateAccount(
-    @Session() session: CurrentUser,
+    @Session() session: UserSession,
     @Headers() headers: Record<string, string>,
   ) {
     await this.accountService.deactivateAccount(
@@ -33,6 +34,7 @@ export class AccountController {
     );
   }
 
+  @Throttle({ default: { limit: 3, ttl: seconds(300) } })
   @AllowAnonymous()
   @ResponseMessage(
     'If an account with this email exists and is deactivated, a reactivation link has been sent.',
@@ -43,14 +45,12 @@ export class AccountController {
     await this.accountService.requestReactivation(dto.email);
   }
 
+  @Throttle({ default: { limit: 5, ttl: seconds(60) } })
   @AllowAnonymous()
   @ResponseMessage('Account reactivated successfully')
   @HttpCode(HttpStatus.OK)
   @Get('reactivate/confirm')
-  async confirmReactivation(
-    @Query('token') token: string,
-    @Query('userId') userId: string,
-  ) {
-    await this.accountService.confirmReactivation(token, userId);
+  async confirmReactivation(@Query() dto: ConfirmReactivationDto) {
+    await this.accountService.confirmReactivation(dto.token, dto.userId);
   }
 }

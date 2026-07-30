@@ -19,13 +19,16 @@ import {
   MAX_PROFILE_IMAGE_SIZE,
 } from '@/infrastructure/storage/multer.config';
 import type { CurrentUser } from '@/core/auth/auth.types';
+// import type { UserSession } from '@thallesp/nestjs-better-auth';
 import { ResponseMessage } from '@/common/decorators/response-message.decorator';
 import { createImageFileValidator } from '@/infrastructure/storage/file-validation.config';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('profile')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Throttle({ burst: {} })
   @ResponseMessage('Profile updated successfully')
   @HttpCode(HttpStatus.OK)
   @Patch()
