@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import * as schema from '@/infrastructure/database/schema/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq, lte } from 'drizzle-orm';
 import { User } from '@/infrastructure/database/schema/schema.types';
 
 @Injectable()
@@ -28,5 +28,19 @@ export class AccountRepository {
       .set(data)
       .where(eq(schema.user.id, userId))
       .execute();
+  }
+
+  async deleteInactiveAccountsBefore(cutoffDate: Date): Promise<number> {
+    const result = await this.db
+      .delete(schema.user)
+      .where(
+        and(
+          eq(schema.user.isActive, false),
+          lte(schema.user.deactivatedAt, cutoffDate),
+        ),
+      )
+      .execute();
+
+    return result.rowCount ?? 0;
   }
 }

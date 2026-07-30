@@ -8,6 +8,7 @@ import {
   Post,
   Query,
   Session,
+  Res,
 } from '@nestjs/common';
 import { AccountService } from '../services/account.service';
 import { ResponseMessage } from '@/common/decorators/response-message.decorator';
@@ -15,6 +16,8 @@ import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import type { CurrentUser } from '@/core/auth/auth.types';
 import { ConfirmReactivationDto, RequestReactivationDto } from '../dto';
 import { seconds, Throttle } from '@nestjs/throttler';
+import { isProduction } from 'better-auth';
+import type { Response } from 'express';
 
 @Controller('account')
 export class AccountController {
@@ -27,12 +30,20 @@ export class AccountController {
   async deactivateAccount(
     @Session() session: CurrentUser,
     @Headers() headers: Record<string, string>,
+    @Res({ passthrough: true }) res: Response,
   ) {
     await this.accountService.deactivateAccount(
       session.user.id,
       session.user.email,
       headers,
     );
+
+    res.clearCookie('mte.session_token', {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      path: '/',
+    });
   }
 
   @Throttle({ default: { limit: 3, ttl: seconds(300) } })

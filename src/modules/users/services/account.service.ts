@@ -66,7 +66,7 @@ export class AccountService {
     );
 
     const reactivationUrl = `${this.config.baseUrl}/api/v1/users/account/reactivate/confirm?token=${token}&userId=${user.id}`;
-    console.log('Reactivation URL:', reactivationUrl);
+
     await this.emailQueue
       .addAccountReactivationJob(email, reactivationUrl)
       .catch((error) =>
@@ -90,7 +90,10 @@ export class AccountService {
       throw new BadRequestException('Invalid or expired reactivation token');
     }
 
-    await this.accountRepository.updateUser(userId, { isActive: true });
+    await this.accountRepository.updateUser(userId, {
+      isActive: true,
+      deactivatedAt: null,
+    });
 
     await this.cacheService.del(key);
 
@@ -99,7 +102,7 @@ export class AccountService {
 
   private async deactivateAndRevokeSessions(headers: Record<string, string>) {
     await this.authService.api.updateUser({
-      body: { isActive: false },
+      body: { isActive: false, deactivatedAt: new Date() },
       headers: fromNodeHeaders(headers),
     });
 
@@ -110,7 +113,7 @@ export class AccountService {
     } catch (error) {
       await this.authService.api
         .updateUser({
-          body: { isActive: true },
+          body: { isActive: true, deactivatedAt: null },
           headers: fromNodeHeaders(headers),
         })
         .catch((rollbackError) =>

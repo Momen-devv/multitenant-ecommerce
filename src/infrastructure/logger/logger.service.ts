@@ -28,7 +28,15 @@ export class LoggerService implements NestLoggerService {
     });
   }
 
-  warn(message: string, context?: string): void {
-    this.logger.warn(message, { context, correlationId: getCorrelationId() });
+  warn(
+    message: string,
+    context?: string,
+    meta?: Record<string, unknown>,
+  ): void {
+    this.logger.warn(message, {
+      context,
+      correlationId: getCorrelationId(),
+      ...meta,
+    });
   }
 }

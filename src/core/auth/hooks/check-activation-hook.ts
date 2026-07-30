@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/infrastructure/database/schema/schema';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
+import { LoggerService } from '@/infrastructure/logger/logger.service';
 
 interface Session {
   userId: string;
@@ -15,6 +16,7 @@ interface Session {
 export class CheckActivationHook {
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
+    private readonly logger: LoggerService,
   ) {}
 
   @BeforeCreate('session')
@@ -26,6 +28,11 @@ export class CheckActivationHook {
       .limit(1);
 
     if (!user || !user.isActive) {
+      this.logger.warn(
+        'Blocked session creation for deactivated/deleted user',
+        CheckActivationHook.name,
+        { userId: session.userId, userExists: !!user },
+      );
       throw new APIError('FORBIDDEN', {
         message:
           'Account is deactivated. Please activate your account or contact support.',

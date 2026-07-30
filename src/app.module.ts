@@ -8,6 +8,7 @@ import {
 import { ThrottlerGuard, ThrottlerModule, seconds } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { AuthModule, AuthGuard } from '@thallesp/nestjs-better-auth';
+import { ScheduleModule } from '@nestjs/schedule';
 import type { Redis } from 'ioredis';
 
 // Core / Infrastructure
@@ -46,6 +47,7 @@ import { betterAuthConfig } from './core/config';
         storage: new ThrottlerStorageRedisService(redisClient),
       }),
     }),
+    ScheduleModule.forRoot(),
 
     AuthModule.forRootAsync({
       imports: [InfrastructureModule],

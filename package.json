@@ -24,7 +24,7 @@
     "db:generate": "npx drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "npx drizzle-kit migrate --config=drizzle.config.ts",
     "db:push": "npx drizzle-kit push --config=drizzle.config.ts",
-    "auth:generate": "npx @better-auth/cli generate --config ./src/core/auth/auth.ts --output ./src/infrastructure/database/schema/auth.schema.ts"
+    "auth:generate": "npx @better-auth/cli generate --config ./src/core/auth/auth.cli.ts --output ./src/infrastructure/database/schema/auth.schema.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1089.0",
@@ -34,6 +34,7 @@
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/schedule": "^6.1.3",
     "@nestjs/throttler": "^6.5.0",
     "@thallesp/nestjs-better-auth": "^2.7.0",
     "@types/multer-s3": "^3.0.3",

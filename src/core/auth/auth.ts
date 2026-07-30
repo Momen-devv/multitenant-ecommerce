@@ -3,12 +3,12 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { organization, admin, openAPI } from 'better-auth/plugins';
 import * as schema from '@/infrastructure/database/schema/schema';
 import type { Redis } from 'ioredis';
-import { Environment } from '@/common/enums';
 import { generateUUIDv7, hashPassword, verifyPassword } from '@/common/utils';
 import * as Schema from '@/infrastructure/database/schema/schema';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { ConfigType } from '@nestjs/config';
 import { betterAuthConfig } from '../config';
+import { isProduction } from 'better-auth';
 
 type AuthEmailQueue = {
   addVerificationEmailJob: (
@@ -26,28 +26,12 @@ type AuthDependencies = {
   configuration: ConfigType<typeof betterAuthConfig>;
 };
 
-// function parseTrustedOrigins(): string[] {
-//   const baseUrlOrigin = process.env.BETTER_AUTH_URL
-//     ? new URL(process.env.BETTER_AUTH_URL).origin
-//     : undefined;
-
-//   const configuredOrigins =
-//     process.env.TRUSTED_ORIGINS?.split(',')
-//       .map((origin) => origin.trim())
-//       .filter(Boolean) ?? [];
-
-//   return Array.from(
-//     new Set([...(baseUrlOrigin ? [baseUrlOrigin] : []), ...configuredOrigins]),
-//   );
-// }
 export function createAuth({
   emailQueue,
   redis,
   database,
   configuration,
 }: AuthDependencies) {
-  const isProduction = process.env.NODE_ENV === Environment.Production;
-
   const db = database;
 
   const authOptions = {
@@ -88,6 +72,12 @@ export function createAuth({
           required: false,
           input: true,
           defaultValue: true,
+        },
+        deactivatedAt: {
+          type: 'date',
+          required: false,
+          input: true,
+          defaultValue: null,
         },
       },
     },
@@ -145,6 +135,16 @@ export function createAuth({
     },
 
     advanced: {
+      cookiePrefix: 'mte',
+      cookies: {
+        session_token: {
+          attributes: {
+            path: '/',
+            httpOnly: true,
+            sameSite: 'lax',
+          },
+        },
+      },
       database: {
         generateId: () => generateUUIDv7(),
       },

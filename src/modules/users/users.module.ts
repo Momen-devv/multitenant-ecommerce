@@ -7,9 +7,16 @@ import { CommonModule } from '@/common/common.module';
 import { AccountController } from './controllers/account.controller';
 import { AccountService } from './services/account.service';
 import { AccountRepository } from './repos';
+import { AccountCleanupTask } from './tasks/account-cleanup.task';
 @Module({
   imports: [StorageModule, CommonModule],
-  providers: [UsersService, AccountService, UserRepository, AccountRepository],
+  providers: [
+    UsersService,
+    AccountService,
+    UserRepository,
+    AccountRepository,
+    AccountCleanupTask,
+  ],
   controllers: [UsersController, AccountController],
 })
 export class UsersModule {}

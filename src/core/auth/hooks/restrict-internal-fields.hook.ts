@@ -18,5 +18,6 @@ export class RestrictInternalFieldsHook {
     const body = ctx.body as RestrictedBody;
     if (body.imageKey) delete body.imageKey;
     if (body.isActive) delete body.isActive;
+    if (body.deactivatedAt) delete body.deactivatedAt;
   }
 }

@@ -15,6 +15,13 @@
       "when": 1785074866975,
       "tag": "0001_typical_inhumans",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785445134384,
+      "tag": "0002_oval_lifeguard",
+      "breakpoints": true
     }
   ]
 }
