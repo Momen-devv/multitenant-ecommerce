@@ -22,10 +22,9 @@ export class AccountCleanupTask {
 
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - REACTIVATION_GRACE_PERIOD_DAYS);
-    console.log('Cutoff date for cleanup:', cutoffDate);
+
     const deletedCount =
       await this.accountRepository.deleteInactiveAccountsBefore(cutoffDate);
-    console.log(`Deleted ${deletedCount} `);
 
     this.logger.log(
       'Inactive accounts cleanup finished',
