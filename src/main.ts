@@ -37,6 +37,11 @@ async function bootstrap() {
     )
     .setVersion('1.0')
     .addTag('Multitenant E-commerce')
+    .addCookieAuth('mte.session_token', {
+      type: 'apiKey',
+      in: 'cookie',
+      name: 'mte.session_token',
+    })
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory);

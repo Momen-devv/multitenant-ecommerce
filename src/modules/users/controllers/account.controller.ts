@@ -18,11 +18,33 @@ import { ConfirmReactivationDto, RequestReactivationDto } from '../dto';
 import { seconds, Throttle } from '@nestjs/throttler';
 import { isProduction } from 'better-auth';
 import type { Response } from 'express';
+import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiErrorResponse } from '@/common/decorators';
 
+@ApiTags('Account')
 @Controller('account')
 export class AccountController {
   constructor(private readonly accountService: AccountService) {}
 
+  @ApiOperation({
+    summary: 'Deactivate the current user account',
+    description:
+      'Deactivates the account of the currently authenticated user. This action will log the user out and clear their session cookie.',
+  })
+  @ApiCookieAuth()
+  @ApiSuccessResponse({ description: 'Account deactivated successfully' })
+  @ApiErrorResponse(
+    HttpStatus.UNAUTHORIZED,
+    'Unauthorized. The user must be authenticated to deactivate their account.',
+  )
+  @ApiErrorResponse(
+    HttpStatus.BAD_REQUEST,
+    'Bad request. The account could not be deactivated.',
+  )
+  @ApiErrorResponse(
+    HttpStatus.TOO_MANY_REQUESTS,
+    'Too many requests. Rate limit exceeded (3 requests / 60s).',
+  )
   @Throttle({ default: { limit: 3, ttl: seconds(60) } })
   @ResponseMessage('Account deactivated successfully')
   @HttpCode(HttpStatus.OK)
@@ -46,6 +68,23 @@ export class AccountController {
     });
   }
 
+  @ApiOperation({
+    summary: 'Request account reactivation',
+    description:
+      'Sends a reactivation link to the provided email if the associated account exists and is currently deactivated. Always returns the same generic message regardless of whether the account exists, to avoid account enumeration.',
+  })
+  @ApiSuccessResponse({
+    description:
+      'Reactivation request processed (generic response regardless of account existence)',
+  })
+  @ApiErrorResponse(
+    HttpStatus.BAD_REQUEST,
+    'Validation failed. The provided email is not a valid email address.',
+  )
+  @ApiErrorResponse(
+    HttpStatus.TOO_MANY_REQUESTS,
+    'Too many requests. Rate limit exceeded (3 requests / 5min).',
+  )
   @Throttle({ default: { limit: 3, ttl: seconds(300) } })
   @AllowAnonymous()
   @ResponseMessage(
@@ -57,6 +96,20 @@ export class AccountController {
     await this.accountService.requestReactivation(dto.email);
   }
 
+  @ApiOperation({
+    summary: 'Confirm account reactivation',
+    description:
+      'Confirms and completes account reactivation using the token sent to the user email.',
+  })
+  @ApiSuccessResponse({ description: 'Account reactivated successfully' })
+  @ApiErrorResponse(
+    HttpStatus.BAD_REQUEST,
+    'Invalid request. Either the query parameters (token, userId) failed validation, or the reactivation token is invalid/expired.',
+  )
+  @ApiErrorResponse(
+    HttpStatus.TOO_MANY_REQUESTS,
+    'Too many requests. Rate limit exceeded (5 requests / 60s).',
+  )
   @Throttle({ default: { limit: 5, ttl: seconds(60) } })
   @AllowAnonymous()
   @ResponseMessage('Account reactivated successfully')
