@@ -32,6 +32,7 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as Schema from '@/infrastructure/database/schema/schema';
 import type { ConfigType } from '@nestjs/config';
 import { betterAuthConfig } from './core/config';
+import { HealthModule } from './modules/health/health.module';
 
 @Module({
   imports: [
@@ -69,9 +70,13 @@ import { betterAuthConfig } from './core/config';
     }),
 
     // Feature modules
+    HealthModule,
     UsersModule,
 
-    RouterModule.register([{ path: 'users', module: UsersModule }]),
+    RouterModule.register([
+      { path: 'users', module: UsersModule },
+      { path: 'health', module: HealthModule },
+    ]),
   ],
 
   controllers: [],

@@ -25,6 +25,10 @@ jest.mock('@/infrastructure/storage/file-validation.config', () => ({
   })),
 }));
 
+jest.mock('@/common/services/Image-processing.service', () => ({
+  ImageProcessingService: jest.fn(),
+}));
+
 describe('UsersController', () => {
   let controller: UsersController;
   let usersService: {

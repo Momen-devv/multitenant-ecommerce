@@ -60,4 +60,14 @@ export class RedisService
     const result = await this.redisClient.exists(key);
     return result === 1;
   }
+
+  async ping(): Promise<boolean> {
+    try {
+      const result = await this.redisClient.ping();
+      return result === 'PONG';
+    } catch (error) {
+      this.logger.error(`Redis ping failed`, error, RedisService.name);
+      return false;
+    }
+  }
 }

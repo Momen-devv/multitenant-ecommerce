@@ -20,6 +20,9 @@ jest.mock('node:crypto', () => ({
   ...jest.requireActual('node:crypto'),
   randomUUID: jest.fn(() => 'fixed-uuid'),
 }));
+jest.mock('@/common/services/Image-processing.service', () => ({
+  ImageProcessingService: jest.fn(),
+}));
 
 describe('UsersService', () => {
   let usersService: UsersService;

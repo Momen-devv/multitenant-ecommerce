@@ -5,6 +5,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(Environment),
   PORT: z.coerce.number().default(3000),
   BASE_URL: z.string().min(1, 'BASE_URL must be a valid URL'),
+  HEALTH_MEMORY_HEAP_MB: z.coerce.number().default(400),
+  HEALTH_MEMORY_RSS_MB: z.coerce.number().default(450),
 
   DATABASE_URL: z.url('DATABASE_URL must be a valid URL'),
   REDIS_URL: z.url('REDIS_URL must be a valid URL'),

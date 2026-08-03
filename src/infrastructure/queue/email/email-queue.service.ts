@@ -2,6 +2,8 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { JobNames, QueueNames } from '../queue.constants';
 import { Queue } from 'bullmq';
+import type { Redis as IORedisClient } from 'ioredis';
+import { LoggerService } from '@/infrastructure/logger/logger.service';
 
 @Injectable()
 export class EmailQueueService {
@@ -15,6 +17,7 @@ export class EmailQueueService {
 
   constructor(
     @InjectQueue(QueueNames.EMAIL) private readonly emailQueue: Queue,
+    private readonly logger: LoggerService,
   ) {}
   async addWelcomeJob(to: string, name: string, token: string): Promise<void> {
     await this.emailQueue.add(
@@ -61,4 +64,19 @@ export class EmailQueueService {
   }
 
   // Any other email-related jobs can be added here
+
+  async pingCheck(): Promise<boolean> {
+    try {
+      const client = (await this.emailQueue.client) as unknown as IORedisClient;
+      const pong = await client.ping();
+      return pong === 'PONG';
+    } catch (error) {
+      this.logger.error(
+        'Email queue ping failed',
+        error,
+        EmailQueueService.name,
+      );
+      return false;
+    }
+  }
 }

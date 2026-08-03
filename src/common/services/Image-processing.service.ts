@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { fileTypeFromBuffer } from 'file-type';
+import { fileTypeFromBuffer, type FileTypeResult } from 'file-type';
 import sharp from 'sharp';
 
 @Injectable()
@@ -15,8 +15,9 @@ export class ImageProcessingService {
   async validateAndSanitize(
     image: Express.Multer.File,
   ): Promise<Express.Multer.File> {
-    const detectedType = await fileTypeFromBuffer(image.buffer);
-
+    const detectedType: FileTypeResult | undefined = await fileTypeFromBuffer(
+      image.buffer,
+    );
     if (!detectedType || !this.allowedMimes.includes(detectedType.mime)) {
       throw new BadRequestException(
         'Invalid image file type. Allowed types: JPEG, PNG, WebP',

@@ -4,4 +4,5 @@ export interface ICacheService {
   get(key: string): Promise<string | null>;
   del(key: string): Promise<number>;
   exists(key: string): Promise<boolean>;
+  ping(): Promise<boolean>;
 }
