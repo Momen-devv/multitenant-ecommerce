@@ -44,6 +44,6 @@ import { CACHE_SERVICE } from '@/common/constants/injection-tokens.constants';
       useClass: RedisService,
     },
   ],
-  exports: [CACHE_SERVICE],
+  exports: [CACHE_SERVICE, REDIS_CLIENT],
 })
 export class RedisModule {}

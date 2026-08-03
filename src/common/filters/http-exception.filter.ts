@@ -1,0 +1,98 @@
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
+import { Request, Response } from 'express';
+import { randomUUID } from 'crypto';
+import { LoggerService } from '@/infrastructure/logger/logger.service';
+import { Environment } from '../enums';
+import { getCorrelationId } from '../context/request-context';
+
+interface ErrorResponse {
+  success: boolean;
+  statusCode: number;
+  error: string;
+  timestamp: string;
+  path: string;
+  correlationId: string;
+  message: string | string[];
+  stack?: string;
+}
+
+@Catch()
+export class AllExceptionsFilter implements ExceptionFilter {
+  constructor(private readonly logger: LoggerService) {}
+
+  catch(exception: unknown, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
+
+    const correlationId = getCorrelationId() ?? randomUUID();
+
+    const status =
+      exception instanceof HttpException
+        ? exception.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR;
+
+    const errorResponse: ErrorResponse = {
+      success: false,
+      statusCode: status,
+      error: this.getErrorName(status),
+      timestamp: new Date().toISOString(),
+      path: request.url,
+      correlationId,
+      message: this.extractMessage(exception),
+      ...(process.env.NODE_ENV === Environment.Development && {
+        stack: exception instanceof Error ? exception.stack : undefined,
+      }),
+    };
+
+    if (status >= 500) {
+      this.logger.error(
+        `${request.method} ${request.url} - ${status}`,
+        errorResponse.stack,
+        AllExceptionsFilter.name,
+      );
+    } else {
+      this.logger.warn(
+        `${request.method} ${request.url} - ${status}`,
+        AllExceptionsFilter.name,
+      );
+    }
+
+    response
+      .status(status)
+      .setHeader('X-Correlation-Id', correlationId)
+      .json(errorResponse);
+  }
+
+  private getErrorName(status: number): string {
+    return HttpStatus[status] ?? 'Error';
+  }
+
+  private extractMessage(exception: unknown): string | string[] {
+    if (exception instanceof HttpException) {
+      const response = exception.getResponse();
+
+      if (typeof response === 'string') {
+        return response;
+      }
+
+      if (typeof response === 'object' && response !== null) {
+        if ('message' in response) {
+          return response.message as string | string[];
+        }
+      }
+    }
+
+    if (exception instanceof Error) {
+      return exception.message;
+    }
+
+    return 'Internal server error';
+  }
+}

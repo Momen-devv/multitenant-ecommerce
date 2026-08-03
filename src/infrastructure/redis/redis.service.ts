@@ -40,6 +40,14 @@ export class RedisService
     }
   }
 
+  async setex(
+    key: string,
+    expireInSeconds: number,
+    value: string,
+  ): Promise<void> {
+    await this.redisClient.setex(key, expireInSeconds, value);
+  }
+
   async get(key: string): Promise<string | null> {
     return this.redisClient.get(key);
   }
@@ -51,5 +59,15 @@ export class RedisService
   async exists(key: string): Promise<boolean> {
     const result = await this.redisClient.exists(key);
     return result === 1;
+  }
+
+  async ping(): Promise<boolean> {
+    try {
+      const result = await this.redisClient.ping();
+      return result === 'PONG';
+    } catch (error) {
+      this.logger.error(`Redis ping failed`, error, RedisService.name);
+      return false;
+    }
   }
 }

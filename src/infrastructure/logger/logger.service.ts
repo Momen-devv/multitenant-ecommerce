@@ -1,6 +1,8 @@
 import { Injectable, LoggerService as NestLoggerService } from '@nestjs/common';
 import { Logger, createLogger } from 'winston';
 import { loggerConfig } from '@/infrastructure/logger/logger.config';
+import { getErrorStack } from '@/common/utils/error';
+import { getCorrelationId } from '@/common/context/request-context';
 
 @Injectable()
 export class LoggerService implements NestLoggerService {
@@ -10,15 +12,31 @@ export class LoggerService implements NestLoggerService {
     this.logger = createLogger(loggerConfig);
   }
 
-  log(message: string, context?: string): void {
-    this.logger.info(message, { context });
+  log(message: string, context?: string, meta?: Record<string, unknown>): void {
+    this.logger.info(message, {
+      context,
+      correlationId: getCorrelationId(),
+      ...meta,
+    });
   }
 
-  error(message: string, trace?: string, context?: string): void {
-    this.logger.error(message, { trace, context });
+  error(message: string, trace?: unknown, context?: string): void {
+    this.logger.error(message, {
+      trace: getErrorStack(trace),
+      context,
+      correlationId: getCorrelationId(),
+    });
   }
 
-  warn(message: string, context?: string): void {
-    this.logger.warn(message, { context });
+  warn(
+    message: string,
+    context?: string,
+    meta?: Record<string, unknown>,
+  ): void {
+    this.logger.warn(message, {
+      context,
+      correlationId: getCorrelationId(),
+      ...meta,
+    });
   }
 }

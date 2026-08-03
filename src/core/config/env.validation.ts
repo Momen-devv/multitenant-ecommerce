@@ -4,10 +4,28 @@ import { z } from 'zod';
 const envSchema = z.object({
   NODE_ENV: z.enum(Environment),
   PORT: z.coerce.number().default(3000),
+  BASE_URL: z.string().min(1, 'BASE_URL must be a valid URL'),
+  HEALTH_MEMORY_HEAP_MB: z.coerce.number().default(400),
+  HEALTH_MEMORY_RSS_MB: z.coerce.number().default(450),
+
   DATABASE_URL: z.url('DATABASE_URL must be a valid URL'),
   REDIS_URL: z.url('REDIS_URL must be a valid URL'),
   RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
   MAIL_FROM: z.email().describe('MAIL_FROM must be a valid email address'),
+  BETTER_AUTH_SECRET: z.string().min(1, 'BETTER_AUTH_SECRET is required'),
+  BETTER_AUTH_URL: z.string().min(1, 'BETTER_AUTH_URL must be a valid URL'),
+  GOOGLE_CLIENT_ID: z.string().min(1, 'GOOGLE_CLIENT_ID is required'),
+  GOOGLE_CLIENT_SECRET: z.string().min(1, 'GOOGLE_CLIENT_SECRET is required'),
+  GITHUB_CLIENT_ID: z.string().min(1, 'GITHUB_CLIENT_ID is required'),
+  GITHUB_CLIENT_SECRET: z.string().min(1, 'GITHUB_CLIENT_SECRET is required'),
+
+  TRUSTED_ORIGINS: z.string().optional(),
+
+  AWS_REGION: z.string(),
+  AWS_ACCESS_KEY_ID: z.string(),
+  AWS_SECRET_ACCESS_KEY: z.string(),
+  AWS_S3_BUCKET_NAME: z.string(),
+  AWS_ENDPOINT: z.string(),
 });
 
 export function validate(config: Record<string, unknown>) {

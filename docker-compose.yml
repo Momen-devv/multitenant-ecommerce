@@ -1,21 +1,23 @@
 version: "3.8"
 
 services:
-  app:
-    build: .
-    container_name: multitenant-ecommerce-app
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    env_file:
-      - .env
-    networks:
-      - app-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+  # app:
+  #   build: .
+  #   container_name: multitenant-ecommerce-app
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3000:3000"
+  #   env_file:
+  #     - .env
+  #   networks:
+  #     - app-network
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     localstack:
+  #       condition: service_healthy
   redis:
     image: redis:7-alpine
     container_name: multitenant-ecommerce-redis
@@ -53,9 +55,30 @@ services:
       timeout: 5s
       retries: 5
 
+  localstack:
+    image: localstack/localstack:3.8.1
+    container_name: multitenant-ecommerce-localstack
+    restart: unless-stopped
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - localstack_data:/var/lib/localstack
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-s", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   redis_data:
   postgres_data:
+  localstack_data:
 
 networks:
   app-network:
