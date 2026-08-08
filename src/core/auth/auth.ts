@@ -9,6 +9,7 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { ConfigType } from '@nestjs/config';
 import { betterAuthConfig } from '../config';
 import { isProduction } from 'better-auth';
+import { ac, user, superAdmin } from './permissions';
 
 type AuthEmailQueue = {
   addVerificationEmailJob: (
@@ -165,7 +166,16 @@ export function createAuth({
         invitationLimit: 100,
         cancelPendingInvitationsOnReInvite: true,
       }),
-      admin(),
+      admin({
+        ac,
+        roles: { superAdmin, user },
+        defaultRole: 'user',
+        impersonationSessionDuration: 60 * 15,
+        defaultBanReason: 'Violation of platform terms',
+        defaultBanExpiresIn: undefined,
+        bannedUserMessage:
+          'Your account has been banned due to violation of platform terms. Please contact support for more information.',
+      }),
       openAPI(),
     ],
     hooks: {},
