@@ -4,11 +4,13 @@ import { QueueNames } from '../queue.constants';
 import { BullModule } from '@nestjs/bullmq';
 import { StorageModule } from '@/infrastructure/storage/storage.module';
 import { ResourceCleanupQueueProcessor } from './resource-cleanup.processor';
+import { StoresModule } from '@/modules/stores/stores.module';
 
 @Module({
   imports: [
     BullModule.registerQueue({ name: QueueNames.RESOURCE_CLEANUP }),
     StorageModule,
+    StoresModule,
   ],
   providers: [ResourceCleanupQueueService, ResourceCleanupQueueProcessor],
   exports: [ResourceCleanupQueueService],

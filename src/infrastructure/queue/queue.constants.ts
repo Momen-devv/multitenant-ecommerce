@@ -14,6 +14,7 @@ export const JobNames = {
   RESOURCE_CLEANUP: {
     DELETE_ORPHANED_FILE: 'delete-orphaned-file',
     DELETE_OLD_FILE: 'delete-old-file',
+    DELETE_ORPHANED_ORG: 'delete-orphaned-org',
   },
 } as const;
 

@@ -33,5 +33,13 @@ export class ResourceCleanupQueueService {
     );
   }
 
+  async addDeleteOrphanedOrgJob(organizationId: string): Promise<void> {
+    await this.resourceCleanupQueue.add(
+      JobNames.RESOURCE_CLEANUP.DELETE_ORPHANED_ORG,
+      { organizationId },
+      this.jobOptions,
+    );
+  }
+
   // Any other resource cleanup-related jobs can be added here
 }
