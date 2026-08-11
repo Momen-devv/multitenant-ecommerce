@@ -47,4 +47,15 @@ export class StoresController {
   ) {
     return this.storesService.createStore(dto, session.user.id, headers);
   }
+
+  @ApiOperation({ summary: 'Get my store' })
+  @ApiSuccessResponse({ description: 'Store retrieved successfully' })
+  @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Store not found')
+  @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
+  @ResponseMessage('Store retrieved successfully')
+  @HttpCode(HttpStatus.OK)
+  @Get('me')
+  async getStore(@Session() session: CurrentUser) {
+    return this.storesService.getStore(session.user.id);
+  }
 }
