@@ -73,6 +73,14 @@ export class StoresService {
     }
   }
 
+  async getStore(userId: string) {
+    const existingStore = await this.storeRepository.findByOwnerId(userId);
+    if (!existingStore) {
+      throw new NotFoundException('Store not found or you do not have store ');
+    }
+    return existingStore;
+  }
+
   private generateSlug(name: string, providedSlug?: string): string {
     return slugify(providedSlug ?? name, {
       lower: true,
