@@ -50,12 +50,34 @@ export class StoresController {
 
   @ApiOperation({ summary: 'Get my store' })
   @ApiSuccessResponse({ description: 'Store retrieved successfully' })
-  @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Store not found')
+  @ApiErrorResponse(
+    HttpStatus.NOT_FOUND,
+    'Store not found or you do not have store',
+  )
   @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
   @ResponseMessage('Store retrieved successfully')
   @HttpCode(HttpStatus.OK)
   @Get('me')
   async getStore(@Session() session: CurrentUser) {
     return this.storesService.getStore(session.user.id);
+  }
+
+  @ApiOperation({ summary: 'Update my store' })
+  @ApiSuccessResponse({ description: 'Store updated successfully' })
+  @ApiErrorResponse(
+    HttpStatus.NOT_FOUND,
+    'Store not found or you do not have store',
+  )
+  @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
+  @Throttle({ default: { limit: 10, ttl: seconds(60) } })
+  @ResponseMessage('Store updated successfully')
+  @HttpCode(HttpStatus.OK)
+  @Patch('me')
+  async updateStore(
+    @Body() dto: UpdateStoreDto,
+    @Session() session: CurrentUser,
+    @Headers() headers: Record<string, string>,
+  ) {
+    return this.storesService.updateStore(dto, session.user.id, headers);
   }
 }
