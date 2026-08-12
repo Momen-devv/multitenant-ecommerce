@@ -129,6 +129,61 @@ export class StoresService {
     return updated;
   }
 
+  async uploadStoreLogo(logo: Express.Multer.File, userId: string) {
+    const existingStore = await this.storeRepository.findByOwnerId(userId);
+    if (!existingStore) {
+      throw new NotFoundException('Store not found or you do not have store');
+    }
+
+    const sanitizedImage =
+      await this.imageProcessingService.validateAndSanitize(logo);
+    const filePath = `store-logos/${randomUUID()}.${sanitizedImage.mimetype.split('/')[1]}`;
+
+    const url = await this.storage.uploadFile(sanitizedImage, filePath);
+
+    try {
+      await this.storeRepository.update(existingStore.id, {
+        logo: url,
+        logoKey: filePath,
+      });
+    } catch (error) {
+      this.logger.error(
+        'Failed to update store logo',
+        error,
+        StoresService.name,
+      );
+
+      await this.resourceCleanupQueue
+        .addDeleteOrphanedFileJob(filePath)
+        .catch((enqueueError) =>
+          this.logger.error(
+            `Failed to enqueue orphaned file cleanup for "${filePath}"`,
+            enqueueError,
+            StoresService.name,
+          ),
+        );
+
+      throw error;
+    }
+
+    if (existingStore.logoKey) {
+      await this.resourceCleanupQueue
+        .addDeleteOldFileJob(existingStore.logoKey)
+        .catch((enqueueError) =>
+          this.logger.error(
+            `Failed to enqueue old logo cleanup for "${existingStore.logoKey}"`,
+            enqueueError,
+            StoresService.name,
+          ),
+        );
+    }
+
+    this.logger.log('Store logo updated', StoresService.name, {
+      storeId: existingStore.id,
+      userId,
+    });
+  }
+
   private generateSlug(name: string, providedSlug?: string): string {
     return slugify(providedSlug ?? name, {
       lower: true,
