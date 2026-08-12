@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Headers,
   HttpCode,
@@ -71,6 +70,10 @@ export class StoresController {
   @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
   @Throttle({ default: { limit: 10, ttl: seconds(60) } })
   @ResponseMessage('Store updated successfully')
+  @ApiErrorResponse(
+    HttpStatus.FORBIDDEN,
+    'Store is suspended, contact support for assistance',
+  )
   @HttpCode(HttpStatus.OK)
   @Patch('me')
   async updateStore(
@@ -100,5 +103,24 @@ export class StoresController {
     @Session() session: CurrentUser,
   ) {
     await this.storesService.uploadStoreLogo(logo, session.user.id);
+  }
+
+  @ApiOperation({ summary: 'Delete my store' })
+  @ApiSuccessResponse({ description: 'Store deleted successfully' })
+  @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Store not found')
+  @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
+  @ApiErrorResponse(
+    HttpStatus.FORBIDDEN,
+    'Store is suspended, contact support for assistance',
+  )
+  @Throttle({ default: { limit: 3, ttl: seconds(60) } })
+  @ResponseMessage('Store deactivated successfully')
+  @HttpCode(HttpStatus.OK)
+  @Post('me/deactivate')
+  async deactivateStore(
+    @Session() session: CurrentUser,
+    @Headers() headers: Record<string, string>,
+  ) {
+    await this.storesService.deactivateStore(session.user.id, headers);
   }
 }

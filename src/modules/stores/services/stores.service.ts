@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -94,6 +95,11 @@ export class StoresService {
     if (!existingStore) {
       throw new NotFoundException('Store not found or you do not have a store');
     }
+    if (!existingStore.isActive) {
+      throw new ForbiddenException(
+        'Store is suspended, contact support for assistance',
+      );
+    }
 
     if (dto.name === undefined && dto.description === undefined) {
       throw new BadRequestException(
@@ -128,11 +134,43 @@ export class StoresService {
 
     return updated;
   }
+  async deactivateStore(userId: string, headers: Record<string, string>) {
+    const existingStore = await this.storeRepository.findByOwnerId(userId);
+    if (!existingStore) {
+      throw new NotFoundException('Store not found or you do not have a store');
+    }
+    if (!existingStore.isActive) {
+      throw new ForbiddenException(
+        'Store is suspended, contact support for assistance',
+      );
+    }
+
+    await this.storeRepository.deactivateStore(existingStore.id);
+
+    await this.authService.api.updateOrganization({
+      body: {
+        organizationId: existingStore.organizationId,
+        data: { metadata: { suspended: true } },
+      },
+      headers: fromNodeHeaders(headers),
+    });
+
+    this.logger.log('Store deactivated', StoresService.name, {
+      storeId: existingStore.id,
+      userId,
+    });
+  }
 
   async uploadStoreLogo(logo: Express.Multer.File, userId: string) {
     const existingStore = await this.storeRepository.findByOwnerId(userId);
     if (!existingStore) {
-      throw new NotFoundException('Store not found or you do not have store');
+      throw new NotFoundException('Store not found or you do not have a store');
+    }
+
+    if (!existingStore.isActive) {
+      throw new ForbiddenException(
+        'Store is suspended, contact support for assistance',
+      );
     }
 
     const sanitizedImage =

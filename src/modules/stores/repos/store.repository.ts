@@ -70,6 +70,17 @@ export class StoreRepository {
     return updated;
   }
 
+  async deactivateStore(id: string) {
+    await this.db
+      .update(store)
+      .set({
+        isActive: false,
+        deactivatedAt: new Date(),
+      })
+      .where(eq(store.id, id))
+      .returning();
+  }
+
   async deleteOrganization(organizationId: string) {
     await this.db
       .delete(organization)
