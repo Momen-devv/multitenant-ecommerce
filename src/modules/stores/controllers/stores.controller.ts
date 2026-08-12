@@ -22,7 +22,7 @@ import { ApiSuccessResponse, ApiErrorResponse } from '@/common/decorators';
 import type { CurrentUser } from '@/core/auth/auth.types';
 import {
   imageUploadOptions,
-  MAX_PROFILE_IMAGE_SIZE,
+  MAX_STORE_LOGO_SIZE,
 } from '@/infrastructure/storage/multer.config';
 import { createImageFileValidator } from '@/infrastructure/storage/file-validation.config';
 
@@ -79,5 +79,26 @@ export class StoresController {
     @Headers() headers: Record<string, string>,
   ) {
     return this.storesService.updateStore(dto, session.user.id, headers);
+  }
+
+  @ApiOperation({ summary: 'Upload store logo' })
+  @ApiSuccessResponse({ description: 'Store logo uploaded successfully' })
+  @ApiErrorResponse(
+    HttpStatus.NOT_FOUND,
+    'Store not found or you do not have store',
+  )
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid file')
+  @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
+  @Throttle({ default: { limit: 5, ttl: seconds(60) } })
+  @ResponseMessage('Store logo uploaded successfully')
+  @UseInterceptors(FileInterceptor('logo', imageUploadOptions))
+  @HttpCode(HttpStatus.OK)
+  @Post('me/logo')
+  async uploadStoreLogo(
+    @UploadedFile(createImageFileValidator({ maxSize: MAX_STORE_LOGO_SIZE }))
+    logo: Express.Multer.File,
+    @Session() session: CurrentUser,
+  ) {
+    await this.storesService.uploadStoreLogo(logo, session.user.id);
   }
 }
