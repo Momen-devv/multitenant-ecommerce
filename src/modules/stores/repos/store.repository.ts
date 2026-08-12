@@ -9,6 +9,7 @@ import { generateUUIDv7 } from '@/common/utils';
 import { DrizzleQueryError } from 'drizzle-orm';
 import { DatabaseError } from 'pg';
 import { SlugConflictError } from '@/common/errors/slug-conflict.error';
+import { organization } from '@/infrastructure/database/schema/auth.schema';
 
 @Injectable()
 export class StoreRepository {
@@ -59,10 +60,28 @@ export class StoreRepository {
     });
   }
 
+  async update(id: string, data: Partial<Store>) {
+    const [updated] = await this.db
+      .update(store)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(store.id, id))
+      .returning();
+
+    return updated;
+  }
+
   async deleteOrganization(organizationId: string) {
     await this.db
-      .delete(store)
-      .where(eq(store.organizationId, organizationId))
+      .delete(organization)
+      .where(eq(organization.id, organizationId))
+      .returning();
+  }
+
+  async updateOrganizationName(organizationId: string, name: string) {
+    await this.db
+      .update(organization)
+      .set({ name })
+      .where(eq(organization.id, organizationId))
       .returning();
   }
   private isUniqueViolation(err: unknown, constraintName?: string): boolean {
