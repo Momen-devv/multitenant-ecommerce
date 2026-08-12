@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -15,6 +16,8 @@ import { fromNodeHeaders } from 'better-auth/node';
 import { randomUUID } from 'node:crypto';
 import slugify from 'slugify';
 import { SlugConflictError } from '@/common/errors/slug-conflict.error';
+import { Store } from '@/infrastructure/database/schema/schema.types';
+import { DataSyncQueueService } from '@/infrastructure/queue/data-sync/data-sync-queue.service';
 
 @Injectable()
 export class StoresService {
@@ -23,6 +26,7 @@ export class StoresService {
     private readonly storage: StorageService,
     private readonly imageProcessingService: ImageProcessingService,
     private readonly resourceCleanupQueue: ResourceCleanupQueueService,
+    private readonly dataSyncQueue: DataSyncQueueService,
     private readonly logger: LoggerService,
     private readonly authService: AuthService<Auth>,
   ) {}
@@ -76,9 +80,53 @@ export class StoresService {
   async getStore(userId: string) {
     const existingStore = await this.storeRepository.findByOwnerId(userId);
     if (!existingStore) {
-      throw new NotFoundException('Store not found or you do not have store ');
+      throw new NotFoundException('Store not found or you do not have store');
     }
     return existingStore;
+  }
+
+  async updateStore(
+    dto: UpdateStoreDto,
+    userId: string,
+    headers: Record<string, string>,
+  ) {
+    const existingStore = await this.storeRepository.findByOwnerId(userId);
+    if (!existingStore) {
+      throw new NotFoundException('Store not found or you do not have a store');
+    }
+
+    if (dto.name === undefined && dto.description === undefined) {
+      throw new BadRequestException(
+        'At least one field must be provided to update',
+      );
+    }
+
+    const updatePayload: Partial<Pick<Store, 'name' | 'description'>> = {};
+    if (dto.name !== undefined) updatePayload.name = dto.name;
+    if (dto.description !== undefined)
+      updatePayload.description = dto.description;
+
+    const updated = await this.storeRepository.update(
+      existingStore.id,
+      updatePayload,
+    );
+
+    this.logger.log('Store updated', StoresService.name, {
+      storeId: existingStore.id,
+      userId,
+    });
+
+    const nameChanged =
+      dto.name !== undefined && dto.name !== existingStore.name;
+    if (nameChanged) {
+      await this.syncOrganizationName(
+        existingStore.organizationId,
+        dto.name!,
+        headers,
+      );
+    }
+
+    return updated;
   }
 
   private generateSlug(name: string, providedSlug?: string): string {
@@ -104,5 +152,34 @@ export class StoresService {
           StoresService.name,
         ),
       );
+  }
+
+  private async syncOrganizationName(
+    organizationId: string,
+    name: string,
+    headers: Record<string, string>,
+  ): Promise<void> {
+    try {
+      await this.authService.api.updateOrganization({
+        body: { organizationId, data: { name } },
+        headers: fromNodeHeaders(headers),
+      });
+    } catch (err) {
+      this.logger.error(
+        `Failed to sync organization name for org "${organizationId}"`,
+        err,
+        StoresService.name,
+      );
+
+      await this.dataSyncQueue
+        .addSyncOrgNameJob(organizationId, name)
+        .catch((enqueueError) =>
+          this.logger.error(
+            `Failed to enqueue org-name sync retry for "${organizationId}"`,
+            enqueueError,
+            StoresService.name,
+          ),
+        );
+    }
   }
 }
