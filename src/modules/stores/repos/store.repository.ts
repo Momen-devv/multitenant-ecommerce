@@ -55,6 +55,35 @@ export class StoreRepository {
     });
   }
 
+  async findAllWithOwner() {
+    return this.db.query.store.findMany({
+      with: {
+        owner: {
+          columns: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
+
+  async findByIdWithOwner(storeId: string) {
+    return this.db.query.store.findFirst({
+      where: eq(store.id, storeId),
+      with: {
+        owner: {
+          columns: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
+
   async findByOrganizationId(organizationId: string) {
     return this.db.query.store.findFirst({
       where: eq(store.organizationId, organizationId),
