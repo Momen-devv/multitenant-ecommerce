@@ -4,10 +4,14 @@ import type {
   PlatformStoreResponse,
   StoreWithOwner,
 } from '../dto/platform-store-response';
+import { StoreLifecycleService } from './store-lifecycle.service';
 
 @Injectable()
 export class PlatformStoresService {
-  constructor(private readonly storeRepository: StoreRepository) {}
+  constructor(
+    private readonly storeRepository: StoreRepository,
+    private readonly storeLifecycleService: StoreLifecycleService,
+  ) {}
 
   async listStores(): Promise<PlatformStoreResponse[]> {
     const stores = await this.storeRepository.findAllWithOwner();
@@ -21,6 +25,28 @@ export class PlatformStoresService {
     }
 
     return this.toPlatformResponse(store);
+  }
+
+  async suspendStore(
+    storeId: string,
+    actorId: string,
+    reason: string,
+  ): Promise<PlatformStoreResponse> {
+    const existingStore = await this.storeRepository.findByIdWithOwner(storeId);
+    if (!existingStore) {
+      throw new NotFoundException('Store not found');
+    }
+
+    const suspendedStore = await this.storeLifecycleService.suspendStore(
+      storeId,
+      actorId,
+      reason.trim(),
+    );
+
+    return this.toPlatformResponse({
+      ...suspendedStore,
+      owner: existingStore.owner,
+    });
   }
 
   private toPlatformResponse(store: StoreWithOwner): PlatformStoreResponse {

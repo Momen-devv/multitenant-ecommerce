@@ -75,26 +75,29 @@ describe('StoresService', () => {
     expect(service).toBeDefined();
   });
 
-  it('allows a closed Store to be read but rejects Store writes and repeated closure', async () => {
-    const closedStore = {
-      id: 'store-1',
-      ownerId: 'owner-1',
-      status: 'owner_closed',
-    };
-    storeRepository.findByOwnerId.mockResolvedValue(closedStore);
+  it.each(['owner_closed', 'platform_suspended'] as const)(
+    'allows a %s Store to be read but rejects Store writes and Store Closure',
+    async (status) => {
+      const store = {
+        id: 'store-1',
+        ownerId: 'owner-1',
+        status,
+      };
+      storeRepository.findByOwnerId.mockResolvedValue(store);
 
-    await expect(service.getStore('owner-1')).resolves.toBe(closedStore);
-    await expect(
-      service.updateStore({ description: 'not allowed' }, 'owner-1', {}),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-    await expect(
-      service.uploadStoreLogo({} as Express.Multer.File, 'owner-1'),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-    await expect(
-      service.closeStore('owner-1', 'No longer operating.'),
-    ).rejects.toBeInstanceOf(ConflictException);
-    expect(storeLifecycleService.closeStore).not.toHaveBeenCalled();
-  });
+      await expect(service.getStore('owner-1')).resolves.toBe(store);
+      await expect(
+        service.updateStore({ description: 'not allowed' }, 'owner-1', {}),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(
+        service.uploadStoreLogo({} as Express.Multer.File, 'owner-1'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(
+        service.closeStore('owner-1', 'No longer operating.'),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(storeLifecycleService.closeStore).not.toHaveBeenCalled();
+    },
+  );
 
   it('creates the internal Organization through the Store creation flow', async () => {
     const organization = { id: 'organization-1' };

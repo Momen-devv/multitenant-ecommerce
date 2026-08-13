@@ -40,4 +40,32 @@ describe('StoreLifecycleService', () => {
       service.closeStore('store-1', 'owner-1', 'No longer operating.'),
     ).rejects.toBeInstanceOf(ConflictException);
   });
+
+  it('suspends an active Store as a Platform Super-admin with the normalized reason', async () => {
+    const suspendedStore = { id: 'store-1', status: 'platform_suspended' };
+    storeRepository.transitionStatus.mockResolvedValue(suspendedStore);
+
+    await expect(
+      service.suspendStore('store-1', 'platform-1', '  Terms violation.  '),
+    ).resolves.toBe(suspendedStore);
+
+    expect(storeRepository.transitionStatus).toHaveBeenCalledWith({
+      storeId: 'store-1',
+      actorId: 'platform-1',
+      actorAuthority: 'platform_super_admin',
+      previousStatus: 'active',
+      newStatus: 'platform_suspended',
+      reason: 'Terms violation.',
+    });
+  });
+
+  it('translates a failed suspension transition into a conflict', async () => {
+    storeRepository.transitionStatus.mockRejectedValue(
+      new StoreLifecycleConflictError(),
+    );
+
+    await expect(
+      service.suspendStore('store-1', 'platform-1', 'Terms violation.'),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
 });

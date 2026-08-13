@@ -1,10 +1,12 @@
 import {
   CanActivate,
+  ConflictException,
   ExecutionContext,
   ForbiddenException,
   INestApplication,
   NotFoundException,
   UnauthorizedException,
+  ValidationPipe,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
@@ -58,6 +60,7 @@ describe('PlatformStoresController HTTP adapter', () => {
   const platformStoresService = {
     listStores: jest.fn(),
     getStore: jest.fn(),
+    suspendStore: jest.fn(),
   };
 
   const stores = [
@@ -109,6 +112,10 @@ describe('PlatformStoresController HTTP adapter', () => {
         ? Promise.resolve(store)
         : Promise.reject(new Error('missing'));
     });
+    platformStoresService.suspendStore.mockResolvedValue({
+      ...stores[0],
+      status: 'platform_suspended',
+    });
 
     const module = await Test.createTestingModule({
       controllers: [PlatformStoresController],
@@ -118,6 +125,13 @@ describe('PlatformStoresController HTTP adapter', () => {
     }).compile();
 
     app = module.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     app.useGlobalGuards(new TestAuthGuard(new Reflector()));
     await app.init();
   });
@@ -166,6 +180,66 @@ describe('PlatformStoresController HTTP adapter', () => {
     await request(app.getHttpServer())
       .get('/platform/stores/missing-store')
       .set('x-role', 'superAdmin')
+      .expect(404);
+  });
+
+  it('suspends a Store for a Platform Super-admin with a normalized reason', async () => {
+    await request(app.getHttpServer())
+      .post('/platform/stores/store-1/suspend')
+      .set('x-role', 'superAdmin')
+      .send({ reason: '  Terms violation.  ' })
+      .expect(200)
+      .expect({ ...stores[0], status: 'platform_suspended' });
+
+    expect(platformStoresService.suspendStore).toHaveBeenCalledWith(
+      'store-1',
+      'platform-user',
+      'Terms violation.',
+    );
+  });
+
+  it.each(['', 'short', '         ', 'a'.repeat(501)])(
+    'rejects an invalid suspension reason: %s',
+    async (reason) => {
+      await request(app.getHttpServer())
+        .post('/platform/stores/store-1/suspend')
+        .set('x-role', 'superAdmin')
+        .send({ reason })
+        .expect(400);
+
+      expect(platformStoresService.suspendStore).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects Store suspension for authenticated users without the Platform Super-admin role', async () => {
+    await request(app.getHttpServer())
+      .post('/platform/stores/store-1/suspend')
+      .set('x-role', 'user')
+      .send({ reason: 'Terms violation.' })
+      .expect(403);
+  });
+
+  it('returns a conflict when the Store is no longer active', async () => {
+    platformStoresService.suspendStore.mockRejectedValueOnce(
+      new ConflictException('Invalid Store lifecycle transition'),
+    );
+
+    await request(app.getHttpServer())
+      .post('/platform/stores/store-1/suspend')
+      .set('x-role', 'superAdmin')
+      .send({ reason: 'Terms violation.' })
+      .expect(409);
+  });
+
+  it('returns not found when suspending an unknown Store', async () => {
+    platformStoresService.suspendStore.mockRejectedValueOnce(
+      new NotFoundException('Store not found'),
+    );
+
+    await request(app.getHttpServer())
+      .post('/platform/stores/missing-store/suspend')
+      .set('x-role', 'superAdmin')
+      .send({ reason: 'Terms violation.' })
       .expect(404);
   });
 });

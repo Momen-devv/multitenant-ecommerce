@@ -176,3 +176,79 @@ describe('StoreOwnerController HTTP adapter', () => {
     },
   );
 });
+
+describe('StoreOwnerController suspended Store HTTP behavior', () => {
+  let app: INestApplication<App>;
+  const suspendedStore = {
+    id: 'store-1',
+    ownerId: 'store-owner-1',
+    status: 'platform_suspended' as const,
+  };
+  const storeRepository = {
+    findByOwnerId: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    jest.resetAllMocks();
+    storeRepository.findByOwnerId.mockResolvedValue(suspendedStore);
+
+    const module = await Test.createTestingModule({
+      controllers: [StoreOwnerController],
+      providers: [
+        StoresService,
+        { provide: StoreRepository, useValue: storeRepository },
+        { provide: StorageService, useValue: {} },
+        { provide: ImageProcessingService, useValue: {} },
+        { provide: ResourceCleanupQueueService, useValue: {} },
+        { provide: DataSyncQueueService, useValue: {} },
+        { provide: LoggerService, useValue: {} },
+        { provide: AuthService, useValue: {} },
+        { provide: StoreLifecycleService, useValue: {} },
+      ],
+    }).compile();
+
+    app = module.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+    app.use((req, _res, next) => {
+      req.session = { user: { id: 'store-owner-1' } };
+      next();
+    });
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it('keeps a suspended Store readable while rejecting all owner writes', async () => {
+    await request(app.getHttpServer())
+      .get('/stores/me')
+      .expect(200)
+      .expect(suspendedStore);
+    await request(app.getHttpServer())
+      .patch('/stores/me')
+      .send({ description: 'Not allowed' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .post('/stores/me/logo')
+      .attach(
+        'logo',
+        Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/5wAAAABJRU5ErkJggg==',
+          'base64',
+        ),
+        { filename: 'logo.png', contentType: 'image/png' },
+      )
+      .expect(403);
+    await request(app.getHttpServer())
+      .post('/stores/me/close')
+      .send({ reason: 'The platform restriction remains active.' })
+      .expect(409);
+  });
+});

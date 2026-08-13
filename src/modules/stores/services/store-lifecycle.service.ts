@@ -31,4 +31,29 @@ export class StoreLifecycleService {
       throw error;
     }
   }
+
+  async suspendStore(
+    storeId: string,
+    actorId: string,
+    reason: string,
+  ): Promise<Store> {
+    try {
+      return await this.storeRepository.transitionStatus({
+        storeId,
+        actorId,
+        actorAuthority: 'platform_super_admin',
+        previousStatus: 'active',
+        newStatus: 'platform_suspended',
+        reason: reason.trim(),
+      });
+    } catch (error) {
+      if (error instanceof StoreLifecycleConflictError) {
+        throw new ConflictException(
+          'The Store is already suspended, closed, or does not allow Store Suspension.',
+        );
+      }
+
+      throw error;
+    }
+  }
 }
