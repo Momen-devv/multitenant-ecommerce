@@ -9,6 +9,7 @@ import { ResourceCleanupQueueService } from '@/infrastructure/queue/resource-cle
 import { DataSyncQueueService } from '@/infrastructure/queue/data-sync/data-sync-queue.service';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { AuthService } from '@thallesp/nestjs-better-auth';
+import { fromNodeHeaders } from 'better-auth/node';
 
 jest.mock('@/common/services/Image-processing.service', () => ({
   ImageProcessingService: class ImageProcessingService {},
@@ -30,19 +31,39 @@ describe('StoresService', () => {
   const storeLifecycleService = {
     closeStore: jest.fn(),
   };
+  const authApi = {
+    createOrganization: jest.fn(),
+    updateOrganization: jest.fn(),
+  };
+  const resourceCleanupQueue = {
+    addDeleteOrphanedOrgJob: jest.fn(),
+  };
+  const dataSyncQueue = {
+    addSyncOrgNameJob: jest.fn(),
+  };
+  const logger = {
+    log: jest.fn(),
+    error: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.resetAllMocks();
+    jest
+      .mocked(fromNodeHeaders)
+      .mockReturnValue({ authorization: 'Bearer token' } as never);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StoresService,
         { provide: StoreRepository, useValue: storeRepository },
         { provide: StorageService, useValue: {} },
         { provide: ImageProcessingService, useValue: {} },
-        { provide: ResourceCleanupQueueService, useValue: {} },
-        { provide: DataSyncQueueService, useValue: {} },
-        { provide: LoggerService, useValue: {} },
-        { provide: AuthService, useValue: {} },
+        {
+          provide: ResourceCleanupQueueService,
+          useValue: resourceCleanupQueue,
+        },
+        { provide: DataSyncQueueService, useValue: dataSyncQueue },
+        { provide: LoggerService, useValue: logger },
+        { provide: AuthService, useValue: { api: authApi } },
         { provide: StoreLifecycleService, useValue: storeLifecycleService },
       ],
     }).compile();
@@ -73,5 +94,67 @@ describe('StoresService', () => {
       service.closeStore('owner-1', 'No longer operating.'),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(storeLifecycleService.closeStore).not.toHaveBeenCalled();
+  });
+
+  it('creates the internal Organization through the Store creation flow', async () => {
+    const organization = { id: 'organization-1' };
+    const createdStore = {
+      id: 'store-1',
+      organizationId: organization.id,
+      ownerId: 'owner-1',
+      name: 'My Store',
+      slug: 'my-store',
+    };
+    storeRepository.findByOwnerId.mockResolvedValue(null);
+    storeRepository.findBySlug = jest.fn().mockResolvedValue(null);
+    storeRepository.create = jest.fn().mockResolvedValue(createdStore);
+    authApi.createOrganization.mockResolvedValue(organization);
+
+    await expect(
+      service.createStore({ name: 'My Store' }, 'owner-1', {
+        authorization: 'Bearer token',
+      }),
+    ).resolves.toBe(createdStore);
+
+    expect(authApi.createOrganization).toHaveBeenCalledWith({
+      body: { name: 'My Store', slug: 'my-store' },
+      headers: fromNodeHeaders({ authorization: 'Bearer token' }),
+    });
+    expect(storeRepository.create).toHaveBeenCalledWith({
+      organizationId: organization.id,
+      ownerId: 'owner-1',
+      name: 'My Store',
+      slug: 'my-store',
+      description: undefined,
+    });
+  });
+
+  it('synchronizes the internal Organization name through the Store update flow', async () => {
+    const existingStore = {
+      id: 'store-1',
+      organizationId: 'organization-1',
+      ownerId: 'owner-1',
+      name: 'Old Store',
+      status: 'active',
+    };
+    const updatedStore = { ...existingStore, name: 'New Store' };
+    storeRepository.findByOwnerId.mockResolvedValue(existingStore);
+    storeRepository.updateActiveStore = jest
+      .fn()
+      .mockResolvedValue(updatedStore);
+
+    await expect(
+      service.updateStore({ name: 'New Store' }, 'owner-1', {
+        authorization: 'Bearer token',
+      }),
+    ).resolves.toBe(updatedStore);
+
+    expect(authApi.updateOrganization).toHaveBeenCalledWith({
+      body: {
+        organizationId: existingStore.organizationId,
+        data: { name: 'New Store' },
+      },
+      headers: fromNodeHeaders({ authorization: 'Bearer token' }),
+    });
   });
 });
