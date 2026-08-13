@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { StoresController } from './controllers/stores.controller';
+import { StoreOwnerController } from './controllers/stores.controller';
 import { StoresService } from './services/stores.service';
 import { StoreRepository } from './repos/store.repository';
 import { StorageModule } from '@/infrastructure/storage/storage.module';
@@ -7,7 +7,7 @@ import { ImageProcessingService } from '@/common/services/Image-processing.servi
 
 @Module({
   imports: [StorageModule],
-  controllers: [StoresController],
+  controllers: [StoreOwnerController],
   providers: [StoresService, StoreRepository, ImageProcessingService],
   exports: [StoreRepository],
 })

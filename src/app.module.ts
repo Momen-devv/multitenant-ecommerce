@@ -76,7 +76,6 @@ import { StoresModule } from './modules/stores/stores.module';
     RouterModule.register([
       { path: 'users', module: UsersModule },
       { path: 'health', module: HealthModule },
-      { path: 'stores', module: StoresModule },
     ]),
   ],
 

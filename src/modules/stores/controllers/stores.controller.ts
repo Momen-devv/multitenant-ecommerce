@@ -27,8 +27,8 @@ import { createImageFileValidator } from '@/infrastructure/storage/file-validati
 
 @ApiTags('Stores')
 @ApiCookieAuth()
-@Controller()
-export class StoresController {
+@Controller('stores')
+export class StoreOwnerController {
   constructor(private readonly storesService: StoresService) {}
 
   @ApiOperation({ summary: 'Create a new store' })
