@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { StoresService } from '../services/stores.service';
-import { CreateStoreDto, UpdateStoreDto } from '../dto';
+import { CloseStoreDto, CreateStoreDto, UpdateStoreDto } from '../dto';
 import { ResponseMessage } from '@/common/decorators/response-message.decorator';
 import { seconds, Throttle } from '@nestjs/throttler';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -72,7 +72,7 @@ export class StoreOwnerController {
   @ResponseMessage('Store updated successfully')
   @ApiErrorResponse(
     HttpStatus.FORBIDDEN,
-    'Store is suspended, contact support for assistance',
+    'Store is not active and cannot be modified',
   )
   @HttpCode(HttpStatus.OK)
   @Patch('me')
@@ -105,22 +105,19 @@ export class StoreOwnerController {
     await this.storesService.uploadStoreLogo(logo, session.user.id);
   }
 
-  @ApiOperation({ summary: 'Delete my store' })
-  @ApiSuccessResponse({ description: 'Store deleted successfully' })
+  @ApiOperation({ summary: 'Close my store' })
+  @ApiSuccessResponse({ description: 'Store closed successfully' })
   @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Store not found')
   @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
-  @ApiErrorResponse(
-    HttpStatus.FORBIDDEN,
-    'Store is suspended, contact support for assistance',
-  )
+  @ApiErrorResponse(HttpStatus.CONFLICT, 'Invalid Store lifecycle transition')
   @Throttle({ default: { limit: 3, ttl: seconds(60) } })
-  @ResponseMessage('Store deactivated successfully')
+  @ResponseMessage('Store closed successfully')
   @HttpCode(HttpStatus.OK)
-  @Post('me/deactivate')
-  async deactivateStore(
+  @Post('me/close')
+  async closeStore(
+    @Body() dto: CloseStoreDto,
     @Session() session: CurrentUser,
-    @Headers() headers: Record<string, string>,
   ) {
-    await this.storesService.deactivateStore(session.user.id, headers);
+    return this.storesService.closeStore(session.user.id, dto.reason);
   }
 }

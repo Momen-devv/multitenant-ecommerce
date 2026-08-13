@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request = require('supertest');
 import type { App } from 'supertest/types';
@@ -27,6 +27,7 @@ jest.mock('better-auth/node', () => ({
 
 import { StoreOwnerController } from './store-owner.controller';
 import { StoresService } from '../services/stores.service';
+import { StoreLifecycleService } from '../services/store-lifecycle.service';
 import { StoreRepository } from '../repos/store.repository';
 import { StorageService } from '@/common/abstracts/storage.abstracts';
 import { ImageProcessingService } from '@/common/services/Image-processing.service';
@@ -61,6 +62,7 @@ describe('StoreOwnerController HTTP adapter', () => {
         { provide: DataSyncQueueService, useValue: {} },
         { provide: LoggerService, useValue: {} },
         { provide: AuthService, useValue: {} },
+        { provide: StoreLifecycleService, useValue: {} },
       ],
     }).compile();
 
@@ -73,8 +75,18 @@ describe('StoreOwnerController HTTP adapter', () => {
       .spyOn(storesService, 'updateStore')
       .mockResolvedValue({ id: 'store-1' } as never);
     jest.spyOn(storesService, 'uploadStoreLogo').mockResolvedValue();
+    jest
+      .spyOn(storesService, 'closeStore')
+      .mockResolvedValue({ id: 'store-1', status: 'owner_closed' } as never);
 
     app = module.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     app.use((req, _res, next) => {
       req.session = {
         user: { id: req.header('x-store-owner-id') ?? 'store-owner-1' },
@@ -139,4 +151,28 @@ describe('StoreOwnerController HTTP adapter', () => {
     );
     expect(storesService.getStore).toHaveBeenLastCalledWith('store-owner-2');
   });
+
+  it('validates and normalizes the Store Closure reason', async () => {
+    await request(app.getHttpServer())
+      .post('/stores/me/close')
+      .send({ reason: '  The business is permanently closed.  ' })
+      .expect(200);
+
+    expect(storesService.closeStore).toHaveBeenCalledWith(
+      'store-owner-1',
+      'The business is permanently closed.',
+    );
+  });
+
+  it.each(['', 'short', '         ', 'a'.repeat(501)])(
+    'rejects an invalid Store Closure reason: %s',
+    async (reason) => {
+      await request(app.getHttpServer())
+        .post('/stores/me/close')
+        .send({ reason })
+        .expect(400);
+
+      expect(storesService.closeStore).not.toHaveBeenCalled();
+    },
+  );
 });

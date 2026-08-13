@@ -4,12 +4,18 @@ import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import * as schema from '@/infrastructure/database/schema/schema';
 import { store } from '@/infrastructure/database/schema/app.schema';
 import { Store, NewStore } from '@/infrastructure/database/schema/schema.types';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { generateUUIDv7 } from '@/common/utils';
 import { DrizzleQueryError } from 'drizzle-orm';
 import { DatabaseError } from 'pg';
 import { SlugConflictError } from '@/common/errors/slug-conflict.error';
+import { StoreLifecycleConflictError } from '@/common/errors/store-lifecycle-conflict.error';
 import { organization } from '@/infrastructure/database/schema/auth.schema';
+import { storeLifecycleAudit } from '@/infrastructure/database/schema/app.schema';
+import type {
+  StoreLifecycleActorAuthority,
+  StoreStatus,
+} from '../domain/store-status';
 
 @Injectable()
 export class StoreRepository {
@@ -29,6 +35,7 @@ export class StoreRepository {
           name: data.name,
           slug: data.slug,
           description: data.description,
+          status: 'active',
         })
         .returning();
 
@@ -70,15 +77,58 @@ export class StoreRepository {
     return updated;
   }
 
-  async deactivateStore(id: string) {
-    await this.db
+  async updateActiveStore(id: string, data: Partial<Store>) {
+    const [updated] = await this.db
       .update(store)
-      .set({
-        isActive: false,
-        deactivatedAt: new Date(),
-      })
-      .where(eq(store.id, id))
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(store.id, id), eq(store.status, 'active')))
       .returning();
+
+    if (!updated) {
+      throw new StoreLifecycleConflictError(
+        'The Store is no longer active and cannot be modified.',
+      );
+    }
+
+    return updated;
+  }
+
+  async transitionStatus(input: {
+    storeId: string;
+    actorId: string;
+    actorAuthority: StoreLifecycleActorAuthority;
+    previousStatus: StoreStatus;
+    newStatus: StoreStatus;
+    reason: string;
+  }): Promise<Store> {
+    return this.db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(store)
+        .set({ status: input.newStatus, updatedAt: new Date() })
+        .where(
+          and(
+            eq(store.id, input.storeId),
+            eq(store.status, input.previousStatus),
+          ),
+        )
+        .returning();
+
+      if (!updated) {
+        throw new StoreLifecycleConflictError();
+      }
+
+      await tx.insert(storeLifecycleAudit).values({
+        id: generateUUIDv7(),
+        storeId: input.storeId,
+        actorId: input.actorId,
+        actorAuthority: input.actorAuthority,
+        previousStatus: input.previousStatus,
+        newStatus: input.newStatus,
+        reason: input.reason,
+      });
+
+      return updated;
+    });
   }
 
   async deleteOrganization(organizationId: string) {

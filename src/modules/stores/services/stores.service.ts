@@ -17,8 +17,10 @@ import { fromNodeHeaders } from 'better-auth/node';
 import { randomUUID } from 'node:crypto';
 import slugify from 'slugify';
 import { SlugConflictError } from '@/common/errors/slug-conflict.error';
+import { StoreLifecycleConflictError } from '@/common/errors/store-lifecycle-conflict.error';
 import { Store } from '@/infrastructure/database/schema/schema.types';
 import { DataSyncQueueService } from '@/infrastructure/queue/data-sync/data-sync-queue.service';
+import { StoreLifecycleService } from './store-lifecycle.service';
 
 @Injectable()
 export class StoresService {
@@ -30,6 +32,7 @@ export class StoresService {
     private readonly dataSyncQueue: DataSyncQueueService,
     private readonly logger: LoggerService,
     private readonly authService: AuthService<Auth>,
+    private readonly storeLifecycleService: StoreLifecycleService,
   ) {}
   async createStore(
     dto: CreateStoreDto,
@@ -95,9 +98,9 @@ export class StoresService {
     if (!existingStore) {
       throw new NotFoundException('Store not found or you do not have a store');
     }
-    if (!existingStore.isActive) {
+    if (existingStore.status !== 'active') {
       throw new ForbiddenException(
-        'Store is suspended, contact support for assistance',
+        'Store is not active and cannot be modified',
       );
     }
 
@@ -112,10 +115,20 @@ export class StoresService {
     if (dto.description !== undefined)
       updatePayload.description = dto.description;
 
-    const updated = await this.storeRepository.update(
-      existingStore.id,
-      updatePayload,
-    );
+    let updated: Store;
+    try {
+      updated = await this.storeRepository.updateActiveStore(
+        existingStore.id,
+        updatePayload,
+      );
+    } catch (error) {
+      if (error instanceof StoreLifecycleConflictError) {
+        throw new ForbiddenException(
+          'Store is not active and cannot be modified',
+        );
+      }
+      throw error;
+    }
 
     this.logger.log('Store updated', StoresService.name, {
       storeId: existingStore.id,
@@ -134,31 +147,29 @@ export class StoresService {
 
     return updated;
   }
-  async deactivateStore(userId: string, headers: Record<string, string>) {
+  async closeStore(userId: string, reason: string) {
     const existingStore = await this.storeRepository.findByOwnerId(userId);
     if (!existingStore) {
       throw new NotFoundException('Store not found or you do not have a store');
     }
-    if (!existingStore.isActive) {
-      throw new ForbiddenException(
-        'Store is suspended, contact support for assistance',
+    if (existingStore.status !== 'active') {
+      throw new ConflictException(
+        'The Store is already closed or does not allow Store Closure.',
       );
     }
 
-    await this.storeRepository.deactivateStore(existingStore.id);
+    const closedStore = await this.storeLifecycleService.closeStore(
+      existingStore.id,
+      userId,
+      reason,
+    );
 
-    await this.authService.api.updateOrganization({
-      body: {
-        organizationId: existingStore.organizationId,
-        data: { metadata: { suspended: true } },
-      },
-      headers: fromNodeHeaders(headers),
-    });
-
-    this.logger.log('Store deactivated', StoresService.name, {
+    this.logger.log('Store closed', StoresService.name, {
       storeId: existingStore.id,
       userId,
     });
+
+    return closedStore;
   }
 
   async uploadStoreLogo(logo: Express.Multer.File, userId: string) {
@@ -167,9 +178,9 @@ export class StoresService {
       throw new NotFoundException('Store not found or you do not have a store');
     }
 
-    if (!existingStore.isActive) {
+    if (existingStore.status !== 'active') {
       throw new ForbiddenException(
-        'Store is suspended, contact support for assistance',
+        'Store is not active and cannot be modified',
       );
     }
 
@@ -180,7 +191,7 @@ export class StoresService {
     const url = await this.storage.uploadFile(sanitizedImage, filePath);
 
     try {
-      await this.storeRepository.update(existingStore.id, {
+      await this.storeRepository.updateActiveStore(existingStore.id, {
         logo: url,
         logoKey: filePath,
       });
@@ -200,6 +211,12 @@ export class StoresService {
             StoresService.name,
           ),
         );
+
+      if (error instanceof StoreLifecycleConflictError) {
+        throw new ForbiddenException(
+          'Store is not active and cannot be modified',
+        );
+      }
 
       throw error;
     }

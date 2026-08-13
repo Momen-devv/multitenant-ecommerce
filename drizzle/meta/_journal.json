@@ -29,6 +29,13 @@
       "when": 1786235060428,
       "tag": "0003_dizzy_tigra",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786646400000,
+      "tag": "0004_store_lifecycle",
+      "breakpoints": true
     }
   ]
 }
