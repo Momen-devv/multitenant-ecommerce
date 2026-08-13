@@ -21,7 +21,6 @@ import { createAuth } from '@/core/auth/auth';
 import { DATABASE } from './common/constants/injection-tokens.constants';
 
 // Common
-import { CommonModule } from './common/common.module';
 import { AllExceptionsFilter } from '@/common/filters/http-exception.filter';
 import { TransformResponseInterceptor } from './common/interceptors/transform-response.interceptor';
 import { CorrelationIdMiddleware } from './common/middlewares/correlation-id.middleware';
@@ -38,7 +37,6 @@ import { StoresModule } from './modules/stores/stores.module';
 @Module({
   imports: [
     InfrastructureModule,
-    CommonModule,
     CoreModule,
 
     ThrottlerModule.forRootAsync({

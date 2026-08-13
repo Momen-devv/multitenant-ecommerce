@@ -3,12 +3,12 @@ import { StoresController } from './controllers/stores.controller';
 import { StoresService } from './services/stores.service';
 import { StoreRepository } from './repos/store.repository';
 import { StorageModule } from '@/infrastructure/storage/storage.module';
-import { CommonModule } from '@/common/common.module';
+import { ImageProcessingService } from '@/common/services/Image-processing.service';
 
 @Module({
-  imports: [StorageModule, CommonModule],
+  imports: [StorageModule],
   controllers: [StoresController],
-  providers: [StoresService, StoreRepository],
+  providers: [StoresService, StoreRepository, ImageProcessingService],
   exports: [StoreRepository],
 })
 export class StoresModule {}
