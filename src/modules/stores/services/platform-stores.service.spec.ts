@@ -8,6 +8,7 @@ describe('PlatformStoresService', () => {
   };
   const storeLifecycleService = {
     suspendStore: jest.fn(),
+    reactivateStore: jest.fn(),
   };
   let service: PlatformStoresService;
 
@@ -134,5 +135,67 @@ describe('PlatformStoresService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(storeLifecycleService.suspendStore).not.toHaveBeenCalled();
+  });
+
+  it.each(['owner_closed', 'platform_suspended'] as const)(
+    'reactivates a %s Store and preserves its platform response shape',
+    async (status) => {
+      const existingStore = {
+        id: 'store-1',
+        organizationId: 'organization-1',
+        ownerId: 'owner-1',
+        name: 'First Store',
+        slug: 'first-store',
+        description: 'A Store',
+        logo: null,
+        logoKey: null,
+        status,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        owner: { id: 'owner-1', name: 'Owner One', email: 'owner@example.com' },
+      };
+      const activeStore = { ...existingStore, status: 'active' as const };
+      storeRepository.findByIdWithOwner.mockResolvedValue(existingStore);
+      storeLifecycleService.reactivateStore.mockResolvedValue(activeStore);
+
+      await expect(
+        service.reactivateStore(
+          'store-1',
+          'platform-1',
+          '  Issue resolved and approved.  ',
+        ),
+      ).resolves.toEqual({
+        id: 'store-1',
+        name: 'First Store',
+        slug: 'first-store',
+        description: 'A Store',
+        logo: null,
+        status: 'active',
+        createdAt: activeStore.createdAt,
+        updatedAt: activeStore.updatedAt,
+        owner: existingStore.owner,
+      });
+
+      expect(storeLifecycleService.reactivateStore).toHaveBeenCalledWith(
+        'store-1',
+        'platform-1',
+        'Issue resolved and approved.',
+        status,
+      );
+    },
+  );
+
+  it('returns not found instead of attempting reactivation for an unknown Store', async () => {
+    storeRepository.findByIdWithOwner.mockResolvedValue(undefined);
+
+    await expect(
+      service.reactivateStore(
+        'missing-store',
+        'platform-1',
+        'Issue resolved and approved.',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(storeLifecycleService.reactivateStore).not.toHaveBeenCalled();
   });
 });

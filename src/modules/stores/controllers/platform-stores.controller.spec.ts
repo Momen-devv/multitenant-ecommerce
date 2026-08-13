@@ -61,6 +61,7 @@ describe('PlatformStoresController HTTP adapter', () => {
     listStores: jest.fn(),
     getStore: jest.fn(),
     suspendStore: jest.fn(),
+    reactivateStore: jest.fn(),
   };
 
   const stores = [
@@ -116,6 +117,12 @@ describe('PlatformStoresController HTTP adapter', () => {
       ...stores[0],
       status: 'platform_suspended',
     });
+    platformStoresService.reactivateStore.mockImplementation(
+      (storeId: string) => {
+        const store = stores.find((candidate) => candidate.id === storeId)!;
+        return Promise.resolve({ ...store, status: 'active' });
+      },
+    );
 
     const module = await Test.createTestingModule({
       controllers: [PlatformStoresController],
@@ -241,5 +248,64 @@ describe('PlatformStoresController HTTP adapter', () => {
       .set('x-role', 'superAdmin')
       .send({ reason: 'Terms violation.' })
       .expect(404);
+  });
+
+  it.each(['owner_closed', 'platform_suspended'] as const)(
+    'reactivates a %s Store for a Platform Super-admin with a normalized reason',
+    async (status) => {
+      const store = stores.find((candidate) => candidate.status === status)!;
+      await request(app.getHttpServer())
+        .post(`/platform/stores/${store.id}/reactivate`)
+        .set('x-role', 'superAdmin')
+        .send({ reason: '  Issue resolved and approved.  ' })
+        .expect(200)
+        .expect({ ...store, status: 'active' });
+
+      expect(platformStoresService.reactivateStore).toHaveBeenCalledWith(
+        store.id,
+        'platform-user',
+        'Issue resolved and approved.',
+      );
+    },
+  );
+
+  it.each(['', 'short', '         ', 'a'.repeat(501)])(
+    'rejects an invalid reactivation reason: %s',
+    async (reason) => {
+      await request(app.getHttpServer())
+        .post('/platform/stores/store-2/reactivate')
+        .set('x-role', 'superAdmin')
+        .send({ reason })
+        .expect(400);
+
+      expect(platformStoresService.reactivateStore).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects Store reactivation for authenticated users without the Platform Super-admin role', async () => {
+    await request(app.getHttpServer())
+      .post('/platform/stores/store-2/reactivate')
+      .set('x-role', 'user')
+      .send({ reason: 'Issue resolved and approved.' })
+      .expect(403);
+  });
+
+  it('returns a conflict when reactivating an active Store', async () => {
+    platformStoresService.reactivateStore.mockRejectedValueOnce(
+      new ConflictException('Invalid Store lifecycle transition'),
+    );
+
+    await request(app.getHttpServer())
+      .post('/platform/stores/store-1/reactivate')
+      .set('x-role', 'superAdmin')
+      .send({ reason: 'Issue resolved and approved.' })
+      .expect(409);
+  });
+
+  it('rejects Store reactivation by an unauthenticated Store Owner', async () => {
+    await request(app.getHttpServer())
+      .post('/platform/stores/store-2/reactivate')
+      .send({ reason: 'Issue resolved and approved.' })
+      .expect(401);
   });
 });

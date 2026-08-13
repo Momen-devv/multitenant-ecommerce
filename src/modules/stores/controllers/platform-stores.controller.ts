@@ -13,7 +13,7 @@ import { Roles } from '@thallesp/nestjs-better-auth';
 import { ApiErrorResponse, ApiSuccessResponse } from '@/common/decorators';
 import { ResponseMessage } from '@/common/decorators/response-message.decorator';
 import { PlatformStoresService } from '../services/platform-stores.service';
-import { SuspendStoreDto } from '../dto';
+import { ReactivateStoreDto, SuspendStoreDto } from '../dto';
 import type { CurrentUser } from '@/core/auth/auth.types';
 
 @ApiTags('Platform Stores')
@@ -62,6 +62,28 @@ export class PlatformStoresController {
     @Session() session: CurrentUser,
   ) {
     return this.platformStoresService.suspendStore(
+      storeId,
+      session.user.id,
+      dto.reason,
+    );
+  }
+
+  @ApiOperation({ summary: 'Reactivate a Store through platform oversight' })
+  @ApiSuccessResponse({ description: 'Store reactivated successfully' })
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid reactivation reason')
+  @ApiErrorResponse(HttpStatus.CONFLICT, 'Invalid Store lifecycle transition')
+  @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Store not found')
+  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Platform Super-admin role required')
+  @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
+  @ResponseMessage('Store reactivated successfully')
+  @HttpCode(HttpStatus.OK)
+  @Post(':storeId/reactivate')
+  async reactivateStore(
+    @Param('storeId') storeId: string,
+    @Body() dto: ReactivateStoreDto,
+    @Session() session: CurrentUser,
+  ) {
+    return this.platformStoresService.reactivateStore(
       storeId,
       session.user.id,
       dto.reason,

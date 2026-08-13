@@ -68,4 +68,58 @@ describe('StoreLifecycleService', () => {
       service.suspendStore('store-1', 'platform-1', 'Terms violation.'),
     ).rejects.toBeInstanceOf(ConflictException);
   });
+
+  it.each(['owner_closed', 'platform_suspended'] as const)(
+    'reactivates a %s Store as a Platform Super-admin with the normalized reason',
+    async (previousStatus) => {
+      const activeStore = { id: 'store-1', status: 'active' };
+      storeRepository.transitionStatus.mockResolvedValue(activeStore);
+
+      await expect(
+        service.reactivateStore(
+          'store-1',
+          'platform-1',
+          '  Issue resolved and approved.  ',
+          previousStatus,
+        ),
+      ).resolves.toBe(activeStore);
+
+      expect(storeRepository.transitionStatus).toHaveBeenCalledWith({
+        storeId: 'store-1',
+        actorId: 'platform-1',
+        actorAuthority: 'platform_super_admin',
+        previousStatus,
+        newStatus: 'active',
+        reason: 'Issue resolved and approved.',
+      });
+    },
+  );
+
+  it('rejects reactivation of an active Store without attempting a transition', async () => {
+    await expect(
+      service.reactivateStore(
+        'store-1',
+        'platform-1',
+        'Issue resolved and approved.',
+        'active',
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(storeRepository.transitionStatus).not.toHaveBeenCalled();
+  });
+
+  it('translates a failed reactivation transition into a conflict', async () => {
+    storeRepository.transitionStatus.mockRejectedValue(
+      new StoreLifecycleConflictError(),
+    );
+
+    await expect(
+      service.reactivateStore(
+        'store-1',
+        'platform-1',
+        'Issue resolved and approved.',
+        'owner_closed',
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
 });

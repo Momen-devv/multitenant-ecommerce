@@ -49,6 +49,29 @@ export class PlatformStoresService {
     });
   }
 
+  async reactivateStore(
+    storeId: string,
+    actorId: string,
+    reason: string,
+  ): Promise<PlatformStoreResponse> {
+    const existingStore = await this.storeRepository.findByIdWithOwner(storeId);
+    if (!existingStore) {
+      throw new NotFoundException('Store not found');
+    }
+
+    const reactivatedStore = await this.storeLifecycleService.reactivateStore(
+      storeId,
+      actorId,
+      reason.trim(),
+      existingStore.status,
+    );
+
+    return this.toPlatformResponse({
+      ...reactivatedStore,
+      owner: existingStore.owner,
+    });
+  }
+
   private toPlatformResponse(store: StoreWithOwner): PlatformStoreResponse {
     return {
       id: store.id,

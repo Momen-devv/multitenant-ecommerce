@@ -14,7 +14,13 @@ function createTransactionalDatabase(state: LifecycleState) {
           set: jest.fn().mockImplementation((changes) => ({
             where: jest.fn().mockReturnValue({
               returning: jest.fn().mockImplementation(async () => {
-                if (state.status !== 'active') return [];
+                if (
+                  changes.status === 'active'
+                    ? state.status === 'active'
+                    : state.status !== 'active'
+                ) {
+                  return [];
+                }
 
                 state.status = changes.status;
                 return [{ id: 'store-1', status: state.status }];
@@ -201,6 +207,81 @@ describe('StoreRepository lifecycle persistence', () => {
       actorAuthority: 'platform_super_admin',
       previousStatus: 'active',
       newStatus: 'platform_suspended',
+    });
+  });
+
+  it.each(['owner_closed', 'platform_suspended'] as const)(
+    'atomically reactivates a %s Store and records the Platform Super-admin action',
+    async (previousStatus) => {
+      const state: LifecycleState = {
+        status: previousStatus,
+        auditRecords: [],
+      };
+      const repository = new StoreRepository(
+        createTransactionalDatabase(state) as never,
+      );
+
+      await expect(
+        repository.transitionStatus({
+          storeId: 'store-1',
+          actorId: 'platform-1',
+          actorAuthority: 'platform_super_admin',
+          previousStatus,
+          newStatus: 'active',
+          reason: 'Issue resolved and approved.',
+        }),
+      ).resolves.toEqual({ id: 'store-1', status: 'active' });
+
+      expect(state).toEqual({
+        status: 'active',
+        auditRecords: [
+          {
+            id: expect.any(String),
+            storeId: 'store-1',
+            actorId: 'platform-1',
+            actorAuthority: 'platform_super_admin',
+            previousStatus,
+            newStatus: 'active',
+            reason: 'Issue resolved and approved.',
+          },
+        ],
+      });
+    },
+  );
+
+  it('allows only one of two competing reactivation commands to commit', async () => {
+    const state: LifecycleState = {
+      status: 'owner_closed',
+      auditRecords: [],
+    };
+    const repository = new StoreRepository(
+      createTransactionalDatabase(state) as never,
+    );
+    const transition = {
+      storeId: 'store-1',
+      actorAuthority: 'platform_super_admin' as const,
+      previousStatus: 'owner_closed' as const,
+      newStatus: 'active' as const,
+      reason: 'Issue resolved and approved.',
+    };
+
+    const results = await Promise.allSettled([
+      repository.transitionStatus({ ...transition, actorId: 'platform-1' }),
+      repository.transitionStatus({ ...transition, actorId: 'platform-2' }),
+    ]);
+
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(
+      results.filter((result) => result.status === 'rejected'),
+    ).toHaveLength(1);
+    expect(state.status).toBe('active');
+    expect(state.auditRecords).toHaveLength(1);
+    expect(state.auditRecords[0]).toMatchObject({
+      actorAuthority: 'platform_super_admin',
+      previousStatus: 'owner_closed',
+      newStatus: 'active',
     });
   });
 });

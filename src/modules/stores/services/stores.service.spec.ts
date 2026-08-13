@@ -37,6 +37,8 @@ describe('StoresService', () => {
   };
   const resourceCleanupQueue = {
     addDeleteOrphanedOrgJob: jest.fn(),
+    addDeleteOrphanedFileJob: jest.fn(),
+    addDeleteOldFileJob: jest.fn(),
   };
   const dataSyncQueue = {
     addSyncOrgNameJob: jest.fn(),
@@ -45,18 +47,26 @@ describe('StoresService', () => {
     log: jest.fn(),
     error: jest.fn(),
   };
+  const storage = {
+    uploadFile: jest.fn(),
+  };
+  const imageProcessingService = {
+    validateAndSanitize: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.resetAllMocks();
     jest
       .mocked(fromNodeHeaders)
       .mockReturnValue({ authorization: 'Bearer token' } as never);
+    resourceCleanupQueue.addDeleteOrphanedFileJob.mockResolvedValue(undefined);
+    resourceCleanupQueue.addDeleteOldFileJob.mockResolvedValue(undefined);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StoresService,
         { provide: StoreRepository, useValue: storeRepository },
-        { provide: StorageService, useValue: {} },
-        { provide: ImageProcessingService, useValue: {} },
+        { provide: StorageService, useValue: storage },
+        { provide: ImageProcessingService, useValue: imageProcessingService },
         {
           provide: ResourceCleanupQueueService,
           useValue: resourceCleanupQueue,
@@ -98,6 +108,57 @@ describe('StoresService', () => {
       expect(storeLifecycleService.closeStore).not.toHaveBeenCalled();
     },
   );
+
+  it('allows a Store Owner to update a reactivated active Store', async () => {
+    const existingStore = {
+      id: 'store-1',
+      organizationId: 'organization-1',
+      ownerId: 'owner-1',
+      name: 'Old Store',
+      status: 'active',
+    };
+    const updatedStore = { ...existingStore, description: 'Updated details' };
+    storeRepository.findByOwnerId.mockResolvedValue(existingStore);
+    storeRepository.updateActiveStore = jest
+      .fn()
+      .mockResolvedValue(updatedStore);
+
+    await expect(
+      service.updateStore({ description: 'Updated details' }, 'owner-1', {}),
+    ).resolves.toBe(updatedStore);
+  });
+
+  it('allows a Store Owner to replace the logo on a reactivated active Store', async () => {
+    const existingStore = {
+      id: 'store-1',
+      ownerId: 'owner-1',
+      status: 'active',
+      logoKey: 'old-logo-key',
+    };
+    const sanitizedImage = { mimetype: 'image/png' };
+    storeRepository.findByOwnerId.mockResolvedValue(existingStore);
+    imageProcessingService.validateAndSanitize.mockResolvedValue(
+      sanitizedImage,
+    );
+    storage.uploadFile.mockResolvedValue('https://cdn.example/new-logo.png');
+    storeRepository.updateActiveStore = jest.fn().mockResolvedValue({
+      ...existingStore,
+      logo: 'https://cdn.example/new-logo.png',
+      logoKey: expect.any(String),
+    });
+
+    await expect(
+      service.uploadStoreLogo({} as Express.Multer.File, 'owner-1'),
+    ).resolves.toBeUndefined();
+
+    expect(storeRepository.updateActiveStore).toHaveBeenCalledWith(
+      'store-1',
+      expect.objectContaining({ logo: 'https://cdn.example/new-logo.png' }),
+    );
+    expect(resourceCleanupQueue.addDeleteOldFileJob).toHaveBeenCalledWith(
+      'old-logo-key',
+    );
+  });
 
   it('creates the internal Organization through the Store creation flow', async () => {
     const organization = { id: 'organization-1' };

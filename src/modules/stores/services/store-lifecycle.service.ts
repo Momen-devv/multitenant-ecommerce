@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { StoreLifecycleConflictError } from '@/common/errors/store-lifecycle-conflict.error';
 import type { Store } from '@/infrastructure/database/schema/schema.types';
 import { StoreRepository } from '../repos/store.repository';
+import type { StoreStatus } from '../domain/store-status';
 
 @Injectable()
 export class StoreLifecycleService {
@@ -50,6 +51,41 @@ export class StoreLifecycleService {
       if (error instanceof StoreLifecycleConflictError) {
         throw new ConflictException(
           'The Store is already suspended, closed, or does not allow Store Suspension.',
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  async reactivateStore(
+    storeId: string,
+    actorId: string,
+    reason: string,
+    previousStatus: StoreStatus,
+  ): Promise<Store> {
+    if (
+      previousStatus !== 'owner_closed' &&
+      previousStatus !== 'platform_suspended'
+    ) {
+      throw new ConflictException(
+        'The Store is already active and does not allow Store Reactivation.',
+      );
+    }
+
+    try {
+      return await this.storeRepository.transitionStatus({
+        storeId,
+        actorId,
+        actorAuthority: 'platform_super_admin',
+        previousStatus,
+        newStatus: 'active',
+        reason: reason.trim(),
+      });
+    } catch (error) {
+      if (error instanceof StoreLifecycleConflictError) {
+        throw new ConflictException(
+          'The Store is already active or does not allow Store Reactivation.',
         );
       }
 
