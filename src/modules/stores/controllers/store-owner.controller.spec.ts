@@ -25,7 +25,7 @@ jest.mock('better-auth/node', () => ({
   fromNodeHeaders: jest.fn(),
 }));
 
-import { StoreOwnerController } from './stores.controller';
+import { StoreOwnerController } from './store-owner.controller';
 import { StoresService } from '../services/stores.service';
 import { StoreRepository } from '../repos/store.repository';
 import { StorageService } from '@/common/abstracts/storage.abstracts';

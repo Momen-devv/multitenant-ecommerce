@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { StoreOwnerController } from './controllers/stores.controller';
+import { StoreOwnerController } from './controllers/store-owner.controller';
 import { StoresService } from './services/stores.service';
 import { StoreRepository } from './repos/store.repository';
 import { StorageModule } from '@/infrastructure/storage/storage.module';
