@@ -40,9 +40,6 @@ export const store = pgTable('store', {
   logo: text('logo'),
   logoKey: text('logo_key'),
 
-  // subscriptionId: text('subscription_id'),
-  // subscriptionStatus: text('subscription_status'),
-
   status: storeStatus('status').default('active').notNull(),
 
   createdAt: timestamp('created_at').defaultNow().notNull(),

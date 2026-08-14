@@ -1,6 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import request = require('supertest');
+import request from 'supertest';
 import type { App } from 'supertest/types';
 
 jest.mock('@/infrastructure/storage/file-validation.config', () => ({

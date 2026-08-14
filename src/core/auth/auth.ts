@@ -4,6 +4,7 @@ import { organization, admin, openAPI } from 'better-auth/plugins';
 import * as schema from '@/infrastructure/database/schema/schema';
 import type { Redis } from 'ioredis';
 import { generateUUIDv7, hashPassword, verifyPassword } from '@/common/utils';
+import { AuthRole } from '@/common/enums/auth-role.enum';
 import * as Schema from '@/infrastructure/database/schema/schema';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { ConfigType } from '@nestjs/config';
@@ -208,8 +209,11 @@ export function createAuth({
       }),
       admin({
         ac,
-        roles: { superAdmin, user },
-        defaultRole: 'user',
+        roles: {
+          [AuthRole.SUPER_ADMIN]: superAdmin,
+          [AuthRole.USER]: user,
+        },
+        defaultRole: AuthRole.USER,
         impersonationSessionDuration: 60 * 15,
         defaultBanReason: 'Violation of platform terms',
         defaultBanExpiresIn: undefined,

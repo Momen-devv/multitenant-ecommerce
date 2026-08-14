@@ -40,7 +40,7 @@ export class PlatformStoresService {
     const suspendedStore = await this.storeLifecycleService.suspendStore(
       storeId,
       actorId,
-      reason.trim(),
+      reason,
     );
 
     return this.toPlatformResponse({
@@ -62,7 +62,7 @@ export class PlatformStoresService {
     const reactivatedStore = await this.storeLifecycleService.reactivateStore(
       storeId,
       actorId,
-      reason.trim(),
+      reason,
       existingStore.status,
     );
 

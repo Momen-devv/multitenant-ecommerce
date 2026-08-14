@@ -36,6 +36,13 @@
       "when": 1786646400000,
       "tag": "0004_store_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786629791100,
+      "tag": "0005_whole_carnage",
+      "breakpoints": true
     }
   ]
 }

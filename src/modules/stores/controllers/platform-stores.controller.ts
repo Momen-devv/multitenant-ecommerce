@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   Session,
 } from '@nestjs/common';
@@ -12,13 +13,14 @@ import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '@thallesp/nestjs-better-auth';
 import { ApiErrorResponse, ApiSuccessResponse } from '@/common/decorators';
 import { ResponseMessage } from '@/common/decorators/response-message.decorator';
+import { AuthRole } from '@/common/enums/auth-role.enum';
 import { PlatformStoresService } from '../services/platform-stores.service';
 import { ReactivateStoreDto, SuspendStoreDto } from '../dto';
 import type { CurrentUser } from '@/core/auth/auth.types';
 
 @ApiTags('Platform Stores')
 @ApiCookieAuth()
-@Roles(['superAdmin'])
+@Roles([AuthRole.SUPER_ADMIN])
 @Controller('platform/stores')
 export class PlatformStoresController {
   constructor(private readonly platformStoresService: PlatformStoresService) {}
@@ -42,7 +44,7 @@ export class PlatformStoresController {
   @ResponseMessage('Store retrieved successfully')
   @HttpCode(HttpStatus.OK)
   @Get(':storeId')
-  async getStore(@Param('storeId') storeId: string) {
+  async getStore(@Param('storeId', new ParseUUIDPipe()) storeId: string) {
     return this.platformStoresService.getStore(storeId);
   }
 
@@ -57,7 +59,7 @@ export class PlatformStoresController {
   @HttpCode(HttpStatus.OK)
   @Post(':storeId/suspend')
   async suspendStore(
-    @Param('storeId') storeId: string,
+    @Param('storeId', new ParseUUIDPipe()) storeId: string,
     @Body() dto: SuspendStoreDto,
     @Session() session: CurrentUser,
   ) {
@@ -79,7 +81,7 @@ export class PlatformStoresController {
   @HttpCode(HttpStatus.OK)
   @Post(':storeId/reactivate')
   async reactivateStore(
-    @Param('storeId') storeId: string,
+    @Param('storeId', new ParseUUIDPipe()) storeId: string,
     @Body() dto: ReactivateStoreDto,
     @Session() session: CurrentUser,
   ) {

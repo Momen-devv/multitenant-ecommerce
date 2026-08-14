@@ -123,7 +123,7 @@ describe('PlatformStoresService', () => {
     expect(storeLifecycleService.suspendStore).toHaveBeenCalledWith(
       'store-1',
       'platform-1',
-      'Terms violation.',
+      '  Terms violation.  ',
     );
   });
 
@@ -179,7 +179,7 @@ describe('PlatformStoresService', () => {
       expect(storeLifecycleService.reactivateStore).toHaveBeenCalledWith(
         'store-1',
         'platform-1',
-        'Issue resolved and approved.',
+        '  Issue resolved and approved.  ',
         status,
       );
     },

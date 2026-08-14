@@ -57,6 +57,10 @@ class TestAuthGuard implements CanActivate {
 
 describe('PlatformStoresController HTTP adapter', () => {
   let app: INestApplication<App>;
+  const activeStoreId = '19ffb5c0-b6a9-7ba5-90d6-ffccc9e57934';
+  const closedStoreId = '29ffb5c0-b6a9-7ba5-90d6-ffccc9e57934';
+  const suspendedStoreId = '39ffb5c0-b6a9-7ba5-90d6-ffccc9e57934';
+  const missingStoreId = '49ffb5c0-b6a9-7ba5-90d6-ffccc9e57934';
   const platformStoresService = {
     listStores: jest.fn(),
     getStore: jest.fn(),
@@ -66,7 +70,7 @@ describe('PlatformStoresController HTTP adapter', () => {
 
   const stores = [
     {
-      id: 'store-1',
+      id: activeStoreId,
       name: 'Active Store',
       slug: 'active-store',
       description: null,
@@ -77,7 +81,7 @@ describe('PlatformStoresController HTTP adapter', () => {
       owner: { id: 'owner-1', name: 'Owner One', email: 'one@example.com' },
     },
     {
-      id: 'store-2',
+      id: closedStoreId,
       name: 'Closed Store',
       slug: 'closed-store',
       description: null,
@@ -88,7 +92,7 @@ describe('PlatformStoresController HTTP adapter', () => {
       owner: { id: 'owner-2', name: 'Owner Two', email: 'two@example.com' },
     },
     {
-      id: 'store-3',
+      id: suspendedStoreId,
       name: 'Suspended Store',
       slug: 'suspended-store',
       description: null,
@@ -185,31 +189,60 @@ describe('PlatformStoresController HTTP adapter', () => {
     );
 
     await request(app.getHttpServer())
-      .get('/platform/stores/missing-store')
+      .get(`/platform/stores/${missingStoreId}`)
       .set('x-role', 'superAdmin')
       .expect(404);
   });
 
+  it('rejects a malformed Store UUID before calling the service', async () => {
+    await request(app.getHttpServer())
+      .get('/platform/stores/not-a-uuid')
+      .set('x-role', 'superAdmin')
+      .expect(400);
+
+    expect(platformStoresService.getStore).not.toHaveBeenCalled();
+  });
+
   it('suspends a Store for a Platform Super-admin with a normalized reason', async () => {
     await request(app.getHttpServer())
-      .post('/platform/stores/store-1/suspend')
+      .post(`/platform/stores/${activeStoreId}/suspend`)
       .set('x-role', 'superAdmin')
       .send({ reason: '  Terms violation.  ' })
       .expect(200)
       .expect({ ...stores[0], status: 'platform_suspended' });
 
     expect(platformStoresService.suspendStore).toHaveBeenCalledWith(
-      'store-1',
+      activeStoreId,
       'platform-user',
       'Terms violation.',
     );
+  });
+
+  it('requires a reason when suspending', async () => {
+    await request(app.getHttpServer())
+      .post(`/platform/stores/${activeStoreId}/suspend`)
+      .set('x-role', 'superAdmin')
+      .send({})
+      .expect(400);
+
+    expect(platformStoresService.suspendStore).not.toHaveBeenCalled();
+  });
+
+  it('rejects a malformed Store UUID when suspending', async () => {
+    await request(app.getHttpServer())
+      .post('/platform/stores/not-a-uuid/suspend')
+      .set('x-role', 'superAdmin')
+      .send({ reason: 'Terms violation.' })
+      .expect(400);
+
+    expect(platformStoresService.suspendStore).not.toHaveBeenCalled();
   });
 
   it.each(['', 'short', '         ', 'a'.repeat(501)])(
     'rejects an invalid suspension reason: %s',
     async (reason) => {
       await request(app.getHttpServer())
-        .post('/platform/stores/store-1/suspend')
+        .post(`/platform/stores/${activeStoreId}/suspend`)
         .set('x-role', 'superAdmin')
         .send({ reason })
         .expect(400);
@@ -220,7 +253,7 @@ describe('PlatformStoresController HTTP adapter', () => {
 
   it('rejects Store suspension for authenticated users without the Platform Super-admin role', async () => {
     await request(app.getHttpServer())
-      .post('/platform/stores/store-1/suspend')
+      .post(`/platform/stores/${activeStoreId}/suspend`)
       .set('x-role', 'user')
       .send({ reason: 'Terms violation.' })
       .expect(403);
@@ -232,7 +265,7 @@ describe('PlatformStoresController HTTP adapter', () => {
     );
 
     await request(app.getHttpServer())
-      .post('/platform/stores/store-1/suspend')
+      .post(`/platform/stores/${activeStoreId}/suspend`)
       .set('x-role', 'superAdmin')
       .send({ reason: 'Terms violation.' })
       .expect(409);
@@ -244,7 +277,7 @@ describe('PlatformStoresController HTTP adapter', () => {
     );
 
     await request(app.getHttpServer())
-      .post('/platform/stores/missing-store/suspend')
+      .post(`/platform/stores/${missingStoreId}/suspend`)
       .set('x-role', 'superAdmin')
       .send({ reason: 'Terms violation.' })
       .expect(404);
@@ -269,11 +302,31 @@ describe('PlatformStoresController HTTP adapter', () => {
     },
   );
 
+  it('requires a reason when reactivating', async () => {
+    await request(app.getHttpServer())
+      .post(`/platform/stores/${closedStoreId}/reactivate`)
+      .set('x-role', 'superAdmin')
+      .send({})
+      .expect(400);
+
+    expect(platformStoresService.reactivateStore).not.toHaveBeenCalled();
+  });
+
+  it('rejects a malformed Store UUID when reactivating', async () => {
+    await request(app.getHttpServer())
+      .post('/platform/stores/not-a-uuid/reactivate')
+      .set('x-role', 'superAdmin')
+      .send({ reason: 'Issue resolved and approved.' })
+      .expect(400);
+
+    expect(platformStoresService.reactivateStore).not.toHaveBeenCalled();
+  });
+
   it.each(['', 'short', '         ', 'a'.repeat(501)])(
     'rejects an invalid reactivation reason: %s',
     async (reason) => {
       await request(app.getHttpServer())
-        .post('/platform/stores/store-2/reactivate')
+        .post(`/platform/stores/${closedStoreId}/reactivate`)
         .set('x-role', 'superAdmin')
         .send({ reason })
         .expect(400);
@@ -284,7 +337,7 @@ describe('PlatformStoresController HTTP adapter', () => {
 
   it('rejects Store reactivation for authenticated users without the Platform Super-admin role', async () => {
     await request(app.getHttpServer())
-      .post('/platform/stores/store-2/reactivate')
+      .post(`/platform/stores/${closedStoreId}/reactivate`)
       .set('x-role', 'user')
       .send({ reason: 'Issue resolved and approved.' })
       .expect(403);
@@ -296,7 +349,7 @@ describe('PlatformStoresController HTTP adapter', () => {
     );
 
     await request(app.getHttpServer())
-      .post('/platform/stores/store-1/reactivate')
+      .post(`/platform/stores/${activeStoreId}/reactivate`)
       .set('x-role', 'superAdmin')
       .send({ reason: 'Issue resolved and approved.' })
       .expect(409);
@@ -304,7 +357,7 @@ describe('PlatformStoresController HTTP adapter', () => {
 
   it('rejects Store reactivation by an unauthenticated Store Owner', async () => {
     await request(app.getHttpServer())
-      .post('/platform/stores/store-2/reactivate')
+      .post(`/platform/stores/${closedStoreId}/reactivate`)
       .send({ reason: 'Issue resolved and approved.' })
       .expect(401);
   });
