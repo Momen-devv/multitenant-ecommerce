@@ -2,6 +2,7 @@ import { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer
 import { memoryStorage } from 'multer';
 
 export const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+export const MAX_STORE_LOGO_SIZE = 5 * 1024 * 1024; // 5MB
 
 export const imageUploadOptions: MulterOptions = {
   storage: memoryStorage(),

@@ -5,6 +5,7 @@ import { ConfigType } from '@nestjs/config';
 import { EmailQueueModule } from './email/email-queue.module';
 import { bullRedisOptions } from '@/infrastructure/redis/redis.config';
 import { ResourceCleanupQueueModule } from './resource-cleanup/resource-cleanup-queue.module';
+import { DataSyncModule } from './data-sync/data-sync.module';
 
 @Global()
 @Module({
@@ -29,7 +30,8 @@ import { ResourceCleanupQueueModule } from './resource-cleanup/resource-cleanup-
     }),
     EmailQueueModule,
     ResourceCleanupQueueModule,
+    DataSyncModule,
   ],
-  exports: [EmailQueueModule, ResourceCleanupQueueModule],
+  exports: [EmailQueueModule, ResourceCleanupQueueModule, DataSyncModule],
 })
 export class QueueModule {}

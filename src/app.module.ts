@@ -21,7 +21,6 @@ import { createAuth } from '@/core/auth/auth';
 import { DATABASE } from './common/constants/injection-tokens.constants';
 
 // Common
-import { CommonModule } from './common/common.module';
 import { AllExceptionsFilter } from '@/common/filters/http-exception.filter';
 import { TransformResponseInterceptor } from './common/interceptors/transform-response.interceptor';
 import { CorrelationIdMiddleware } from './common/middlewares/correlation-id.middleware';
@@ -33,11 +32,11 @@ import * as Schema from '@/infrastructure/database/schema/schema';
 import type { ConfigType } from '@nestjs/config';
 import { betterAuthConfig } from './core/config';
 import { HealthModule } from './modules/health/health.module';
+import { StoresModule } from './modules/stores/stores.module';
 
 @Module({
   imports: [
     InfrastructureModule,
-    CommonModule,
     CoreModule,
 
     ThrottlerModule.forRootAsync({
@@ -72,6 +71,7 @@ import { HealthModule } from './modules/health/health.module';
     // Feature modules
     HealthModule,
     UsersModule,
+    StoresModule,
 
     RouterModule.register([
       { path: 'users', module: UsersModule },

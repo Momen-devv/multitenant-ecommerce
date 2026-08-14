@@ -7,9 +7,11 @@ import {
 } from '@/infrastructure/queue/queue.constants';
 import { StorageService } from '@/common/abstracts';
 import { LoggerService } from '../../logger/logger.service';
+import { StoreRepository } from '@/modules/stores/repos/store.repository';
 
 type ResourceCleanupJobData = {
   fileKey: string; // The file key to be deleted
+  organizationId?: string; // The organization ID to be deleted (optional)
 };
 
 @Processor(QueueNames.RESOURCE_CLEANUP)
@@ -17,6 +19,7 @@ export class ResourceCleanupQueueProcessor extends WorkerHost {
   constructor(
     private readonly storageService: StorageService,
     private readonly logger: LoggerService,
+    private readonly storeRepository: StoreRepository,
   ) {
     super();
   }
@@ -29,6 +32,10 @@ export class ResourceCleanupQueueProcessor extends WorkerHost {
 
       case JobNames.RESOURCE_CLEANUP.DELETE_OLD_FILE:
         await this.storageService.deleteFile(job.data.fileKey);
+        break;
+
+      case JobNames.RESOURCE_CLEANUP.DELETE_ORPHANED_ORG:
+        await this.storeRepository.deleteOrganization(job.data.organizationId!);
         break;
 
       default: {

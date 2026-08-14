@@ -4,12 +4,53 @@ import { organization, admin, openAPI } from 'better-auth/plugins';
 import * as schema from '@/infrastructure/database/schema/schema';
 import type { Redis } from 'ioredis';
 import { generateUUIDv7, hashPassword, verifyPassword } from '@/common/utils';
+import { AuthRole } from '@/common/enums/auth-role.enum';
 import * as Schema from '@/infrastructure/database/schema/schema';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { ConfigType } from '@nestjs/config';
 import { betterAuthConfig } from '../config';
 import { isProduction } from 'better-auth';
 import { ac, user, superAdmin } from './permissions';
+
+const DISABLED_BETTER_AUTH_MANAGEMENT_PATHS = [
+  '/organization/create',
+  '/organization/update',
+  '/organization/delete',
+  '/organization/set-active',
+  '/organization/get-full-organization',
+  '/organization/list',
+  '/organization/invite-member',
+  '/organization/cancel-invitation',
+  '/organization/accept-invitation',
+  '/organization/get-invitation',
+  '/organization/reject-invitation',
+  '/organization/list-invitations',
+  '/organization/list-user-invitations',
+  '/organization/get-active-member',
+  '/organization/check-slug',
+  '/organization/add-member',
+  '/organization/remove-member',
+  '/organization/update-member-role',
+  '/organization/leave',
+  '/organization/list-members',
+  '/organization/get-active-member-role',
+  '/organization/has-permission',
+  '/admin/set-role',
+  '/admin/get-user',
+  '/admin/create-user',
+  '/admin/update-user',
+  '/admin/list-users',
+  '/admin/list-user-sessions',
+  '/admin/unban-user',
+  '/admin/ban-user',
+  '/admin/impersonate-user',
+  '/admin/stop-impersonating',
+  '/admin/revoke-user-session',
+  '/admin/revoke-user-sessions',
+  '/admin/remove-user',
+  '/admin/set-user-password',
+  '/admin/has-permission',
+] as const;
 
 type AuthEmailQueue = {
   addVerificationEmailJob: (
@@ -55,7 +96,7 @@ export function createAuth({
       },
     },
 
-    disabledPaths: ['/update-user'],
+    disabledPaths: ['/update-user', ...DISABLED_BETTER_AUTH_MANAGEMENT_PATHS],
 
     user: {
       changeEmail: {
@@ -160,7 +201,7 @@ export function createAuth({
     plugins: [
       organization({
         allowUserToCreateOrganization: (user) => user.emailVerified === true,
-        organizationLimit: 10,
+        organizationLimit: 1,
         membershipLimit: 100,
         invitationExpiresIn: 60 * 60 * 24 * 7,
         invitationLimit: 100,
@@ -168,8 +209,11 @@ export function createAuth({
       }),
       admin({
         ac,
-        roles: { superAdmin, user },
-        defaultRole: 'user',
+        roles: {
+          [AuthRole.SUPER_ADMIN]: superAdmin,
+          [AuthRole.USER]: user,
+        },
+        defaultRole: AuthRole.USER,
         impersonationSessionDuration: 60 * 15,
         defaultBanReason: 'Violation of platform terms',
         defaultBanExpiresIn: undefined,
