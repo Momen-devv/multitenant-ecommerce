@@ -33,6 +33,7 @@ import type { ConfigType } from '@nestjs/config';
 import { betterAuthConfig } from './core/config';
 import { HealthModule } from './modules/health/health.module';
 import { StoresModule } from './modules/stores/stores.module';
+import { PlansModule } from './modules/plans/plans.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { StoresModule } from './modules/stores/stores.module';
     HealthModule,
     UsersModule,
     StoresModule,
+    PlansModule,
 
     RouterModule.register([
       { path: 'users', module: UsersModule },

@@ -57,3 +57,11 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Editor directories and files
 /src/core/auth/auth.cli.ts
+
+# Skills
+.agents
+.scratch
+docs
+AGENTS.md
+CONTEXT.md
+skills-lock.json

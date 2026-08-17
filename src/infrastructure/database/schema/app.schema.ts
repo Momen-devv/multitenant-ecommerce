@@ -6,6 +6,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uuid,
 } from 'drizzle-orm/pg-core';
 import { user, organization } from './auth.schema';
 
@@ -21,7 +22,7 @@ export const storeLifecycleActorAuthority = pgEnum('store_actor_authority', [
 ]);
 
 export const store = pgTable('store', {
-  id: text('id').primaryKey(),
+  id: uuid('id').defaultRandom().primaryKey(),
 
   organizationId: text('organization_id')
     .notNull()
@@ -52,9 +53,9 @@ export const store = pgTable('store', {
 export const storeLifecycleAudit = pgTable(
   'store_lifecycle_audit',
   {
-    id: text('id').primaryKey(),
+    id: uuid('id').defaultRandom().primaryKey(),
 
-    storeId: text('store_id')
+    storeId: uuid('store_id')
       .notNull()
       .references(() => store.id, { onDelete: 'restrict' }),
 
@@ -82,6 +83,10 @@ export const storeRelations = relations(store, ({ one }) => ({
     fields: [store.ownerId],
     references: [user.id],
   }),
+  organization: one(organization, {
+    fields: [store.organizationId],
+    references: [organization.id],
+  }),
 }));
 
 export const storeLifecycleAuditRelations = relations(
@@ -94,16 +99,6 @@ export const storeLifecycleAuditRelations = relations(
     actor: one(user, {
       fields: [storeLifecycleAudit.actorId],
       references: [user.id],
-    }),
-  }),
-);
-
-export const organizationWithStoreRelations = relations(
-  organization,
-  ({ one }) => ({
-    store: one(store, {
-      fields: [organization.id],
-      references: [store.organizationId],
     }),
   }),
 );
