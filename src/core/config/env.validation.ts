@@ -26,6 +26,11 @@ const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string(),
   AWS_S3_BUCKET_NAME: z.string(),
   AWS_ENDPOINT: z.string(),
+
+  STRIPE_SECRET_KEY: z.string().min(1, 'STRIPE_WEBHOOK_SECRET is required'),
+  STRIPE_WEBHOOK_SECRET: z.string().min(1, 'STRIPE_WEBHOOK_SECRET is required'),
+  STRIPE_TIMEOUT_MS: z.string(),
+  STRIPE_MAX_NETWORK_RETRIES: z.string(),
 });
 
 export function validate(config: Record<string, unknown>) {

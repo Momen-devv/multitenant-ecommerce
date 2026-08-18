@@ -4,19 +4,18 @@ import { BillingCheckoutService } from './billing-checkout.service';
 import { BillingPortalService } from './billing-portal.service';
 import { StripeWebhookController } from './stripe-webhook.controller';
 import { StripeWebhookService } from './stripe-webhook.service';
-import { StripeService } from './stripe/stripe.service';
+import { StripeModule } from './stripe/stripe.module';
 
 @Module({
+  imports: [StripeModule],
   controllers: [StripeWebhookController],
   providers: [
-    StripeService,
     BillingCatalogService,
     BillingCheckoutService,
     BillingPortalService,
     StripeWebhookService,
   ],
   exports: [
-    StripeService,
     BillingCatalogService,
     BillingCheckoutService,
     BillingPortalService,

@@ -5,43 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1784545546179,
-      "tag": "0000_dapper_spirit",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1785074866975,
-      "tag": "0001_typical_inhumans",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1785445134384,
-      "tag": "0002_oval_lifeguard",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1786235060428,
-      "tag": "0003_dizzy_tigra",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1786646400000,
-      "tag": "0004_store_lifecycle",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1786629791100,
-      "tag": "0005_whole_carnage",
+      "when": 1787049512518,
+      "tag": "0000_jazzy_zaladane",
       "breakpoints": true
     }
   ]

@@ -34,6 +34,7 @@ import { betterAuthConfig } from './core/config';
 import { HealthModule } from './modules/health/health.module';
 import { StoresModule } from './modules/stores/stores.module';
 import { PlansModule } from './modules/plans/plans.module';
+import { BillingModule } from './modules/billing/billing.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { PlansModule } from './modules/plans/plans.module';
     UsersModule,
     StoresModule,
     PlansModule,
+    BillingModule,
 
     RouterModule.register([
       { path: 'users', module: UsersModule },

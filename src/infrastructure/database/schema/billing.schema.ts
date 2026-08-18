@@ -1,3 +1,4 @@
+import { generateUUIDv7 } from '@/common/utils/uuidv7';
 import { relations } from 'drizzle-orm';
 import {
   boolean,
@@ -11,7 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 export const plans = pgTable('plans', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: uuid('id').primaryKey().$defaultFn(generateUUIDv7),
 
   name: varchar('name', { length: 100 }).notNull(),
   code: varchar('code', { length: 64 }).notNull().unique(), // starter, pro
@@ -26,9 +27,7 @@ export const plans = pgTable('plans', {
 
   limits: jsonb('limits').$type<Record<string, number>>().notNull().default({}),
 
-  stripeProductId: varchar('stripe_product_id', { length: 255 })
-    .notNull()
-    .unique(),
+  stripeProductId: varchar('stripe_product_id', { length: 255 }).unique(),
 
   isActive: boolean('is_active').notNull().default(true),
 
@@ -51,7 +50,7 @@ export const billingIntervalEnum = pgEnum('billing_interval', [
 ]);
 
 export const planPrices = pgTable('plan_prices', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: uuid('id').primaryKey().$defaultFn(generateUUIDv7),
 
   planId: uuid('plan_id')
     .notNull()

@@ -1,1 +1,2 @@
-// DTOs for the plans module will be exported from this barrel as they are added.
+export { CreatePlanPriceDto } from './create-plan-price.dto';
+export { CreatePlanDto } from './create-plan.dto';
