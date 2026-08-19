@@ -8,6 +8,13 @@
       "when": 1787049512518,
       "tag": "0000_jazzy_zaladane",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787173731399,
+      "tag": "0001_striped_redwing",
+      "breakpoints": true
     }
   ]
 }

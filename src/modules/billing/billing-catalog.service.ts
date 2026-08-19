@@ -9,6 +9,7 @@ type CreateRecurringPriceInput = {
   currency: string;
   interval: BillingInterval;
   lookupKey: string;
+  planId: string;
   metadata?: Record<string, string>;
 };
 
@@ -29,14 +30,19 @@ export class BillingCatalogService {
 
   async createProductWithPrices(input: CreateProductWithPricesInput) {
     // 1. Create Stripe Product: “Pro”
-    const product = await this.stripe.products.create({
-      name: input.name,
-      description: input.description,
-      metadata: {
-        planId: input.planId,
-        planCode: input.code,
+    const product = await this.stripe.products.create(
+      {
+        name: input.name,
+        description: input.description,
+        metadata: {
+          planId: input.planId,
+          planCode: input.code,
+        },
       },
-    });
+      {
+        idempotencyKey: `plan:${input.planId}:product:create:v1`,
+      },
+    );
 
     // 2. Create its monthly/yearly recurring Stripe Prices
     const prices = await Promise.all(
@@ -46,7 +52,8 @@ export class BillingCatalogService {
           amount: price.amount,
           currency: price.currency,
           interval: price.interval,
-          lookupKey: `${input.code}_${price.interval}_v1`,
+          lookupKey: `${input.code}_${price.interval}_${price.currency}_v1`,
+          planId: input.planId,
           metadata: {
             planId: input.planId,
             planCode: input.code,
@@ -59,16 +66,21 @@ export class BillingCatalogService {
   }
 
   async createRecurringPrice(input: CreateRecurringPriceInput) {
-    return this.stripe.prices.create({
-      product: input.stripeProductId,
-      unit_amount: input.amount,
-      currency: input.currency.toLowerCase(),
-      recurring: {
-        interval: input.interval,
+    return this.stripe.prices.create(
+      {
+        product: input.stripeProductId,
+        unit_amount: input.amount,
+        currency: input.currency.toLowerCase(),
+        recurring: {
+          interval: input.interval,
+        },
+        lookup_key: input.lookupKey,
+        metadata: input.metadata,
       },
-      lookup_key: input.lookupKey,
-      metadata: input.metadata,
-    });
+      {
+        idempotencyKey: `plan:${input.planId}:price:${input.currency}:${input.interval}:v1`,
+      },
+    );
   }
 
   async archivePrice(stripePriceId: string) {

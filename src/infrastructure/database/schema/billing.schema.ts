@@ -15,7 +15,7 @@ export const plans = pgTable('plans', {
   id: uuid('id').primaryKey().$defaultFn(generateUUIDv7),
 
   name: varchar('name', { length: 100 }).notNull(),
-  code: varchar('code', { length: 64 }).notNull().unique(), // starter, pro
+  code: varchar('code', { length: 64 }).notNull().unique('plans_code_unique'), // starter, pro
 
   description: varchar('description', { length: 500 }),
 
@@ -43,7 +43,6 @@ export const plans = pgTable('plans', {
 export const plansRelations = relations(plans, ({ many }) => ({
   prices: many(planPrices),
 }));
-
 export const billingIntervalEnum = pgEnum('billing_interval', [
   'month',
   'year',

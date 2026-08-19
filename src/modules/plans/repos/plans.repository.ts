@@ -11,7 +11,9 @@ import {
   planPrices,
   plans,
 } from '@/infrastructure/database/schema/billing.schema';
-import { eq } from 'drizzle-orm';
+import { DrizzleQueryError, eq } from 'drizzle-orm';
+import { DatabaseError } from 'pg-protocol';
+import { PlanCodeConflictError } from '@/common/errors/plan-code-conflict.error';
 
 @Injectable()
 export class PlansRepository {
@@ -21,15 +23,16 @@ export class PlansRepository {
   ) {}
 
   async create(data: NewPlan): Promise<Plan> {
-    const [created] = await this.db.insert(plans).values(data).returning();
+    try {
+      const [created] = await this.db.insert(plans).values(data).returning();
 
-    return created;
-  }
-
-  async findByCode(code: string): Promise<Plan | undefined> {
-    return this.db.query.plans.findFirst({
-      where: eq(plans.code, code),
-    });
+      return created;
+    } catch (error) {
+      if (this.isUniqueViolation(error, 'plans_code_unique')) {
+        throw new PlanCodeConflictError();
+      }
+      throw error;
+    }
   }
 
   async activatePlanWithPrices(input: {
@@ -48,7 +51,6 @@ export class PlansRepository {
         .set({
           stripeProductId: input.stripeProductId,
           isActive: true,
-          updatedAt: new Date(),
         })
         .where(eq(plans.id, input.planId));
 
@@ -65,5 +67,13 @@ export class PlansRepository {
         with: { prices: true },
       });
     });
+  }
+
+  private isUniqueViolation(err: unknown, constraintName?: string): boolean {
+    if (!(err instanceof DrizzleQueryError)) return false;
+    if (!(err.cause instanceof DatabaseError)) return false;
+    if (err.cause.code !== '23505') return false;
+
+    return constraintName ? err.cause.constraint === constraintName : true;
   }
 }
