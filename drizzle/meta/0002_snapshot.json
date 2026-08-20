@@ -1,6 +1,6 @@
 {
-  "id": "fe508bf7-f2b6-4c86-bf01-63a96fbf68d3",
-  "prevId": "57e5ec6f-ac44-476b-8054-ca88e08da1c9",
+  "id": "33ecd2fc-c8cd-4644-b5fd-4bbe87e14d1c",
+  "prevId": "fe508bf7-f2b6-4c86-bf01-63a96fbf68d3",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1079,7 +1079,8 @@
         },
         "event_type": {
           "name": "event_type",
-          "type": "varchar(100)",
+          "type": "outbox_event_type",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
@@ -1227,6 +1228,13 @@
         "processing",
         "ready",
         "failed"
+      ]
+    },
+    "public.outbox_event_type": {
+      "name": "outbox_event_type",
+      "schema": "public",
+      "values": [
+        "plan.provisioning.requested"
       ]
     }
   },

@@ -1,6 +1,7 @@
 CREATE TYPE "public"."store_actor_authority" AS ENUM('store_owner', 'platform_super_admin');--> statement-breakpoint
 CREATE TYPE "public"."store_status" AS ENUM('active', 'owner_closed', 'platform_suspended');--> statement-breakpoint
 CREATE TYPE "public"."billing_interval" AS ENUM('month', 'year');--> statement-breakpoint
+CREATE TYPE "public"."plan_provisioning_status" AS ENUM('pending', 'processing', 'ready', 'failed');--> statement-breakpoint
 CREATE TABLE "account" (
 	"id" text PRIMARY KEY NOT NULL,
 	"account_id" text NOT NULL,
@@ -103,12 +104,12 @@ CREATE TABLE "store_lifecycle_audit" (
 );
 --> statement-breakpoint
 CREATE TABLE "plan_prices" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"plan_id" uuid NOT NULL,
 	"amount" integer NOT NULL,
 	"currency" varchar(3) DEFAULT 'usd' NOT NULL,
 	"interval" "billing_interval" NOT NULL,
-	"stripe_price_id" varchar(255) NOT NULL,
+	"stripe_price_id" varchar(255),
 	"stripe_lookup_key" varchar(255),
 	"is_active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -117,14 +118,28 @@ CREATE TABLE "plan_prices" (
 	CONSTRAINT "plan_prices_stripe_lookup_key_unique" UNIQUE("stripe_lookup_key")
 );
 --> statement-breakpoint
+CREATE TABLE "plan_provisioning_outbox" (
+	"id" uuid PRIMARY KEY NOT NULL,
+	"plan_id" uuid NOT NULL,
+	"provisioning_version" integer NOT NULL,
+	"available_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"published_at" timestamp with time zone,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"last_error" varchar(1000),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "plans" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"code" varchar(64) NOT NULL,
 	"description" varchar(500),
 	"features" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"limits" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"stripe_product_id" varchar(255),
+	"provisioning_status" "plan_provisioning_status" DEFAULT 'pending' NOT NULL,
+	"provisioning_version" integer DEFAULT 1 NOT NULL,
+	"provisioning_error" varchar(1000),
 	"is_active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -142,6 +157,7 @@ ALTER TABLE "store" ADD CONSTRAINT "store_owner_id_user_id_fk" FOREIGN KEY ("own
 ALTER TABLE "store_lifecycle_audit" ADD CONSTRAINT "store_lifecycle_audit_store_id_store_id_fk" FOREIGN KEY ("store_id") REFERENCES "public"."store"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "store_lifecycle_audit" ADD CONSTRAINT "store_lifecycle_audit_actor_id_user_id_fk" FOREIGN KEY ("actor_id") REFERENCES "public"."user"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "plan_prices" ADD CONSTRAINT "plan_prices_plan_id_plans_id_fk" FOREIGN KEY ("plan_id") REFERENCES "public"."plans"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "plan_provisioning_outbox" ADD CONSTRAINT "plan_provisioning_outbox_plan_id_plans_id_fk" FOREIGN KEY ("plan_id") REFERENCES "public"."plans"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "account_userId_idx" ON "account" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "invitation_organizationId_idx" ON "invitation" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "invitation_email_idx" ON "invitation" USING btree ("email");--> statement-breakpoint
@@ -149,4 +165,6 @@ CREATE INDEX "member_organizationId_idx" ON "member" USING btree ("organization_
 CREATE INDEX "member_userId_idx" ON "member" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "organization_slug_uidx" ON "organization" USING btree ("slug");--> statement-breakpoint
 CREATE INDEX "verification_identifier_idx" ON "verification" USING btree ("identifier");--> statement-breakpoint
-CREATE INDEX "store_lifecycle_audit_store_id_idx" ON "store_lifecycle_audit" USING btree ("store_id");
+CREATE INDEX "store_lifecycle_audit_store_id_idx" ON "store_lifecycle_audit" USING btree ("store_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "plan_provisioning_outbox_plan_version_uidx" ON "plan_provisioning_outbox" USING btree ("plan_id","provisioning_version");--> statement-breakpoint
+CREATE INDEX "plan_provisioning_outbox_due_idx" ON "plan_provisioning_outbox" USING btree ("published_at","available_at");
