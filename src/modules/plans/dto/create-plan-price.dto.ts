@@ -26,7 +26,9 @@ export class CreatePlanPriceDto {
     minLength: 3,
     maxLength: 3,
   })
-  @Transform(({ value }: { value: string }) => value.toLowerCase())
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
   @IsString()
   @Length(3, 3)
   @IsISO4217CurrencyCode()

@@ -1,6 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsBooleanRecord,
+  IsNonNegativeIntegerRecord,
+} from '@/common/decorators/record-validation.decorator';
 import { Type, Transform } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   ArrayUnique,
   IsArray,
@@ -9,7 +14,6 @@ import {
   IsString,
   Length,
   Matches,
-  MaxLength,
   ValidateNested,
 } from 'class-validator';
 import { CreatePlanPriceDto } from './create-plan-price.dto';
@@ -32,7 +36,10 @@ export class CreatePlanDto {
     minLength: 2,
     maxLength: 64,
   })
-  @Transform(({ value }: { value: string }) => value.trim().toLowerCase())
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsString()
   @Matches(/^[a-z0-9-]+$/, {
     message: 'code can contain only lowercase letters, numbers, and hyphens',
   })
@@ -47,7 +54,7 @@ export class CreatePlanDto {
   })
   @IsOptional()
   @IsString()
-  @MaxLength(500)
+  @Length(2, 500)
   description?: string;
 
   @ApiProperty({
@@ -57,6 +64,7 @@ export class CreatePlanDto {
     example: { customDomain: true, analytics: false },
   })
   @IsObject()
+  @IsBooleanRecord()
   features!: Record<string, boolean>;
 
   @ApiProperty({
@@ -66,6 +74,7 @@ export class CreatePlanDto {
     example: { products: 1000, coupons: 1000, categories: 1000 },
   })
   @IsObject()
+  @IsNonNegativeIntegerRecord()
   limits!: Record<string, number>;
 
   @ApiProperty({
@@ -73,11 +82,16 @@ export class CreatePlanDto {
     type: () => CreatePlanPriceDto,
     isArray: true,
     minItems: 1,
+    maxItems: 10,
   })
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(10)
   @ArrayUnique(
-    (price: CreatePlanPriceDto) => `${price.currency}:${price.interval}`,
+    (price: CreatePlanPriceDto | null | undefined) =>
+      price && typeof price === 'object'
+        ? `${String(price.currency)}:${String(price.interval)}`
+        : price,
     { message: 'Only one price per currency and billing interval is allowed' },
   )
   @ValidateNested({ each: true })
