@@ -6,6 +6,7 @@ import { EmailQueueModule } from './email/email-queue.module';
 import { bullRedisOptions } from '@/infrastructure/redis/redis.config';
 import { ResourceCleanupQueueModule } from './resource-cleanup/resource-cleanup-queue.module';
 import { DataSyncModule } from './data-sync/data-sync.module';
+import { PlanProvisioningQueueModule } from './plan-provisioning/plan-provisioning-queue.module';
 
 @Global()
 @Module({
@@ -31,7 +32,13 @@ import { DataSyncModule } from './data-sync/data-sync.module';
     EmailQueueModule,
     ResourceCleanupQueueModule,
     DataSyncModule,
+    PlanProvisioningQueueModule,
   ],
-  exports: [EmailQueueModule, ResourceCleanupQueueModule, DataSyncModule],
+  exports: [
+    EmailQueueModule,
+    ResourceCleanupQueueModule,
+    DataSyncModule,
+    PlanProvisioningQueueModule,
+  ],
 })
 export class QueueModule {}
