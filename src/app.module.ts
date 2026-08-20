@@ -14,8 +14,8 @@ import type { Redis } from 'ioredis';
 // Core / Infrastructure
 import { CoreModule } from '@/core/core.module';
 import { InfrastructureModule } from '@/infrastructure/infrastructure.module';
-import { RedisModule } from '@/infrastructure/redis/redis.module';
-import { REDIS_CLIENT } from '@/infrastructure/redis/redis.constants';
+import { CacheModule } from '@/infrastructure/cache/cache.module';
+import { CACHE_CLIENT } from '@/infrastructure/cache/cache.constants';
 import { EmailQueueService } from '@/infrastructure/queue/email/email-queue.service';
 import { createAuth } from '@/core/auth/auth';
 import { DATABASE } from './common/constants/injection-tokens.constants';
@@ -42,8 +42,8 @@ import { BillingModule } from './modules/billing/billing.module';
     CoreModule,
 
     ThrottlerModule.forRootAsync({
-      imports: [RedisModule],
-      inject: [REDIS_CLIENT],
+      imports: [CacheModule],
+      inject: [CACHE_CLIENT],
       useFactory: (redisClient: Redis) => ({
         throttlers: [{ name: 'default', ttl: seconds(60), limit: 60 }],
         storage: new ThrottlerStorageRedisService(redisClient),
@@ -53,7 +53,7 @@ import { BillingModule } from './modules/billing/billing.module';
 
     AuthModule.forRootAsync({
       imports: [InfrastructureModule],
-      inject: [EmailQueueService, REDIS_CLIENT, DATABASE, betterAuthConfig.KEY],
+      inject: [EmailQueueService, CACHE_CLIENT, DATABASE, betterAuthConfig.KEY],
       useFactory: (
         emailQueue: EmailQueueService,
         redis: Redis,

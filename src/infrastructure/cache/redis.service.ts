@@ -4,16 +4,16 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { REDIS_CLIENT } from './redis.constants';
+import { CACHE_CLIENT } from './cache.constants';
 import Redis from 'ioredis';
 import { LoggerService } from '../logger/logger.service';
-import { ICacheService } from './redis.interface';
+import { ICacheService } from './cache.interface';
 @Injectable()
 export class RedisService
   implements ICacheService, OnModuleInit, OnModuleDestroy
 {
   constructor(
-    @Inject(REDIS_CLIENT) private readonly redisClient: Redis,
+    @Inject(CACHE_CLIENT) private readonly redisClient: Redis,
     private readonly logger: LoggerService,
   ) {}
 

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { RedisModule } from './redis/redis.module';
+import { CacheModule } from './cache/cache.module';
 import { LoggerModule } from './logger/logger.module';
 import { DatabaseModule } from './database/database.module';
 import { MailModule } from './mail/mail.module';
@@ -10,7 +10,7 @@ import { StorageModule } from './storage/storage.module';
   imports: [
     DatabaseModule,
     LoggerModule,
-    RedisModule,
+    CacheModule,
     MailModule,
     QueueModule,
     StorageModule,

@@ -2,7 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { redisConfig } from '@/core/config';
 import { ConfigType } from '@nestjs/config';
-import { REDIS_CLIENT } from './redis.constants';
+import { CACHE_CLIENT } from './cache.constants';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { redisOptions } from './redis.config';
 import { RedisService } from './redis.service';
@@ -12,7 +12,7 @@ import { CACHE_SERVICE } from '@/common/constants/injection-tokens.constants';
 @Module({
   providers: [
     {
-      provide: REDIS_CLIENT,
+      provide: CACHE_CLIENT,
       useFactory: (
         configuration: ConfigType<typeof redisConfig>,
         logger: LoggerService,
@@ -20,19 +20,19 @@ import { CACHE_SERVICE } from '@/common/constants/injection-tokens.constants';
         const client = new Redis(configuration.url, redisOptions);
 
         client.on('connect', () =>
-          logger.log('Redis connected', RedisModule.name),
+          logger.log('Redis connected', CacheModule.name),
         );
         client.on('error', (err) =>
-          logger.error('Redis error', err.stack, RedisModule.name),
+          logger.error('Redis error', err.stack, CacheModule.name),
         );
         client.on('close', () =>
-          logger.log('Redis connection closed', RedisModule.name),
+          logger.log('Redis connection closed', CacheModule.name),
         );
         client.on('reconnecting', () =>
-          logger.log('Redis reconnecting...', RedisModule.name),
+          logger.log('Redis reconnecting...', CacheModule.name),
         );
         client.on('end', () =>
-          logger.log('Redis connection ended', RedisModule.name),
+          logger.log('Redis connection ended', CacheModule.name),
         );
 
         return client;
@@ -44,6 +44,6 @@ import { CACHE_SERVICE } from '@/common/constants/injection-tokens.constants';
       useClass: RedisService,
     },
   ],
-  exports: [CACHE_SERVICE, REDIS_CLIENT],
+  exports: [CACHE_SERVICE, CACHE_CLIENT],
 })
-export class RedisModule {}
+export class CacheModule {}
