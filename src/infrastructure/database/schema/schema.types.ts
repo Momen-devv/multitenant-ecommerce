@@ -1,4 +1,12 @@
-import { planPrices, plans, store, storeLifecycleAudit, user } from './schema';
+import {
+  billingCustomers,
+  planPrices,
+  plans,
+  store,
+  storeLifecycleAudit,
+  subscriptions,
+  user,
+} from './schema';
 
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
@@ -14,3 +22,9 @@ export type NewPlanPrice = typeof planPrices.$inferInsert;
 
 export type Plan = typeof plans.$inferSelect;
 export type NewPlan = typeof plans.$inferInsert;
+
+export type BillingCustomer = typeof billingCustomers.$inferSelect;
+export type NewBillingCustomer = typeof billingCustomers.$inferInsert;
+
+export type Subscription = typeof subscriptions.$inferSelect;
+export type NewSubscription = typeof subscriptions.$inferInsert;
