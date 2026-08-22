@@ -4,6 +4,7 @@ import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -61,9 +62,17 @@ export const plans = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index('plans_name_trgm_idx').using(
+      'gin',
+      table.name.asc().op('gin_trgm_ops'),
+    ),
+    index('plans_code_trgm_idx').using(
+      'gin',
+      table.code.asc().op('gin_trgm_ops'),
+    ),
     check(
       'plans_active_requires_ready_stripe_product_check',
-      sql`${table.isActive} = false OR (${table.provisioningStatus} = ${PlanProvisioningStatus.READY} AND ${table.stripeProductId} IS NOT NULL)`,
+      sql`${table.isActive} = false OR (${table.provisioningStatus} = 'ready' AND ${table.stripeProductId} IS NOT NULL)`,
     ),
   ],
 );

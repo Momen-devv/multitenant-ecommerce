@@ -9,6 +9,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { user, organization } from './auth.schema';
+import { generateUUIDv7 } from '@/common/utils';
 
 export const storeStatus = pgEnum('store_status', [
   'active',
@@ -21,39 +22,52 @@ export const storeLifecycleActorAuthority = pgEnum('store_actor_authority', [
   'platform_super_admin',
 ]);
 
-export const store = pgTable('store', {
-  id: uuid('id').defaultRandom().primaryKey(),
+export const store = pgTable(
+  'store',
+  {
+    id: uuid('id').$defaultFn(generateUUIDv7).primaryKey(),
 
-  organizationId: text('organization_id')
-    .notNull()
-    .unique()
-    .references(() => organization.id, { onDelete: 'restrict' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .unique()
+      .references(() => organization.id, { onDelete: 'restrict' }),
 
-  ownerId: text('owner_id')
-    .notNull()
-    .unique()
-    .references(() => user.id, { onDelete: 'cascade' }),
+    ownerId: text('owner_id')
+      .notNull()
+      .unique()
+      .references(() => user.id, { onDelete: 'cascade' }),
 
-  name: text('name').notNull(),
-  slug: text('slug').notNull().unique(),
-  description: text('description'),
+    name: text('name').notNull(),
+    slug: text('slug').notNull().unique(),
+    description: text('description'),
 
-  logo: text('logo'),
-  logoKey: text('logo_key'),
+    logo: text('logo'),
+    logoKey: text('logo_key'),
 
-  status: storeStatus('status').default('active').notNull(),
+    status: storeStatus('status').default('active').notNull(),
 
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-});
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index('store_name_trgm_idx').using(
+      'gin',
+      table.name.asc().op('gin_trgm_ops'),
+    ),
+    index('store_slug_trgm_idx').using(
+      'gin',
+      table.slug.asc().op('gin_trgm_ops'),
+    ),
+  ],
+);
 
 export const storeLifecycleAudit = pgTable(
   'store_lifecycle_audit',
   {
-    id: uuid('id').defaultRandom().primaryKey(),
+    id: uuid('id').$defaultFn(generateUUIDv7).primaryKey(),
 
     storeId: uuid('store_id')
       .notNull()
