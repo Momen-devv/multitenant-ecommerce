@@ -11,6 +11,7 @@ import { PlanProvisioningStatus } from '@/common/enums/plan-provisioning-status.
 import { PlanProvisioningQueueService } from '@/infrastructure/queue/plan-provisioning/plan-provisioning-queue.service';
 import { BillingCatalogService } from '@/modules/billing/billing-catalog.service';
 import { BillingInterval } from '@/common/enums';
+import type { ApiListQueryInput } from '@/common/api-query';
 
 @Injectable()
 export class PlansService {
@@ -50,8 +51,8 @@ export class PlansService {
     }
   }
 
-  async listPlans() {
-    return await this.plansRepository.findAll();
+  async listPlans(query: ApiListQueryInput) {
+    return await this.plansRepository.findPage(query);
   }
 
   async getPlan(id: string) {
@@ -201,8 +202,8 @@ export class PlansService {
     await this.billingCatalog.archiveProduct(plan.stripeProductId!);
   }
 
-  listActivePlans() {
-    return this.plansRepository.findAllActive();
+  listActivePlans(query: ApiListQueryInput) {
+    return this.plansRepository.findActivePage(query);
   }
 
   async getActivePlanByCode(code: string) {

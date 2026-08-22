@@ -8,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
 } from '@nestjs/common';
 import { PlansService } from '../services/plans.service';
 import { CreatePlanDto, CreatePlanPriceDto, UpdatePlanDto } from '../dto';
@@ -25,6 +26,7 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+import { ApiListQueryDto } from '@/common/api-query';
 
 @ApiTags('Plans')
 @Roles([AuthRole.SUPER_ADMIN])
@@ -64,8 +66,8 @@ export class PlansController {
   @Throttle({ default: { limit: 30, ttl: seconds(60) } })
   @ResponseMessage('Plans retrieved successfully')
   @Get('admin/plans')
-  async listPlans() {
-    return await this.plansService.listPlans();
+  async listPlans(@Query() query: ApiListQueryDto) {
+    return await this.plansService.listPlans(query);
   }
 
   @ApiCookieAuth('mte.session_token')
@@ -253,8 +255,8 @@ export class PlansController {
   @ResponseMessage('Active plans retrieved successfully')
   @AllowAnonymous()
   @Get('plans')
-  async listActivePlans() {
-    return await this.plansService.listActivePlans();
+  async listActivePlans(@Query() query: ApiListQueryDto) {
+    return await this.plansService.listActivePlans(query);
   }
 
   @ApiOperation({ summary: 'Get an active plan by code' })

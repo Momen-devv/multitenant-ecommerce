@@ -30,6 +30,9 @@ import {
   PLAN_PROVISIONING_REQUESTED_EVENT,
   type PlanProvisioningRequestedPayload,
 } from '../provisioning/plan-provisioning.events';
+import { compileApiQuery, type ApiListQueryInput } from '@/common/api-query';
+import { adminPlanQuery } from '../queries/admin-plan.query';
+import { publicPlanQuery } from '../queries/public-plan.query';
 
 type CreatePendingPlanWithPricesInput = {
   plan: Pick<NewPlan, 'name' | 'code' | 'description' | 'features' | 'limits'>;
@@ -111,10 +114,46 @@ export class PlansRepository {
     });
   }
 
-  findAll() {
-    return this.db.query.plans.findMany({
+  async findPage(input: ApiListQueryInput) {
+    const query = compileApiQuery(adminPlanQuery, input);
+    const rows = await this.db.query.plans.findMany({
+      columns: query.columns,
+      where: query.where,
+      orderBy: query.orderBy,
+      limit: query.limit + 1,
       with: { prices: true },
     });
+
+    return query.createPage(rows, (row) => ({
+      prices: row.prices,
+    }));
+  }
+
+  async findActivePage(input: ApiListQueryInput) {
+    const query = compileApiQuery(publicPlanQuery, input);
+    const rows = await this.db.query.plans.findMany({
+      columns: query.columns,
+      where: and(
+        eq(plans.isActive, true),
+        eq(plans.provisioningStatus, PlanProvisioningStatus.READY),
+        query.where,
+      ),
+      orderBy: query.orderBy,
+      limit: query.limit + 1,
+      with: {
+        prices: {
+          where: eq(planPrices.isActive, true),
+          columns: {
+            id: true,
+            amount: true,
+            currency: true,
+            interval: true,
+          },
+        },
+      },
+    });
+
+    return query.createPage(rows, (row) => ({ prices: row.prices }));
   }
 
   async updatePlan(planId: string, input: UpdatePlanInput) {
@@ -273,34 +312,6 @@ export class PlansRepository {
       .returning({ id: plans.id });
 
     return updated.length === 1;
-  }
-
-  findAllActive() {
-    return this.db.query.plans.findMany({
-      where: and(
-        eq(plans.isActive, true),
-        eq(plans.provisioningStatus, PlanProvisioningStatus.READY),
-      ),
-      columns: {
-        id: true,
-        name: true,
-        code: true,
-        description: true,
-        features: true,
-        limits: true,
-      },
-      with: {
-        prices: {
-          where: eq(planPrices.isActive, true),
-          columns: {
-            id: true,
-            amount: true,
-            currency: true,
-            interval: true,
-          },
-        },
-      },
-    });
   }
 
   findActiveByCode(code: string) {
