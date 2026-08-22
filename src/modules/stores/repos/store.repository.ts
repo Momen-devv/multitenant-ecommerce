@@ -16,6 +16,8 @@ import type {
   StoreLifecycleActorAuthority,
   StoreStatus,
 } from '../domain/store-status';
+import { compileApiQuery, type ApiListQueryInput } from '@/common/api-query';
+import { platformStoreQuery } from '../queries/platform-store.query';
 
 @Injectable()
 export class StoreRepository {
@@ -55,8 +57,13 @@ export class StoreRepository {
     });
   }
 
-  async findAllWithOwner() {
-    return this.db.query.store.findMany({
+  async findPageWithOwner(input: ApiListQueryInput) {
+    const query = compileApiQuery(platformStoreQuery, input);
+    const rows = await this.db.query.store.findMany({
+      columns: query.columns,
+      where: query.where,
+      orderBy: query.orderBy,
+      limit: query.limit + 1,
       with: {
         owner: {
           columns: {
@@ -67,6 +74,10 @@ export class StoreRepository {
         },
       },
     });
+
+    return query.createPage(rows, (row) => ({
+      owner: row.owner,
+    }));
   }
 
   async findByIdWithOwner(storeId: string) {

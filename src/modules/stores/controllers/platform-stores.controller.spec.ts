@@ -110,7 +110,10 @@ describe('PlatformStoresController HTTP adapter', () => {
 
   beforeEach(async () => {
     jest.resetAllMocks();
-    platformStoresService.listStores.mockResolvedValue(stores);
+    platformStoresService.listStores.mockResolvedValue({
+      items: stores,
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
     platformStoresService.getStore.mockImplementation((storeId: string) => {
       const store = stores.find((candidate) => candidate.id === storeId);
       return store
@@ -136,6 +139,7 @@ describe('PlatformStoresController HTTP adapter', () => {
     }).compile();
 
     app = module.createNestApplication();
+    app.getHttpAdapter().getInstance().set('query parser', 'extended');
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -151,14 +155,25 @@ describe('PlatformStoresController HTTP adapter', () => {
     await app.close();
   });
 
-  it('lists all Stores for a Platform Super-admin with only the approved owner summary', async () => {
+  it('lists a filtered Store page for a Platform Super-admin', async () => {
     await request(app.getHttpServer())
-      .get('/platform/stores')
+      .get(
+        '/platform/stores?limit=2&sort=name&search=store&fields=id,name&filter[status][eq]=active',
+      )
       .set('x-role', 'superAdmin')
       .expect(200)
-      .expect(stores);
+      .expect({
+        items: stores,
+        pageInfo: { nextCursor: null, hasNextPage: false },
+      });
 
-    expect(platformStoresService.listStores).toHaveBeenCalledWith();
+    expect(platformStoresService.listStores).toHaveBeenCalledWith({
+      limit: 2,
+      sort: 'name',
+      search: 'store',
+      fields: 'id,name',
+      filter: { status: { eq: 'active' } },
+    });
   });
 
   it.each(stores)(

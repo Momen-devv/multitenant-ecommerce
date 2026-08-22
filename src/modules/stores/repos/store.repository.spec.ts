@@ -1,6 +1,42 @@
 import { StoreLifecycleConflictError } from '@/common/errors/store-lifecycle-conflict.error';
 import { StoreRepository } from './store.repository';
 
+describe('StoreRepository list-query interface', () => {
+  it('returns a selected Store page while preserving the fixed owner relation', async () => {
+    const first = {
+      id: '019c0000-0000-7000-8000-000000000002',
+      name: 'Alpha',
+      owner: { id: 'owner-1', name: 'One', email: 'one@example.com' },
+    };
+    const second = {
+      id: '019c0000-0000-7000-8000-000000000001',
+      name: 'Beta',
+      owner: { id: 'owner-2', name: 'Two', email: 'two@example.com' },
+    };
+    const findMany = jest.fn().mockResolvedValue([first, second]);
+    const repository = new StoreRepository({
+      query: { store: { findMany } },
+    } as never);
+
+    await expect(
+      repository.findPageWithOwner({ limit: 1, fields: 'name' }),
+    ).resolves.toMatchObject({
+      items: [{ name: 'Alpha', owner: first.owner }],
+      pageInfo: { hasNextPage: true, nextCursor: expect.any(String) },
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        columns: { name: true, id: true },
+        limit: 2,
+        with: {
+          owner: { columns: { id: true, name: true, email: true } },
+        },
+      }),
+    );
+  });
+});
+
 type LifecycleState = {
   status: 'active' | 'owner_closed' | 'platform_suspended';
   auditRecords: Array<Record<string, unknown>>;
@@ -8,12 +44,12 @@ type LifecycleState = {
 
 function createTransactionalDatabase(state: LifecycleState) {
   return {
-    transaction: jest.fn(async (callback) =>
+    transaction: jest.fn((callback) =>
       callback({
         update: jest.fn().mockReturnValue({
           set: jest.fn().mockImplementation((changes) => ({
             where: jest.fn().mockReturnValue({
-              returning: jest.fn().mockImplementation(async () => {
+              returning: jest.fn().mockImplementation(() => {
                 if (
                   changes.status === 'active'
                     ? state.status === 'active'
@@ -29,8 +65,8 @@ function createTransactionalDatabase(state: LifecycleState) {
           })),
         }),
         insert: jest.fn().mockReturnValue({
-          values: jest.fn().mockImplementation(async (record) => {
-            state.auditRecords.push(record);
+          values: jest.fn().mockImplementation((record) => {
+            state.auditRecords.push(record as Record<string, unknown>);
           }),
         }),
       }),

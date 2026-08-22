@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Session,
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -17,6 +18,7 @@ import { AuthRole } from '@/common/enums/auth-role.enum';
 import { PlatformStoresService } from '../services/platform-stores.service';
 import { ReactivateStoreDto, SuspendStoreDto } from '../dto';
 import type { CurrentUser } from '@/core/auth/auth.types';
+import { ApiListQueryDto } from '@/common/api-query';
 
 @ApiTags('Platform Stores')
 @ApiCookieAuth()
@@ -32,8 +34,8 @@ export class PlatformStoresController {
   @ResponseMessage('Stores retrieved successfully')
   @HttpCode(HttpStatus.OK)
   @Get()
-  async listStores() {
-    return this.platformStoresService.listStores();
+  async listStores(@Query() query: ApiListQueryDto) {
+    return this.platformStoresService.listStores(query);
   }
 
   @ApiOperation({ summary: 'Inspect a Store through platform oversight' })
