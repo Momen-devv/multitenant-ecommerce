@@ -1,14 +1,16 @@
 import { Module } from '@nestjs/common';
+import { StripeWebhookQueueModule } from '@/infrastructure/queue/stripe-webhook/stripe-webhook-queue.module';
+import { StripeWebhookProcessor } from '@/infrastructure/queue/stripe-webhook/stripe-webhook.processor';
+import { StripeWebhookController } from './controllers/stripe-webhook.controller';
+import { BillingRepository } from './repos/billing.repository';
 import { BillingCatalogService } from './services/billing-catalog.service';
 import { BillingCheckoutService } from './services/billing-checkout.service';
 import { BillingPortalService } from './services/billing-portal.service';
-import { BillingRepository } from './repos/billing.repository';
-import { StripeWebhookController } from './stripe-webhook.controller';
-import { StripeWebhookService } from './stripe-webhook.service';
+import { StripeWebhookService } from './services/stripe-webhook.service';
 import { StripeModule } from './stripe/stripe.module';
 
 @Module({
-  imports: [StripeModule],
+  imports: [StripeModule, StripeWebhookQueueModule],
   controllers: [StripeWebhookController],
   providers: [
     BillingCatalogService,
@@ -16,11 +18,13 @@ import { StripeModule } from './stripe/stripe.module';
     BillingCheckoutService,
     BillingPortalService,
     StripeWebhookService,
+    StripeWebhookProcessor,
   ],
   exports: [
     BillingCatalogService,
     BillingCheckoutService,
     BillingPortalService,
+    StripeWebhookService,
   ],
 })
 export class BillingModule {}
