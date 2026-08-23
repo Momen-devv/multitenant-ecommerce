@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { BillingCatalogService } from './services/billing-catalog.service';
-import { BillingCheckoutService } from './billing-checkout.service';
-import { BillingPortalService } from './billing-portal.service';
+import { BillingCheckoutService } from './services/billing-checkout.service';
+import { BillingPortalService } from './services/billing-portal.service';
+import { BillingRepository } from './repos/billing.repository';
 import { StripeWebhookController } from './stripe-webhook.controller';
 import { StripeWebhookService } from './stripe-webhook.service';
 import { StripeModule } from './stripe/stripe.module';
@@ -11,6 +12,7 @@ import { StripeModule } from './stripe/stripe.module';
   controllers: [StripeWebhookController],
   providers: [
     BillingCatalogService,
+    BillingRepository,
     BillingCheckoutService,
     BillingPortalService,
     StripeWebhookService,
