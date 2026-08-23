@@ -12,6 +12,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  text,
   timestamp,
   uniqueIndex,
   uuid,
@@ -148,6 +149,78 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
   SubscriptionStatus.PAUSED,
 ]);
 
+export const billingWebhookEventStatusEnum = pgEnum(
+  'billing_webhook_event_status',
+  ['pending', 'processing', 'completed', 'failed', 'dead_letter'],
+);
+
+export const subscriptionCheckoutAttemptStatusEnum = pgEnum(
+  'subscription_checkout_attempt_status',
+  ['pending', 'completed', 'expired'],
+);
+
+export const billingWebhookEvents = pgTable(
+  'billing_webhook_events',
+  {
+    id: uuid('id').primaryKey().$defaultFn(generateUUIDv7),
+    stripeEventId: varchar('stripe_event_id', { length: 255 }).notNull(),
+    eventType: varchar('event_type', { length: 255 }).notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>(),
+    status: billingWebhookEventStatusEnum('status')
+      .notNull()
+      .default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    lastError: varchar('last_error', { length: 1000 }),
+    nextRetryAt: timestamp('next_retry_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+    leaseToken: uuid('lease_token'),
+    payloadExpiresAt: timestamp('payload_expires_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now() + interval '30 days'`),
+    payloadPurgedAt: timestamp('payload_purged_at', { withTimezone: true }),
+    stripeCreatedAt: timestamp('stripe_created_at', {
+      withTimezone: true,
+    }).notNull(),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex('billing_webhook_events_stripe_event_id_uidx').on(
+      table.stripeEventId,
+    ),
+    index('billing_webhook_events_status_idx').on(table.status),
+    index('billing_webhook_events_due_idx').on(table.status, table.nextRetryAt),
+    index('billing_webhook_events_lease_idx').on(
+      table.status,
+      table.leaseExpiresAt,
+    ),
+    index('billing_webhook_events_payload_expiry_idx').on(
+      table.status,
+      table.payloadExpiresAt,
+    ),
+    check(
+      'billing_webhook_events_processing_lease_check',
+      sql`(${table.status} = 'processing') = (${table.leaseToken} IS NOT NULL AND ${table.leaseExpiresAt} IS NOT NULL)`,
+    ),
+    check(
+      'billing_webhook_events_recoverable_payload_check',
+      sql`${table.status} IN ('completed', 'dead_letter') OR ${table.payload} IS NOT NULL`,
+    ),
+    check(
+      'billing_webhook_events_attempts_nonnegative_check',
+      sql`${table.attempts} >= 0`,
+    ),
+  ],
+);
+
 export const billingCustomers = pgTable(
   'billing_customers',
   {
@@ -168,6 +241,64 @@ export const billingCustomers = pgTable(
     uniqueIndex('billing_customers_store_id_uidx').on(table.storeId),
     uniqueIndex('billing_customers_stripe_customer_id_uidx').on(
       table.stripeCustomerId,
+    ),
+  ],
+);
+
+export const subscriptionCheckoutAttempts = pgTable(
+  'subscription_checkout_attempts',
+  {
+    id: uuid('id').primaryKey().$defaultFn(generateUUIDv7),
+    storeId: uuid('store_id')
+      .notNull()
+      .references(() => store.id, { onDelete: 'restrict' }),
+    planPriceId: uuid('plan_price_id')
+      .notNull()
+      .references(() => planPrices.id, { onDelete: 'restrict' }),
+    stripeCustomerId: varchar('stripe_customer_id', { length: 255 }).notNull(),
+    stripePriceId: varchar('stripe_price_id', { length: 255 }).notNull(),
+    successUrl: text('success_url').notNull(),
+    cancelUrl: text('cancel_url').notNull(),
+    stripeCheckoutSessionId: varchar('stripe_checkout_session_id', {
+      length: 255,
+    }),
+    stripeCheckoutSessionUrl: text('stripe_checkout_session_url'),
+    status: subscriptionCheckoutAttemptStatusEnum('status')
+      .notNull()
+      .default('pending'),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    expiredAt: timestamp('expired_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex('subscription_checkout_attempts_store_pending_uidx')
+      .on(table.storeId)
+      .where(sql`${table.status} = 'pending'`),
+    uniqueIndex('subscription_checkout_attempts_stripe_session_uidx').on(
+      table.stripeCheckoutSessionId,
+    ),
+    index('subscription_checkout_attempts_store_id_idx').on(table.storeId),
+    index('subscription_checkout_attempts_plan_price_id_idx').on(
+      table.planPriceId,
+    ),
+    index('subscription_checkout_attempts_pending_expiry_idx').on(
+      table.status,
+      table.expiresAt,
+    ),
+    check(
+      'subscription_checkout_attempts_session_fields_check',
+      sql`(${table.stripeCheckoutSessionId} IS NULL) = (${table.stripeCheckoutSessionUrl} IS NULL)`,
+    ),
+    check(
+      'subscription_checkout_attempts_expiry_after_creation_check',
+      sql`${table.expiresAt} > ${table.createdAt}`,
     ),
   ],
 );
@@ -247,3 +378,17 @@ export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
     references: [planPrices.id],
   }),
 }));
+
+export const subscriptionCheckoutAttemptsRelations = relations(
+  subscriptionCheckoutAttempts,
+  ({ one }) => ({
+    store: one(store, {
+      fields: [subscriptionCheckoutAttempts.storeId],
+      references: [store.id],
+    }),
+    planPrice: one(planPrices, {
+      fields: [subscriptionCheckoutAttempts.planPriceId],
+      references: [planPrices.id],
+    }),
+  }),
+);
