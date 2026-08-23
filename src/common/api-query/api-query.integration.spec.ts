@@ -10,7 +10,8 @@ import {
   user,
 } from '@/infrastructure/database/schema/auth.schema';
 import { store } from '@/infrastructure/database/schema/app.schema';
-import { PlansRepository } from '@/modules/plans/repos/plans.repository';
+import { AdminPlansRepository } from '@/modules/plans/repos/admin-plans.repository';
+import { PublicPlansRepository } from '@/modules/plans/repos/public-plans.repository';
 import { StoreRepository } from '@/modules/stores/repos/store.repository';
 import { PlanProvisioningStatus } from '@/common/enums';
 import { generateUUIDv7 } from '@/common/utils';
@@ -64,7 +65,7 @@ describeWithPostgres('api-query PostgreSQL adapters', () => {
         code: `${token}-pro`,
       },
     ]);
-    const repository = new PlansRepository(database);
+    const repository = new AdminPlansRepository(database);
 
     const firstPage = await repository.findPage({ limit: 1, search: token });
     const secondPage = await repository.findPage({
@@ -122,7 +123,7 @@ describeWithPostgres('api-query PostgreSQL adapters', () => {
         isActive: false,
       },
     ]);
-    const repository = new PlansRepository(database);
+    const repository = new PublicPlansRepository(database);
 
     const page = await repository.findActivePage({
       fields: 'id,name,code',

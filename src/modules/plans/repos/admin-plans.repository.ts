@@ -1,16 +1,18 @@
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
-import { Inject, Injectable } from '@nestjs/common';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import * as schema from '@/infrastructure/database/schema/schema';
+import { PlanCodeConflictError } from '@/common/errors/plan-code-conflict.error';
+import { PlanProvisioningStatus } from '@/common/enums';
+import { compileApiQuery, type ApiListQueryInput } from '@/common/api-query';
 import {
-  NewPlan,
-  NewPlanPrice,
-} from '@/infrastructure/database/schema/schema.types';
-import {
-  planPrices,
   plans,
+  planPrices,
 } from '@/infrastructure/database/schema/billing.schema';
 import { outboxEvents } from '@/infrastructure/database/schema/outbox.schema';
+import * as schema from '@/infrastructure/database/schema/schema';
+import {
+  type NewPlan,
+  type NewPlanPrice,
+} from '@/infrastructure/database/schema/schema.types';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   and,
   asc,
@@ -18,36 +20,30 @@ import {
   eq,
   exists,
   isNotNull,
-  isNull,
   lte,
   ne,
   or,
 } from 'drizzle-orm';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DatabaseError } from 'pg';
-import { PlanCodeConflictError } from '@/common/errors/plan-code-conflict.error';
-import { PlanProvisioningStatus } from '@/common/enums';
+import { adminPlanQuery } from '../queries/admin-plan.query';
 import {
   PLAN_PROVISIONING_REQUESTED_EVENT,
   type PlanProvisioningRequestedPayload,
 } from '../provisioning/plan-provisioning.events';
-import { compileApiQuery, type ApiListQueryInput } from '@/common/api-query';
-import { adminPlanQuery } from '../queries/admin-plan.query';
-import { publicPlanQuery } from '../queries/public-plan.query';
 
 type CreatePendingPlanWithPricesInput = {
   plan: Pick<NewPlan, 'name' | 'code' | 'description' | 'features' | 'limits'>;
   prices: Array<Pick<NewPlanPrice, 'amount' | 'currency' | 'interval'>>;
 };
-
 type UpdatePlanInput = Partial<
   Pick<NewPlan, 'name' | 'description' | 'features' | 'limits'>
 >;
 
 @Injectable()
-export class PlansRepository {
+export class AdminPlansRepository {
   constructor(
-    @Inject(DATABASE)
-    private readonly db: NodePgDatabase<typeof schema>,
+    @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
   ) {}
 
   async createPendingWithPrices(input: CreatePendingPlanWithPricesInput) {
@@ -64,7 +60,6 @@ export class PlansRepository {
             isActive: false,
           })
           .returning();
-
         await tx.insert(planPrices).values(
           input.prices.map((price) => ({
             ...price,
@@ -74,37 +69,26 @@ export class PlansRepository {
             isActive: false,
           })),
         );
-
         const payload: PlanProvisioningRequestedPayload = {
           planId: plan.id,
           provisioningVersion: plan.provisioningVersion,
         };
-
         await tx.insert(outboxEvents).values({
           eventType: PLAN_PROVISIONING_REQUESTED_EVENT,
           aggregateId: plan.id,
           payload,
           deduplicationKey: `${plan.id}:v${plan.provisioningVersion}`,
         });
-
         return tx.query.plans.findFirst({
           where: eq(plans.id, plan.id),
           with: { prices: true },
         });
       });
     } catch (error) {
-      if (this.isUniqueViolation(error, 'plans_code_unique')) {
+      if (this.isUniqueViolation(error, 'plans_code_unique'))
         throw new PlanCodeConflictError();
-      }
       throw error;
     }
-  }
-
-  findForProvisioning(planId: string) {
-    return this.db.query.plans.findFirst({
-      where: eq(plans.id, planId),
-      with: { prices: true },
-    });
   }
 
   findById(planId: string) {
@@ -123,36 +107,6 @@ export class PlansRepository {
       limit: query.limit + 1,
       with: { prices: true },
     });
-
-    return query.createPage(rows, (row) => ({
-      prices: row.prices,
-    }));
-  }
-
-  async findActivePage(input: ApiListQueryInput) {
-    const query = compileApiQuery(publicPlanQuery, input);
-    const rows = await this.db.query.plans.findMany({
-      columns: query.columns,
-      where: and(
-        eq(plans.isActive, true),
-        eq(plans.provisioningStatus, PlanProvisioningStatus.READY),
-        query.where,
-      ),
-      orderBy: query.orderBy,
-      limit: query.limit + 1,
-      with: {
-        prices: {
-          where: eq(planPrices.isActive, true),
-          columns: {
-            id: true,
-            amount: true,
-            currency: true,
-            interval: true,
-          },
-        },
-      },
-    });
-
     return query.createPage(rows, (row) => ({ prices: row.prices }));
   }
 
@@ -162,111 +116,6 @@ export class PlansRepository {
       .set({ ...input, updatedAt: new Date() })
       .where(eq(plans.id, planId))
       .returning();
-
-    return updated;
-  }
-
-  async createOrFindPendingPrice(
-    planId: string,
-    price: {
-      amount: number;
-      currency: string;
-      interval: NonNullable<NewPlanPrice['interval']>;
-    },
-  ) {
-    return this.db.transaction(async (tx) => {
-      const [plan] = await tx
-        .select()
-        .from(plans)
-        .where(eq(plans.id, planId))
-        .limit(1)
-        .for('update');
-
-      if (!plan) return { status: 'plan_not_found' as const };
-      if (
-        plan.provisioningStatus !== PlanProvisioningStatus.READY ||
-        !plan.stripeProductId
-      ) {
-        return { status: 'plan_not_ready' as const };
-      }
-
-      const existing = await tx.query.planPrices.findMany({
-        where: and(
-          eq(planPrices.planId, planId),
-          eq(planPrices.currency, price.currency),
-          eq(planPrices.interval, price.interval),
-        ),
-      });
-
-      if (existing.some((candidate) => candidate.isActive)) {
-        return { status: 'active_price_exists' as const };
-      }
-
-      const pending = existing.find(
-        (candidate) => !candidate.stripePriceId && !candidate.isActive,
-      );
-      if (pending) {
-        if (pending.amount !== price.amount) {
-          return { status: 'pending_price_exists' as const };
-        }
-        return { status: 'ready' as const, plan, price: pending };
-      }
-
-      const [created] = await tx
-        .insert(planPrices)
-        .values({
-          planId,
-          ...price,
-          stripePriceId: null,
-          stripeLookupKey: null,
-          isActive: false,
-        })
-        .returning();
-
-      return { status: 'ready' as const, plan, price: created };
-    });
-  }
-
-  async activatePendingPrice(input: {
-    planId: string;
-    planPriceId: string;
-    stripePriceId: string;
-    stripeLookupKey: string | null;
-  }) {
-    const [updated] = await this.db
-      .update(planPrices)
-      .set({
-        stripePriceId: input.stripePriceId,
-        stripeLookupKey: input.stripeLookupKey,
-        isActive: true,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(planPrices.id, input.planPriceId),
-          eq(planPrices.planId, input.planId),
-          isNull(planPrices.stripePriceId),
-          eq(planPrices.isActive, false),
-        ),
-      )
-      .returning();
-
-    return updated;
-  }
-
-  findPriceById(planId: string, planPriceId: string) {
-    return this.db.query.planPrices.findFirst({
-      where: and(eq(planPrices.id, planPriceId), eq(planPrices.planId, planId)),
-    });
-  }
-
-  async deactivatePrice(planId: string, planPriceId: string) {
-    const [updated] = await this.db
-      .update(planPrices)
-      .set({ isActive: false, updatedAt: new Date() })
-      .where(and(eq(planPrices.id, planPriceId), eq(planPrices.planId, planId)))
-      .returning();
-
     return updated;
   }
 
@@ -281,7 +130,6 @@ export class PlansRepository {
           isNotNull(planPrices.stripePriceId),
         ),
       );
-
     const updated = await this.db
       .update(plans)
       .set({ isActive: true, updatedAt: new Date() })
@@ -294,7 +142,6 @@ export class PlansRepository {
         ),
       )
       .returning({ id: plans.id });
-
     return updated.length === 1;
   }
 
@@ -310,37 +157,7 @@ export class PlansRepository {
         ),
       )
       .returning({ id: plans.id });
-
     return updated.length === 1;
-  }
-
-  findActiveByCode(code: string) {
-    return this.db.query.plans.findFirst({
-      where: and(
-        eq(plans.code, code),
-        eq(plans.isActive, true),
-        eq(plans.provisioningStatus, PlanProvisioningStatus.READY),
-      ),
-      columns: {
-        id: true,
-        name: true,
-        code: true,
-        description: true,
-        features: true,
-        limits: true,
-      },
-      with: {
-        prices: {
-          where: eq(planPrices.isActive, true),
-          columns: {
-            id: true,
-            amount: true,
-            currency: true,
-            interval: true,
-          },
-        },
-      },
-    });
   }
 
   async resetProvisioningForRetry(
@@ -363,8 +180,14 @@ export class PlansRepository {
         ),
       )
       .returning({ id: plans.id });
-
     return updated.length === 1;
+  }
+
+  findForProvisioning(planId: string) {
+    return this.db.query.plans.findFirst({
+      where: eq(plans.id, planId),
+      with: { prices: true },
+    });
   }
 
   findProvisioningRecoveryCandidates(input: {
@@ -413,7 +236,6 @@ export class PlansRepository {
         ),
       )
       .returning({ id: plans.id });
-
     return updated.length === 1;
   }
 
@@ -444,7 +266,6 @@ export class PlansRepository {
             ),
           )
           .returning({ id: planPrices.id });
-
         if (updatedPrices.length !== 1) {
           throw new Error(`Plan price ${price.planPriceId} was not found`);
         }
@@ -467,7 +288,6 @@ export class PlansRepository {
           ),
         )
         .returning({ id: plans.id });
-
       if (updatedPlans.length !== 1) {
         throw new Error(`Plan ${input.planId} is no longer being provisioned`);
       }
@@ -497,10 +317,11 @@ export class PlansRepository {
   }
 
   private isUniqueViolation(err: unknown, constraintName?: string): boolean {
-    if (!(err instanceof DrizzleQueryError)) return false;
-    if (!(err.cause instanceof DatabaseError)) return false;
-    if (err.cause.code !== '23505') return false;
-
-    return constraintName ? err.cause.constraint === constraintName : true;
+    return (
+      err instanceof DrizzleQueryError &&
+      err.cause instanceof DatabaseError &&
+      err.cause.code === '23505' &&
+      (constraintName ? err.cause.constraint === constraintName : true)
+    );
   }
 }

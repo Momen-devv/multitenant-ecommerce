@@ -3,7 +3,7 @@ import { Job, UnrecoverableError } from 'bullmq';
 import { BillingInterval, PlanProvisioningStatus } from '@/common/enums';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { BillingCatalogService } from '@/modules/billing/services/billing-catalog.service';
-import { PlansRepository } from '@/modules/plans/repos/plans.repository';
+import { AdminPlansRepository } from '@/modules/plans/repos/admin-plans.repository';
 import {
   JobNames,
   type PlanProvisioningJobName,
@@ -14,7 +14,7 @@ import type { ProvisionPlanJobData } from './plan-provisioning-queue.service';
 @Processor(QueueNames.PLAN_PROVISIONING)
 export class PlanProvisioningProcessor extends WorkerHost {
   constructor(
-    private readonly plansRepository: PlansRepository,
+    private readonly plansRepository: AdminPlansRepository,
     private readonly billingCatalog: BillingCatalogService,
     private readonly logger: LoggerService,
   ) {

@@ -10,10 +10,10 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { PlansService } from '../services/plans.service';
-import { CreatePlanDto, CreatePlanPriceDto, UpdatePlanDto } from '../dto';
+import { AdminPlansService } from '../services/admin-plans.service';
+import { CreatePlanDto, UpdatePlanDto } from '../dto';
 import { AuthRole } from '@/common/enums';
-import { AllowAnonymous, Roles } from '@thallesp/nestjs-better-auth';
+import { Roles } from '@thallesp/nestjs-better-auth';
 import {
   ApiErrorResponse,
   ApiSuccessResponse,
@@ -30,9 +30,9 @@ import { ApiListQueryDto } from '@/common/api-query';
 
 @ApiTags('Plans')
 @Roles([AuthRole.SUPER_ADMIN])
-@Controller()
-export class PlansController {
-  constructor(private readonly plansService: PlansService) {}
+@Controller('admin/plans')
+export class AdminPlansController {
+  constructor(private readonly adminPlansService: AdminPlansService) {}
 
   @ApiCookieAuth('mte.session_token')
   @ApiOperation({
@@ -51,10 +51,10 @@ export class PlansController {
   @ApiErrorResponse(HttpStatus.TOO_MANY_REQUESTS, 'Rate limit exceeded')
   @Throttle({ default: { limit: 5, ttl: seconds(60) } })
   @ResponseMessage('Plan created successfully')
-  @Post('admin/plans')
+  @Post()
   @HttpCode(HttpStatus.ACCEPTED)
   async createPlan(@Body() dto: CreatePlanDto) {
-    return await this.plansService.createPlan(dto);
+    return await this.adminPlansService.createPlan(dto);
   }
 
   @ApiCookieAuth('mte.session_token')
@@ -65,9 +65,9 @@ export class PlansController {
   @ApiErrorResponse(HttpStatus.TOO_MANY_REQUESTS, 'Rate limit exceeded')
   @Throttle({ default: { limit: 30, ttl: seconds(60) } })
   @ResponseMessage('Plans retrieved successfully')
-  @Get('admin/plans')
+  @Get()
   async listPlans(@Query() query: ApiListQueryDto) {
-    return await this.plansService.listPlans(query);
+    return await this.adminPlansService.listPlans(query);
   }
 
   @ApiCookieAuth('mte.session_token')
@@ -81,9 +81,9 @@ export class PlansController {
   @ApiErrorResponse(HttpStatus.TOO_MANY_REQUESTS, 'Rate limit exceeded')
   @Throttle({ default: { limit: 30, ttl: seconds(60) } })
   @ResponseMessage('Plan retrieved successfully')
-  @Get('admin/plans/:id')
+  @Get(':id')
   async getPlan(@Param('id', new ParseUUIDPipe()) id: string) {
-    return await this.plansService.getPlan(id);
+    return await this.adminPlansService.getPlan(id);
   }
 
   @ApiCookieAuth('mte.session_token')
@@ -97,68 +97,12 @@ export class PlansController {
   @ApiErrorResponse(HttpStatus.TOO_MANY_REQUESTS, 'Rate limit exceeded')
   @Throttle({ default: { limit: 10, ttl: seconds(60) } })
   @ResponseMessage('Plan updated successfully')
-  @Patch('admin/plans/:id')
+  @Patch(':id')
   async updatePlan(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdatePlanDto,
   ) {
-    return await this.plansService.updatePlan(id, dto);
-  }
-
-  @ApiCookieAuth('mte.session_token')
-  @ApiOperation({ summary: 'Add a recurring price to a plan' })
-  @ApiParam({ name: 'id', description: 'Plan ID', format: 'uuid' })
-  @ApiSuccessResponse({
-    status: HttpStatus.CREATED,
-    description: 'Plan price added successfully',
-  })
-  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid plan ID or price data')
-  @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Plan not found')
-  @ApiErrorResponse(
-    HttpStatus.CONFLICT,
-    'Plan is not ready or the price conflicts with an existing price',
-  )
-  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Super-admin role required')
-  @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
-  @ApiErrorResponse(HttpStatus.TOO_MANY_REQUESTS, 'Rate limit exceeded')
-  @Throttle({ default: { limit: 5, ttl: seconds(60) } })
-  @ResponseMessage('Plan price added successfully')
-  @Post('admin/plans/:id/prices')
-  @HttpCode(HttpStatus.CREATED)
-  async addPlanPrice(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: CreatePlanPriceDto,
-  ) {
-    return await this.plansService.addPlanPrice(id, dto);
-  }
-
-  @ApiCookieAuth('mte.session_token')
-  @ApiOperation({
-    summary: 'Deactivate a plan price',
-    description:
-      'Stops offering the price to new subscriptions without affecting existing subscriptions.',
-  })
-  @ApiParam({ name: 'id', description: 'Plan ID', format: 'uuid' })
-  @ApiParam({ name: 'priceId', description: 'Plan price ID', format: 'uuid' })
-  @ApiSuccessResponse({
-    status: HttpStatus.NO_CONTENT,
-    description: 'Plan price deactivated successfully',
-  })
-  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid plan or price ID')
-  @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Plan or plan price not found')
-  @ApiErrorResponse(HttpStatus.CONFLICT, 'Plan price is not provisioned')
-  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Super-admin role required')
-  @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
-  @ApiErrorResponse(HttpStatus.TOO_MANY_REQUESTS, 'Rate limit exceeded')
-  @Throttle({ default: { limit: 5, ttl: seconds(60) } })
-  @ResponseMessage('Plan price deactivated successfully')
-  @Post('admin/plans/:id/prices/:priceId/deactivate')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async deactivatePlanPrice(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Param('priceId', new ParseUUIDPipe()) priceId: string,
-  ) {
-    await this.plansService.deactivatePlanPrice(id, priceId);
+    return await this.adminPlansService.updatePlan(id, dto);
   }
 
   @ApiCookieAuth('mte.session_token')
@@ -183,12 +127,12 @@ export class PlansController {
   @ApiErrorResponse(HttpStatus.TOO_MANY_REQUESTS, 'Rate limit exceeded')
   @Throttle({ default: { limit: 5, ttl: seconds(60) } })
   @ResponseMessage('Plan activated successfully')
-  @Post('admin/plans/:id/activate')
+  @Post(':id/activate')
   @HttpCode(HttpStatus.NO_CONTENT)
   async activatePlan(
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<void> {
-    await this.plansService.activatePlan(id);
+    await this.adminPlansService.activatePlan(id);
   }
 
   @ApiCookieAuth('mte.session_token')
@@ -210,12 +154,12 @@ export class PlansController {
   @ApiErrorResponse(HttpStatus.TOO_MANY_REQUESTS, 'Rate limit exceeded')
   @Throttle({ default: { limit: 5, ttl: seconds(60) } })
   @ResponseMessage('Plan deactivated successfully')
-  @Post('admin/plans/:id/deactivate')
+  @Post(':id/deactivate')
   @HttpCode(HttpStatus.NO_CONTENT)
   async deactivatePlan(
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<void> {
-    await this.plansService.deactivatePlan(id);
+    await this.adminPlansService.deactivatePlan(id);
   }
 
   @ApiCookieAuth('mte.session_token')
@@ -240,39 +184,9 @@ export class PlansController {
   @ApiErrorResponse(HttpStatus.TOO_MANY_REQUESTS, 'Rate limit exceeded')
   @Throttle({ default: { limit: 3, ttl: seconds(60) } })
   @ResponseMessage('Plan provisioning retried successfully')
-  @Post('admin/plans/:id/provisioning/retry')
+  @Post(':id/provisioning/retry')
   @HttpCode(HttpStatus.ACCEPTED)
   async retryPlanProvisioning(@Param('id', new ParseUUIDPipe()) id: string) {
-    return await this.plansService.retryProvisioning(id);
-  }
-
-  @ApiOperation({
-    summary: 'List plans available for new subscriptions',
-  })
-  @ApiSuccessResponse({ description: 'Active plans retrieved successfully' })
-  @ApiErrorResponse(HttpStatus.TOO_MANY_REQUESTS, 'Rate limit exceeded')
-  @Throttle({ default: { limit: 60, ttl: seconds(60) } })
-  @ResponseMessage('Active plans retrieved successfully')
-  @AllowAnonymous()
-  @Get('plans')
-  async listActivePlans(@Query() query: ApiListQueryDto) {
-    return await this.plansService.listActivePlans(query);
-  }
-
-  @ApiOperation({ summary: 'Get an active plan by code' })
-  @ApiParam({
-    name: 'code',
-    description: 'Lowercase plan code',
-    example: 'professional',
-  })
-  @ApiSuccessResponse({ description: 'Active plan retrieved successfully' })
-  @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Active plan not found')
-  @ApiErrorResponse(HttpStatus.TOO_MANY_REQUESTS, 'Rate limit exceeded')
-  @Throttle({ default: { limit: 60, ttl: seconds(60) } })
-  @ResponseMessage('Active plan retrieved successfully')
-  @AllowAnonymous()
-  @Get('plans/:code')
-  async getActivePlanByCode(@Param('code') code: string) {
-    return await this.plansService.getActivePlanByCode(code);
+    return await this.adminPlansService.retryProvisioning(id);
   }
 }
