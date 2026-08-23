@@ -7,6 +7,7 @@ import { bullRedisOptions } from '@/infrastructure/cache/redis.config';
 import { ResourceCleanupQueueModule } from './resource-cleanup/resource-cleanup-queue.module';
 import { DataSyncModule } from './data-sync/data-sync.module';
 import { PlanProvisioningQueueModule } from './plan-provisioning/plan-provisioning-queue.module';
+import { StripeWebhookQueueModule } from './stripe-webhook/stripe-webhook-queue.module';
 
 @Global()
 @Module({
@@ -33,12 +34,14 @@ import { PlanProvisioningQueueModule } from './plan-provisioning/plan-provisioni
     ResourceCleanupQueueModule,
     DataSyncModule,
     PlanProvisioningQueueModule,
+    StripeWebhookQueueModule,
   ],
   exports: [
     EmailQueueModule,
     ResourceCleanupQueueModule,
     DataSyncModule,
     PlanProvisioningQueueModule,
+    StripeWebhookQueueModule,
   ],
 })
 export class QueueModule {}
