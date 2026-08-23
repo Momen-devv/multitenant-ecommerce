@@ -2,7 +2,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job, UnrecoverableError } from 'bullmq';
 import { BillingInterval, PlanProvisioningStatus } from '@/common/enums';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
-import { BillingCatalogService } from '@/modules/billing/billing-catalog.service';
+import { BillingCatalogService } from '@/modules/billing/services/billing-catalog.service';
 import { PlansRepository } from '@/modules/plans/repos/plans.repository';
 import {
   JobNames,

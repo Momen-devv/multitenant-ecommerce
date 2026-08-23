@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { BillingInterval } from '@/common/enums/billing-interval.enum';
-import { STRIPE_CLIENT } from './stripe/stripe.constants';
+import { STRIPE_CLIENT } from '../stripe/stripe.constants';
 import type { Stripe } from 'stripe';
 
 type CreateRecurringPriceInput = {

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { BillingCatalogService } from './billing-catalog.service';
+import { BillingCatalogService } from './services/billing-catalog.service';
 import { BillingCheckoutService } from './billing-checkout.service';
 import { BillingPortalService } from './billing-portal.service';
 import { StripeWebhookController } from './stripe-webhook.controller';

@@ -9,7 +9,7 @@ import { CreatePlanDto, CreatePlanPriceDto, UpdatePlanDto } from '../dto';
 import { PlanCodeConflictError } from '@/common/errors/plan-code-conflict.error';
 import { PlanProvisioningStatus } from '@/common/enums/plan-provisioning-status.enum';
 import { PlanProvisioningQueueService } from '@/infrastructure/queue/plan-provisioning/plan-provisioning-queue.service';
-import { BillingCatalogService } from '@/modules/billing/billing-catalog.service';
+import { BillingCatalogService } from '@/modules/billing/services/billing-catalog.service';
 import { BillingInterval } from '@/common/enums';
 import type { ApiListQueryInput } from '@/common/api-query';
 
