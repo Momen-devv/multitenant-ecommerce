@@ -28,7 +28,7 @@ import {
 } from '@nestjs/swagger';
 import { ApiListQueryDto } from '@/common/api-query';
 
-@ApiTags('Plans')
+@ApiTags('Admin Plans')
 @Roles([AuthRole.SUPER_ADMIN])
 @Controller('admin/plans')
 export class AdminPlansController {

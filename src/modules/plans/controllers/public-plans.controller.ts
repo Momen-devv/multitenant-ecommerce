@@ -10,7 +10,7 @@ import { seconds, Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { ApiListQueryDto } from '@/common/api-query';
 
-@ApiTags('Plans')
+@ApiTags('Public Plans')
 @AllowAnonymous()
 @Controller('plans')
 export class PublicPlansController {

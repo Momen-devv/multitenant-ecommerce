@@ -24,7 +24,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-@ApiTags('Plans')
+@ApiTags('Plan Prices')
 @Roles([AuthRole.SUPER_ADMIN])
 @Controller('admin/plans/:id/prices')
 export class PlanPricesController {
