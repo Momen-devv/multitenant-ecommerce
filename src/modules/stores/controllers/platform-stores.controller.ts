@@ -22,14 +22,14 @@ import { ApiListQueryDto } from '@/common/api-query';
 
 @ApiTags('Platform Stores')
 @ApiCookieAuth()
-@Roles([AuthRole.SUPER_ADMIN])
+@Roles([AuthRole.PLATFORM_SUPER_ADMIN])
 @Controller('platform/stores')
 export class PlatformStoresController {
   constructor(private readonly platformStoresService: PlatformStoresService) {}
 
   @ApiOperation({ summary: 'List all Stores for platform oversight' })
   @ApiSuccessResponse({ description: 'Stores retrieved successfully' })
-  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Platform Super-admin role required')
+  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Platform super-admin role required')
   @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
   @ResponseMessage('Stores retrieved successfully')
   @HttpCode(HttpStatus.OK)
@@ -41,7 +41,7 @@ export class PlatformStoresController {
   @ApiOperation({ summary: 'Inspect a Store through platform oversight' })
   @ApiSuccessResponse({ description: 'Store retrieved successfully' })
   @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Store not found')
-  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Platform Super-admin role required')
+  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Platform super-admin role required')
   @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
   @ResponseMessage('Store retrieved successfully')
   @HttpCode(HttpStatus.OK)
@@ -55,7 +55,7 @@ export class PlatformStoresController {
   @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid suspension reason')
   @ApiErrorResponse(HttpStatus.CONFLICT, 'Invalid Store lifecycle transition')
   @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Store not found')
-  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Platform Super-admin role required')
+  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Platform super-admin role required')
   @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
   @ResponseMessage('Store suspended successfully')
   @HttpCode(HttpStatus.OK)
@@ -77,7 +77,7 @@ export class PlatformStoresController {
   @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid reactivation reason')
   @ApiErrorResponse(HttpStatus.CONFLICT, 'Invalid Store lifecycle transition')
   @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Store not found')
-  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Platform Super-admin role required')
+  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Platform super-admin role required')
   @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
   @ResponseMessage('Store reactivated successfully')
   @HttpCode(HttpStatus.OK)

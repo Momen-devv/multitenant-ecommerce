@@ -23,7 +23,7 @@ jest.mock('@/common/utils', () => ({
 }));
 jest.mock('./permissions', () => ({
   ac: {},
-  superAdmin: {},
+  platformSuperAdmin: {},
   user: {},
 }));
 

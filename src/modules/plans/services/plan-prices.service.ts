@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AdminPlansRepository } from '../repos/admin-plans.repository';
+import { PlatformPlansRepository } from '../repos/platform-plans.repository';
 import { PlanPricesRepository } from '../repos/plan-prices.repository';
 import { CreatePlanPriceDto } from '../dto';
 import { BillingCatalogService } from '@/modules/billing/services/billing-catalog.service';
@@ -13,7 +13,7 @@ import { BillingInterval } from '@/common/enums';
 export class PlanPricesService {
   constructor(
     private readonly planPricesRepository: PlanPricesRepository,
-    private readonly adminPlansRepository: AdminPlansRepository,
+    private readonly platformPlansRepository: PlatformPlansRepository,
     private readonly billingCatalog: BillingCatalogService,
   ) {}
 
@@ -59,7 +59,7 @@ export class PlanPricesService {
   }
 
   async deactivatePlanPrice(id: string, priceId: string): Promise<void> {
-    const plan = await this.adminPlansRepository.findById(id);
+    const plan = await this.platformPlansRepository.findById(id);
     if (!plan) throw new NotFoundException(`Plan ${id} was not found`);
     const price = await this.planPricesRepository.findPriceById(id, priceId);
     if (!price)

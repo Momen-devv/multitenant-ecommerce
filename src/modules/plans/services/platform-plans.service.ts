@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AdminPlansRepository } from '../repos/admin-plans.repository';
+import { PlatformPlansRepository } from '../repos/platform-plans.repository';
 import { CreatePlanDto, UpdatePlanDto } from '../dto';
 import { PlanCodeConflictError } from '@/common/errors/plan-code-conflict.error';
 import { PlanProvisioningStatus } from '@/common/enums/plan-provisioning-status.enum';
@@ -13,9 +13,9 @@ import { BillingCatalogService } from '@/modules/billing/services/billing-catalo
 import type { ApiListQueryInput } from '@/common/api-query';
 
 @Injectable()
-export class AdminPlansService {
+export class PlatformPlansService {
   constructor(
-    private readonly plansRepository: AdminPlansRepository,
+    private readonly plansRepository: PlatformPlansRepository,
     private readonly planProvisioningQueue: PlanProvisioningQueueService,
     private readonly billingCatalog: BillingCatalogService,
   ) {}

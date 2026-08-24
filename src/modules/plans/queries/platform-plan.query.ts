@@ -14,8 +14,8 @@ const provisioningStatusCodec = enumCodec(
   Object.values(PlanProvisioningStatus),
 );
 
-export const adminPlanQuery = defineApiQuery({
-  resource: 'admin-plans',
+export const platformPlanQuery = defineApiQuery({
+  resource: 'platform-plans',
   primaryKey: { field: 'id', column: plans.id, codec: uuidCodec },
   defaultSort: [{ field: 'id', direction: 'desc' }],
   maxSortFields: 3,

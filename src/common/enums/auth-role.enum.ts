@@ -1,4 +1,4 @@
 export enum AuthRole {
-  SUPER_ADMIN = 'superAdmin',
+  PLATFORM_SUPER_ADMIN = 'platformSuperAdmin',
   USER = 'user',
 }

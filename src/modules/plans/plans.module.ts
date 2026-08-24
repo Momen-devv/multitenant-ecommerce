@@ -3,13 +3,13 @@ import { PlanProvisioningProcessor } from '@/infrastructure/queue/plan-provision
 import { PlanProvisioningQueueModule } from '@/infrastructure/queue/plan-provisioning/plan-provisioning-queue.module';
 import { OutboxModule } from '@/infrastructure/outbox/outbox.module';
 import { BillingModule } from '@/modules/billing/billing.module';
-import { AdminPlansRepository } from './repos/admin-plans.repository';
+import { PlatformPlansRepository } from './repos/platform-plans.repository';
 import { PlanPricesRepository } from './repos/plan-prices.repository';
 import { PublicPlansRepository } from './repos/public-plans.repository';
-import { AdminPlansController } from './controllers/admin-plans.controller';
+import { PlatformPlansController } from './controllers/platform-plans.controller';
 import { PlanPricesController } from './controllers/plan-prices.controller';
 import { PublicPlansController } from './controllers/public-plans.controller';
-import { AdminPlansService } from './services/admin-plans.service';
+import { PlatformPlansService } from './services/platform-plans.service';
 import { PlanPricesService } from './services/plan-prices.service';
 import { PublicPlansService } from './services/public-plans.service';
 import { PlanProvisioningOutboxDispatcher } from './provisioning/plan-provisioning-outbox.dispatcher';
@@ -18,21 +18,25 @@ import { PlanProvisioningReconciler } from './provisioning/plan-provisioning.rec
 @Module({
   imports: [BillingModule, OutboxModule, PlanProvisioningQueueModule],
   controllers: [
-    AdminPlansController,
+    PlatformPlansController,
     PlanPricesController,
     PublicPlansController,
   ],
   providers: [
-    AdminPlansService,
+    PlatformPlansService,
     PlanPricesService,
     PublicPlansService,
-    AdminPlansRepository,
+    PlatformPlansRepository,
     PlanPricesRepository,
     PublicPlansRepository,
     PlanProvisioningOutboxDispatcher,
     PlanProvisioningReconciler,
     PlanProvisioningProcessor,
   ],
-  exports: [AdminPlansRepository, PlanPricesRepository, PublicPlansRepository],
+  exports: [
+    PlatformPlansRepository,
+    PlanPricesRepository,
+    PublicPlansRepository,
+  ],
 })
 export class PlansModule {}

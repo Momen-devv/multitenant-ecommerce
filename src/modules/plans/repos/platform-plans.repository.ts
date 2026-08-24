@@ -26,7 +26,7 @@ import {
 } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DatabaseError } from 'pg';
-import { adminPlanQuery } from '../queries/admin-plan.query';
+import { platformPlanQuery } from '../queries/platform-plan.query';
 import {
   PLAN_PROVISIONING_REQUESTED_EVENT,
   type PlanProvisioningRequestedPayload,
@@ -41,7 +41,7 @@ type UpdatePlanInput = Partial<
 >;
 
 @Injectable()
-export class AdminPlansRepository {
+export class PlatformPlansRepository {
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
   ) {}
@@ -99,7 +99,7 @@ export class AdminPlansRepository {
   }
 
   async findPage(input: ApiListQueryInput) {
-    const query = compileApiQuery(adminPlanQuery, input);
+    const query = compileApiQuery(platformPlanQuery, input);
     const rows = await this.db.query.plans.findMany({
       columns: query.columns,
       where: query.where,

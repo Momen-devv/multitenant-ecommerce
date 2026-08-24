@@ -25,8 +25,8 @@ import {
 } from '@nestjs/swagger';
 
 @ApiTags('Plan Prices')
-@Roles([AuthRole.SUPER_ADMIN])
-@Controller('admin/plans/:id/prices')
+@Roles([AuthRole.PLATFORM_SUPER_ADMIN])
+@Controller('platform/plans/:id/prices')
 export class PlanPricesController {
   constructor(private readonly planPricesService: PlanPricesService) {}
 
@@ -43,7 +43,7 @@ export class PlanPricesController {
     HttpStatus.CONFLICT,
     'Plan is not ready or the price conflicts with an existing price',
   )
-  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Super-admin role required')
+  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Platform super-admin role required')
   @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
   @ApiErrorResponse(HttpStatus.TOO_MANY_REQUESTS, 'Rate limit exceeded')
   @Throttle({ default: { limit: 5, ttl: seconds(60) } })
@@ -72,7 +72,7 @@ export class PlanPricesController {
   @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid plan or price ID')
   @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Plan or plan price not found')
   @ApiErrorResponse(HttpStatus.CONFLICT, 'Plan price is not provisioned')
-  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Super-admin role required')
+  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Platform super-admin role required')
   @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
   @ApiErrorResponse(HttpStatus.TOO_MANY_REQUESTS, 'Rate limit exceeded')
   @Throttle({ default: { limit: 5, ttl: seconds(60) } })
