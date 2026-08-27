@@ -7,6 +7,7 @@ import {
   mailConfig,
   redisConfig,
   storageConfig,
+  stripeConfig,
   validate,
 } from '@/core/config';
 import { RestrictInternalFieldsHook } from './auth/hooks/restrict-internal-fields.hook';
@@ -25,6 +26,7 @@ import { CheckActivationHook } from './auth/hooks/check-activation-hook';
         mailConfig,
         storageConfig,
         betterAuthConfig,
+        stripeConfig,
       ],
     }),
   ],

@@ -1,0 +1,2 @@
+CREATE TYPE "public"."outbox_event_type" AS ENUM('plan.provisioning.requested');--> statement-breakpoint
+ALTER TABLE "outbox_events" ALTER COLUMN "event_type" SET DATA TYPE "public"."outbox_event_type" USING "event_type"::"public"."outbox_event_type";

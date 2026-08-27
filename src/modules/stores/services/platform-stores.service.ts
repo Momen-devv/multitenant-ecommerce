@@ -5,6 +5,7 @@ import type {
   StoreWithOwner,
 } from '../dto/platform-store-response';
 import { StoreLifecycleService } from './store-lifecycle.service';
+import type { ApiListQueryInput, CursorPage } from '@/common/api-query';
 
 @Injectable()
 export class PlatformStoresService {
@@ -13,9 +14,18 @@ export class PlatformStoresService {
     private readonly storeLifecycleService: StoreLifecycleService,
   ) {}
 
-  async listStores(): Promise<PlatformStoreResponse[]> {
-    const stores = await this.storeRepository.findAllWithOwner();
-    return stores.map((store) => this.toPlatformResponse(store));
+  async listStores(
+    query: ApiListQueryInput,
+  ): Promise<CursorPage<Partial<PlatformStoreResponse>>> {
+    const page = await this.storeRepository.findPageWithOwner(query);
+    return {
+      items: page.items.map((store) =>
+        this.toPlatformListResponse(
+          store as Partial<StoreWithOwner> & Pick<StoreWithOwner, 'owner'>,
+        ),
+      ),
+      pageInfo: page.pageInfo,
+    };
   }
 
   async getStore(storeId: string): Promise<PlatformStoreResponse> {
@@ -70,6 +80,26 @@ export class PlatformStoresService {
       ...reactivatedStore,
       owner: existingStore.owner,
     });
+  }
+
+  private toPlatformListResponse(
+    store: Partial<StoreWithOwner> & Pick<StoreWithOwner, 'owner'>,
+  ): Partial<PlatformStoreResponse> {
+    const response: Record<string, unknown> = { owner: store.owner };
+    const publicFields = [
+      'id',
+      'name',
+      'slug',
+      'description',
+      'logo',
+      'status',
+      'createdAt',
+      'updatedAt',
+    ] as const;
+    for (const field of publicFields) {
+      if (field in store) response[field] = store[field];
+    }
+    return response;
   }
 
   private toPlatformResponse(store: StoreWithOwner): PlatformStoreResponse {

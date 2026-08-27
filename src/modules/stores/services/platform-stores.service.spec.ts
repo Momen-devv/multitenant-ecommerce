@@ -3,7 +3,7 @@ import { PlatformStoresService } from './platform-stores.service';
 
 describe('PlatformStoresService', () => {
   const storeRepository = {
-    findAllWithOwner: jest.fn(),
+    findPageWithOwner: jest.fn(),
     findByIdWithOwner: jest.fn(),
   };
   const storeLifecycleService = {
@@ -35,25 +35,34 @@ describe('PlatformStoresService', () => {
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       owner: { id: 'owner-1', name: 'Owner One', email: 'owner@example.com' },
     };
-    storeRepository.findAllWithOwner.mockResolvedValue([store]);
+    storeRepository.findPageWithOwner.mockResolvedValue({
+      items: [store],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
 
-    await expect(service.listStores()).resolves.toEqual([
-      {
-        id: 'store-1',
-        name: 'First Store',
-        slug: 'first-store',
-        description: 'A Store',
-        logo: null,
-        status: 'active',
-        createdAt: store.createdAt,
-        updatedAt: store.updatedAt,
-        owner: {
-          id: 'owner-1',
-          name: 'Owner One',
-          email: 'owner@example.com',
+    await expect(service.listStores({ limit: 10 })).resolves.toEqual({
+      items: [
+        {
+          id: 'store-1',
+          name: 'First Store',
+          slug: 'first-store',
+          description: 'A Store',
+          logo: null,
+          status: 'active',
+          createdAt: store.createdAt,
+          updatedAt: store.updatedAt,
+          owner: {
+            id: 'owner-1',
+            name: 'Owner One',
+            email: 'owner@example.com',
+          },
         },
-      },
-    ]);
+      ],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+    expect(storeRepository.findPageWithOwner).toHaveBeenCalledWith({
+      limit: 10,
+    });
   });
 
   it.each(['active', 'owner_closed', 'platform_suspended'] as const)(

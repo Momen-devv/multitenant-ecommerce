@@ -3,9 +3,11 @@ import { BullModule } from '@nestjs/bullmq';
 import redisConfig from '@/core/config/redis.config';
 import { ConfigType } from '@nestjs/config';
 import { EmailQueueModule } from './email/email-queue.module';
-import { bullRedisOptions } from '@/infrastructure/redis/redis.config';
+import { bullRedisOptions } from '@/infrastructure/cache/redis.config';
 import { ResourceCleanupQueueModule } from './resource-cleanup/resource-cleanup-queue.module';
 import { DataSyncModule } from './data-sync/data-sync.module';
+import { PlanProvisioningQueueModule } from './plan-provisioning/plan-provisioning-queue.module';
+import { StripeWebhookQueueModule } from './stripe-webhook/stripe-webhook-queue.module';
 
 @Global()
 @Module({
@@ -31,7 +33,15 @@ import { DataSyncModule } from './data-sync/data-sync.module';
     EmailQueueModule,
     ResourceCleanupQueueModule,
     DataSyncModule,
+    PlanProvisioningQueueModule,
+    StripeWebhookQueueModule,
   ],
-  exports: [EmailQueueModule, ResourceCleanupQueueModule, DataSyncModule],
+  exports: [
+    EmailQueueModule,
+    ResourceCleanupQueueModule,
+    DataSyncModule,
+    PlanProvisioningQueueModule,
+    StripeWebhookQueueModule,
+  ],
 })
 export class QueueModule {}

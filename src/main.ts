@@ -3,12 +3,16 @@ import { AppModule } from './app.module';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import type { Express } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bodyParser: false,
     bufferLogs: true,
   });
+
+  const express = app.getHttpAdapter().getInstance() as Express;
+  express.set('query parser', 'extended');
 
   app.useGlobalPipes(
     new ValidationPipe({

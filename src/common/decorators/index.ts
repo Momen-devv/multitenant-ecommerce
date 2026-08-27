@@ -10,3 +10,7 @@ export {
 
 export { ApiSuccessResponse } from './api-success-response.decorator';
 export { ApiErrorResponse } from './api-error-response.decorator';
+export {
+  IsBooleanRecord,
+  IsNonNegativeIntegerRecord,
+} from './record-validation.decorator';

@@ -14,8 +14,8 @@ import type { Redis } from 'ioredis';
 // Core / Infrastructure
 import { CoreModule } from '@/core/core.module';
 import { InfrastructureModule } from '@/infrastructure/infrastructure.module';
-import { RedisModule } from '@/infrastructure/redis/redis.module';
-import { REDIS_CLIENT } from '@/infrastructure/redis/redis.constants';
+import { CacheModule } from '@/infrastructure/cache/cache.module';
+import { CACHE_CLIENT } from '@/infrastructure/cache/cache.constants';
 import { EmailQueueService } from '@/infrastructure/queue/email/email-queue.service';
 import { createAuth } from '@/core/auth/auth';
 import { DATABASE } from './common/constants/injection-tokens.constants';
@@ -33,6 +33,9 @@ import type { ConfigType } from '@nestjs/config';
 import { betterAuthConfig } from './core/config';
 import { HealthModule } from './modules/health/health.module';
 import { StoresModule } from './modules/stores/stores.module';
+import { PlansModule } from './modules/plans/plans.module';
+import { BillingModule } from './modules/billing/billing.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -40,8 +43,8 @@ import { StoresModule } from './modules/stores/stores.module';
     CoreModule,
 
     ThrottlerModule.forRootAsync({
-      imports: [RedisModule],
-      inject: [REDIS_CLIENT],
+      imports: [CacheModule],
+      inject: [CACHE_CLIENT],
       useFactory: (redisClient: Redis) => ({
         throttlers: [{ name: 'default', ttl: seconds(60), limit: 60 }],
         storage: new ThrottlerStorageRedisService(redisClient),
@@ -51,7 +54,7 @@ import { StoresModule } from './modules/stores/stores.module';
 
     AuthModule.forRootAsync({
       imports: [InfrastructureModule],
-      inject: [EmailQueueService, REDIS_CLIENT, DATABASE, betterAuthConfig.KEY],
+      inject: [EmailQueueService, CACHE_CLIENT, DATABASE, betterAuthConfig.KEY],
       useFactory: (
         emailQueue: EmailQueueService,
         redis: Redis,
@@ -72,11 +75,11 @@ import { StoresModule } from './modules/stores/stores.module';
     HealthModule,
     UsersModule,
     StoresModule,
+    PlansModule,
+    BillingModule,
+    SubscriptionsModule,
 
-    RouterModule.register([
-      { path: 'users', module: UsersModule },
-      { path: 'health', module: HealthModule },
-    ]),
+    RouterModule.register([{ path: 'health', module: HealthModule }]),
   ],
 
   controllers: [],

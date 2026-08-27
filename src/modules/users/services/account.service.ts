@@ -2,7 +2,7 @@ import { CACHE_SERVICE } from '@/common/constants/injection-tokens.constants';
 import type { Auth } from '@/core/auth/auth';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { EmailQueueService } from '@/infrastructure/queue/email/email-queue.service';
-import type { ICacheService } from '@/infrastructure/redis/redis.interface';
+import type { ICacheService } from '@/infrastructure/cache/cache.interface';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { AuthService } from '@thallesp/nestjs-better-auth';
 import { fromNodeHeaders } from 'better-auth/node';

@@ -1,0 +1,5 @@
+CREATE INDEX "billing_webhook_events_payload_expiry_idx" ON "billing_webhook_events" USING btree ("status","payload_expires_at");--> statement-breakpoint
+ALTER TABLE "billing_webhook_events" ADD CONSTRAINT "billing_webhook_events_processing_lease_check" CHECK (("billing_webhook_events"."status" = 'processing') = ("billing_webhook_events"."lease_token" IS NOT NULL AND "billing_webhook_events"."lease_expires_at" IS NOT NULL));--> statement-breakpoint
+ALTER TABLE "billing_webhook_events" ADD CONSTRAINT "billing_webhook_events_recoverable_payload_check" CHECK ("billing_webhook_events"."status" IN ('completed', 'dead_letter') OR "billing_webhook_events"."payload" IS NOT NULL);--> statement-breakpoint
+ALTER TABLE "billing_webhook_events" ADD CONSTRAINT "billing_webhook_events_attempts_nonnegative_check" CHECK ("billing_webhook_events"."attempts" >= 0);--> statement-breakpoint
+ALTER TABLE "subscription_checkout_attempts" ADD CONSTRAINT "subscription_checkout_attempts_expiry_after_creation_check" CHECK ("subscription_checkout_attempts"."expires_at" > "subscription_checkout_attempts"."created_at");

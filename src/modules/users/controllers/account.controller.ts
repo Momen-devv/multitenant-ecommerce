@@ -22,7 +22,7 @@ import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiSuccessResponse, ApiErrorResponse } from '@/common/decorators';
 
 @ApiTags('Account')
-@Controller('account')
+@Controller('users/account')
 export class AccountController {
   constructor(private readonly accountService: AccountService) {}
 

@@ -5,43 +5,85 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1784545546179,
-      "tag": "0000_dapper_spirit",
+      "when": 1787184479125,
+      "tag": "0000_glorious_ghost_rider",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1785074866975,
-      "tag": "0001_typical_inhumans",
+      "when": 1787233462519,
+      "tag": "0001_minor_blonde_phantom",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "7",
-      "when": 1785445134384,
-      "tag": "0002_oval_lifeguard",
+      "when": 1787234691961,
+      "tag": "0002_loud_mongoose",
       "breakpoints": true
     },
     {
       "idx": 3,
       "version": "7",
-      "when": 1786235060428,
-      "tag": "0003_dizzy_tigra",
+      "when": 1787241345606,
+      "tag": "0003_lowly_turbo",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "7",
-      "when": 1786646400000,
-      "tag": "0004_store_lifecycle",
+      "when": 1787352075016,
+      "tag": "0004_bizarre_gamma_corps",
       "breakpoints": true
     },
     {
       "idx": 5,
       "version": "7",
-      "when": 1786629791100,
-      "tag": "0005_whole_carnage",
+      "when": 1787359195701,
+      "tag": "0005_lying_stepford_cuckoos",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787428699533,
+      "tag": "0006_huge_blazing_skull",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787449695701,
+      "tag": "0007_curious_iron_monger",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787450287847,
+      "tag": "0008_skinny_dakota_north",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787453201438,
+      "tag": "0009_late_mac_gargan",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787453481274,
+      "tag": "0010_absent_iron_monger",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787596361758,
+      "tag": "0011_rename-platform-super-admin-role",
       "breakpoints": true
     }
   ]

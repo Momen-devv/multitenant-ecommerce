@@ -1,7 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { HealthIndicatorService } from '@nestjs/terminus';
 import { CACHE_SERVICE } from '@/common/constants/injection-tokens.constants';
-import type { ICacheService } from '@/infrastructure/redis/redis.interface';
+import type { ICacheService } from '@/infrastructure/cache/cache.interface';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { withTimeout } from '@/common/utils/with-timeout';
 

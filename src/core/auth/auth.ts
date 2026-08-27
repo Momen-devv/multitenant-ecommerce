@@ -10,7 +10,7 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { ConfigType } from '@nestjs/config';
 import { betterAuthConfig } from '../config';
 import { isProduction } from 'better-auth';
-import { ac, user, superAdmin } from './permissions';
+import { ac, user, platformSuperAdmin } from './permissions';
 
 const DISABLED_BETTER_AUTH_MANAGEMENT_PATHS = [
   '/organization/create',
@@ -210,7 +210,7 @@ export function createAuth({
       admin({
         ac,
         roles: {
-          [AuthRole.SUPER_ADMIN]: superAdmin,
+          [AuthRole.PLATFORM_SUPER_ADMIN]: platformSuperAdmin,
           [AuthRole.USER]: user,
         },
         defaultRole: AuthRole.USER,

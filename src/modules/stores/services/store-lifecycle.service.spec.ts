@@ -41,7 +41,7 @@ describe('StoreLifecycleService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('suspends an active Store as a Platform Super-admin with the normalized reason', async () => {
+  it('suspends an active Store as a platform super-admin with the normalized reason', async () => {
     const suspendedStore = { id: 'store-1', status: 'platform_suspended' };
     storeRepository.transitionStatus.mockResolvedValue(suspendedStore);
 
@@ -70,7 +70,7 @@ describe('StoreLifecycleService', () => {
   });
 
   it.each(['owner_closed', 'platform_suspended'] as const)(
-    'reactivates a %s Store as a Platform Super-admin with the normalized reason',
+    'reactivates a %s Store as a platform super-admin with the normalized reason',
     async (previousStatus) => {
       const activeStore = { id: 'store-1', status: 'active' };
       storeRepository.transitionStatus.mockResolvedValue(activeStore);
