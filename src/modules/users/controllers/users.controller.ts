@@ -34,7 +34,7 @@ import { ApiErrorResponse } from '@/common/decorators/api-error-response.decorat
 
 @ApiTags('Profile')
 @ApiCookieAuth()
-@Controller('profile')
+@Controller('users/profile')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 

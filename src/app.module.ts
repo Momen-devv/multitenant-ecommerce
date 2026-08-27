@@ -79,10 +79,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     BillingModule,
     SubscriptionsModule,
 
-    RouterModule.register([
-      { path: 'users', module: UsersModule },
-      { path: 'health', module: HealthModule },
-    ]),
+    RouterModule.register([{ path: 'health', module: HealthModule }]),
   ],
 
   controllers: [],
