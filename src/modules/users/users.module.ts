@@ -10,7 +10,9 @@ import { AccountCleanupTask } from './tasks/account-cleanup.task';
 import { ImageProcessingService } from '@/common/services/Image-processing.service';
 import { SecureTokenService } from '@/common/services/secure-token.service';
 import { PlatformUsersController } from './controllers/platform-users.controller';
+import { PlatformImpersonationController } from './controllers/platform-impersonation.controller';
 import { PlatformUsersService } from './services/platform-users.service';
+import { PlatformImpersonationService } from './services/platform-impersonation.service';
 @Module({
   imports: [StorageModule],
   providers: [
@@ -22,11 +24,13 @@ import { PlatformUsersService } from './services/platform-users.service';
     ImageProcessingService,
     SecureTokenService,
     PlatformUsersService,
+    PlatformImpersonationService,
   ],
   controllers: [
     UsersController,
     AccountController,
     PlatformUsersController,
+    PlatformImpersonationController,
   ],
 })
 export class UsersModule {}
