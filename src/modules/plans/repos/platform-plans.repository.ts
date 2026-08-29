@@ -8,10 +8,6 @@ import {
 } from '@/infrastructure/database/schema/billing.schema';
 import { outboxEvents } from '@/infrastructure/database/schema/outbox.schema';
 import * as schema from '@/infrastructure/database/schema/schema';
-import {
-  type NewPlan,
-  type NewPlanPrice,
-} from '@/infrastructure/database/schema/schema.types';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   and,
@@ -31,17 +27,14 @@ import {
   PLAN_PROVISIONING_REQUESTED_EVENT,
   type PlanProvisioningRequestedPayload,
 } from '../provisioning/plan-provisioning.events';
-
-type CreatePendingPlanWithPricesInput = {
-  plan: Pick<NewPlan, 'name' | 'code' | 'description' | 'features' | 'limits'>;
-  prices: Array<Pick<NewPlanPrice, 'amount' | 'currency' | 'interval'>>;
-};
-type UpdatePlanInput = Partial<
-  Pick<NewPlan, 'name' | 'description' | 'features' | 'limits'>
->;
+import type {
+  CreatePendingPlanWithPricesInput,
+  IPlatformPlansRepository,
+  UpdatePlanInput,
+} from '../interfaces/repos/platform-plans-repository.interface';
 
 @Injectable()
-export class PlatformPlansRepository {
+export class PlatformPlansRepository implements IPlatformPlansRepository {
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
   ) {}

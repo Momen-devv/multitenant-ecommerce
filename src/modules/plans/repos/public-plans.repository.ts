@@ -10,9 +10,10 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { publicPlanQuery } from '../queries/public-plan.query';
+import type { IPublicPlansRepository } from '../interfaces/repos/public-plans-repository.interface';
 
 @Injectable()
-export class PublicPlansRepository {
+export class PublicPlansRepository implements IPublicPlansRepository {
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
   ) {}

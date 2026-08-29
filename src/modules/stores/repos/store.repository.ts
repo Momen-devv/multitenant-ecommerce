@@ -18,9 +18,10 @@ import type {
 } from '../domain/store-status';
 import { compileApiQuery, type ApiListQueryInput } from '@/common/api-query';
 import { platformStoreQuery } from '../queries/platform-store.query';
+import type { IStoreRepository } from '../interfaces/repos/store-repository.interface';
 
 @Injectable()
-export class StoreRepository {
+export class StoreRepository implements IStoreRepository {
   constructor(
     @Inject(DATABASE)
     private readonly db: NodePgDatabase<typeof schema>,

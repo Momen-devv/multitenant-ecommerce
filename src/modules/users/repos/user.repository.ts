@@ -5,9 +5,10 @@ import * as schema from '@/infrastructure/database/schema/schema';
 import { count, eq, sql } from 'drizzle-orm';
 import type { User } from '@/infrastructure/database/schema/schema.types';
 import { AuthRole } from '@/common/enums';
+import type { IUserRepository } from '../interfaces/repos/user-repository.interface';
 
 @Injectable()
-export class UserRepository {
+export class UserRepository implements IUserRepository {
   constructor(
     @Inject(DATABASE)
     private readonly db: NodePgDatabase<typeof schema>,

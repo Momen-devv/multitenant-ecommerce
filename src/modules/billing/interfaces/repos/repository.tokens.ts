@@ -1,0 +1,1 @@
+export const BILLING_REPOSITORY = Symbol('BILLING_REPOSITORY');

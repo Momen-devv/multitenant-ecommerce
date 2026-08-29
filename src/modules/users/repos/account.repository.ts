@@ -4,9 +4,10 @@ import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import * as schema from '@/infrastructure/database/schema/schema';
 import { and, eq, lte } from 'drizzle-orm';
 import { User } from '@/infrastructure/database/schema/schema.types';
+import type { IAccountRepository } from '../interfaces/repos/account-repository.interface';
 
 @Injectable()
-export class AccountRepository {
+export class AccountRepository implements IAccountRepository {
   constructor(
     @Inject(DATABASE)
     private readonly db: NodePgDatabase<typeof schema>,

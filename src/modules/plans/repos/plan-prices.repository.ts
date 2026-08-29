@@ -9,9 +9,10 @@ import { type NewPlanPrice } from '@/infrastructure/database/schema/schema.types
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, isNull } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { IPlanPricesRepository } from '../interfaces/repos/plan-prices-repository.interface';
 
 @Injectable()
-export class PlanPricesRepository {
+export class PlanPricesRepository implements IPlanPricesRepository {
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
   ) {}

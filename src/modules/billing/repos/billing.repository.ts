@@ -27,6 +27,15 @@ import {
   sql,
 } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type {
+  IBillingRepository,
+  CheckoutSessionResult,
+  SubscriptionProjection,
+} from '../interfaces/repos/billing-repository.interface';
+export type {
+  CheckoutSessionResult,
+  SubscriptionProjection,
+} from '../interfaces/repos/billing-repository.interface';
 
 const TERMINAL_SUBSCRIPTION_STATUSES = [
   SubscriptionStatus.INCOMPLETE_EXPIRED,
@@ -37,30 +46,8 @@ export const WEBHOOK_MAX_ATTEMPTS = 8;
 export const CHECKOUT_SESSION_LIFETIME_MS = 60 * 60 * 1000;
 export const WEBHOOK_PAYLOAD_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
-export type SubscriptionProjection = {
-  stripeSubscriptionId: string;
-  stripeSubscriptionItemId: string;
-  stripeCustomerId: string;
-  stripePriceId: string;
-  storeId?: string;
-  planPriceId?: string;
-  status: SubscriptionStatus;
-  currentPeriodStart: Date | null;
-  currentPeriodEnd: Date | null;
-  cancelAtPeriodEnd: boolean;
-  cancelAt: Date | null;
-  canceledAt: Date | null;
-  trialEndsAt: Date | null;
-  endedAt: Date | null;
-};
-
-export type CheckoutSessionResult = {
-  sessionId: string;
-  url: string;
-};
-
 @Injectable()
-export class BillingRepository {
+export class BillingRepository implements IBillingRepository {
   constructor(
     @Inject(DATABASE)
     private readonly db: NodePgDatabase<typeof schema>,

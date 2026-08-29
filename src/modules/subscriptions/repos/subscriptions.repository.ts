@@ -9,6 +9,7 @@ import * as schema from '@/infrastructure/database/schema/schema';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, notInArray } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { ISubscriptionsRepository } from '../interfaces/repos/subscriptions-repository.interface';
 
 const TERMINAL_STATUSES = [
   SubscriptionStatus.INCOMPLETE_EXPIRED,
@@ -16,7 +17,7 @@ const TERMINAL_STATUSES = [
 ];
 
 @Injectable()
-export class SubscriptionsRepository {
+export class SubscriptionsRepository implements ISubscriptionsRepository {
   constructor(
     @Inject(DATABASE)
     private readonly db: NodePgDatabase<typeof schema>,
