@@ -1,15 +1,23 @@
 import { BillingCheckoutService } from '@/modules/billing/services/billing-checkout.service';
 import { BillingPortalService } from '@/modules/billing/services/billing-portal.service';
-import { StoreRepository } from '@/modules/stores/repos/store.repository';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  STORE_REPOSITORY,
+  type IStoreRepository,
+} from '@/modules/stores/interfaces/repos';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateBillingPortalDto, CreateSubscriptionCheckoutDto } from '../dto';
-import { SubscriptionsRepository } from '../repos/subscriptions.repository';
+import {
+  SUBSCRIPTIONS_REPOSITORY,
+  type ISubscriptionsRepository,
+} from '../interfaces/repos';
 
 @Injectable()
 export class SubscriptionsService {
   constructor(
-    private readonly storeRepository: StoreRepository,
-    private readonly subscriptionsRepository: SubscriptionsRepository,
+    @Inject(STORE_REPOSITORY)
+    private readonly storeRepository: IStoreRepository,
+    @Inject(SUBSCRIPTIONS_REPOSITORY)
+    private readonly subscriptionsRepository: ISubscriptionsRepository,
     private readonly billingCheckout: BillingCheckoutService,
     private readonly billingPortal: BillingPortalService,
   ) {}

@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { UpdateProfileDto } from '../dto';
 import { StorageService } from '@/common/abstracts/storage.abstracts';
 import { ImageProcessingService } from '../../../common/services/Image-processing.service';
 import { randomUUID } from 'node:crypto';
-import { UserRepository } from '../repos/user.repository';
+import { USER_REPOSITORY, type IUserRepository } from '../interfaces/repos';
 import { Auth } from '@/core/auth/auth';
 import { AuthService } from '@thallesp/nestjs-better-auth';
 import { fromNodeHeaders } from 'better-auth/node';
@@ -18,7 +18,8 @@ export class UsersService {
     private readonly imageProcessingService: ImageProcessingService,
     private readonly logger: LoggerService,
     private readonly resourceCleanupQueue: ResourceCleanupQueueService,
-    private readonly userRepository: UserRepository,
+    @Inject(USER_REPOSITORY)
+    private readonly userRepository: IUserRepository,
   ) {}
 
   async updateProfile(dto: UpdateProfileDto, headers: Record<string, string>) {

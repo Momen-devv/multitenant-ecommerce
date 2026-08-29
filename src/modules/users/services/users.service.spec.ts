@@ -5,7 +5,7 @@ import { StorageService } from '@/common/abstracts/storage.abstracts';
 import { ImageProcessingService } from '@/common/services/Image-processing.service';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { ResourceCleanupQueueService } from '@/infrastructure/queue/resource-cleanup/resource-cleanup-queue.service';
-import { UserRepository } from '../repos';
+import { USER_REPOSITORY } from '../interfaces/repos';
 import { UpdateProfileDto } from '../dto';
 
 jest.mock('@thallesp/nestjs-better-auth', () => ({
@@ -56,7 +56,7 @@ describe('UsersService', () => {
           provide: ResourceCleanupQueueService,
           useValue: resourceCleanupQueue,
         },
-        { provide: UserRepository, useValue: {} },
+        { provide: USER_REPOSITORY, useValue: {} },
       ],
     }).compile();
 

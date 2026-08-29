@@ -1,12 +1,15 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { StoreLifecycleConflictError } from '@/common/errors/store-lifecycle-conflict.error';
 import type { Store } from '@/infrastructure/database/schema/schema.types';
-import { StoreRepository } from '../repos/store.repository';
+import { STORE_REPOSITORY, type IStoreRepository } from '../interfaces/repos';
 import type { StoreStatus } from '../domain/store-status';
 
 @Injectable()
 export class StoreLifecycleService {
-  constructor(private readonly storeRepository: StoreRepository) {}
+  constructor(
+    @Inject(STORE_REPOSITORY)
+    private readonly storeRepository: IStoreRepository,
+  ) {}
 
   async closeStore(
     storeId: string,

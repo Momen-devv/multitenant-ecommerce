@@ -5,7 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Stripe } from 'stripe';
-import { BillingRepository } from '../repos/billing.repository';
+import {
+  BILLING_REPOSITORY,
+  type IBillingRepository,
+} from '../interfaces/repos';
 import { STRIPE_CLIENT } from '../stripe/stripe.constants';
 
 export type CreateBillingPortalInput = {
@@ -21,7 +24,8 @@ export type BillingPortalResult = {
 export class BillingPortalService {
   constructor(
     @Inject(STRIPE_CLIENT) private readonly stripe: Stripe,
-    private readonly billingRepository: BillingRepository,
+    @Inject(BILLING_REPOSITORY)
+    private readonly billingRepository: IBillingRepository,
   ) {}
 
   async createSession(

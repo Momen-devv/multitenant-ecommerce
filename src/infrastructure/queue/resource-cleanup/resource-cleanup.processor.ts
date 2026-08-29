@@ -7,7 +7,11 @@ import {
 } from '@/infrastructure/queue/queue.constants';
 import { StorageService } from '@/common/abstracts';
 import { LoggerService } from '../../logger/logger.service';
-import { StoreRepository } from '@/modules/stores/repos/store.repository';
+import {
+  STORE_REPOSITORY,
+  type IStoreRepository,
+} from '@/modules/stores/interfaces/repos';
+import { Inject } from '@nestjs/common';
 
 type ResourceCleanupJobData = {
   fileKey: string; // The file key to be deleted
@@ -19,7 +23,8 @@ export class ResourceCleanupQueueProcessor extends WorkerHost {
   constructor(
     private readonly storageService: StorageService,
     private readonly logger: LoggerService,
-    private readonly storeRepository: StoreRepository,
+    @Inject(STORE_REPOSITORY)
+    private readonly storeRepository: IStoreRepository,
   ) {
     super();
   }

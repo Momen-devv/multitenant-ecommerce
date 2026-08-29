@@ -1,8 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { PlanProvisioningQueueService } from '@/infrastructure/queue/plan-provisioning/plan-provisioning-queue.service';
-import { PlatformPlansRepository } from '../repos/platform-plans.repository';
+import {
+  PLATFORM_PLANS_REPOSITORY,
+  type IPlatformPlansRepository,
+} from '../interfaces/repos';
 
 const RECONCILIATION_INTERVAL_MS = 60_000;
 const PENDING_STALE_AFTER_MS = 60_000;
@@ -14,7 +17,8 @@ export class PlanProvisioningReconciler {
   private isReconciling = false;
 
   constructor(
-    private readonly plansRepository: PlatformPlansRepository,
+    @Inject(PLATFORM_PLANS_REPOSITORY)
+    private readonly plansRepository: IPlatformPlansRepository,
     private readonly queue: PlanProvisioningQueueService,
     private readonly logger: LoggerService,
   ) {}

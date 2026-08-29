@@ -3,6 +3,7 @@ import { StripeWebhookQueueModule } from '@/infrastructure/queue/stripe-webhook/
 import { StripeWebhookProcessor } from '@/infrastructure/queue/stripe-webhook/stripe-webhook.processor';
 import { StripeWebhookController } from './controllers/stripe-webhook.controller';
 import { BillingRepository } from './repos/billing.repository';
+import { BILLING_REPOSITORY } from './interfaces/repos';
 import { BillingCatalogService } from './services/billing-catalog.service';
 import { BillingCheckoutService } from './services/billing-checkout.service';
 import { BillingPortalService } from './services/billing-portal.service';
@@ -15,6 +16,7 @@ import { StripeModule } from './stripe/stripe.module';
   providers: [
     BillingCatalogService,
     BillingRepository,
+    { provide: BILLING_REPOSITORY, useExisting: BillingRepository },
     BillingCheckoutService,
     BillingPortalService,
     StripeWebhookService,

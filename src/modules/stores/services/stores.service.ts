@@ -2,10 +2,11 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { StoreRepository } from '../repos/store.repository';
+import { STORE_REPOSITORY, type IStoreRepository } from '../interfaces/repos';
 import { CreateStoreDto, UpdateStoreDto } from '../dto';
 import { StorageService } from '@/common/abstracts/storage.abstracts';
 import { ImageProcessingService } from '@/common/services/Image-processing.service';
@@ -25,7 +26,8 @@ import { StoreLifecycleService } from './store-lifecycle.service';
 @Injectable()
 export class StoresService {
   constructor(
-    private readonly storeRepository: StoreRepository,
+    @Inject(STORE_REPOSITORY)
+    private readonly storeRepository: IStoreRepository,
     private readonly storage: StorageService,
     private readonly imageProcessingService: ImageProcessingService,
     private readonly resourceCleanupQueue: ResourceCleanupQueueService,

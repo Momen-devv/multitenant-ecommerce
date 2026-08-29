@@ -4,10 +4,11 @@ import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import type Stripe from 'stripe';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
+import { type SubscriptionProjection } from '../repos/billing.repository';
 import {
-  BillingRepository,
-  SubscriptionProjection,
-} from '../repos/billing.repository';
+  BILLING_REPOSITORY,
+  type IBillingRepository,
+} from '../interfaces/repos';
 import { STRIPE_CLIENT } from '../stripe/stripe.constants';
 import { StripeWebhookQueueService } from '@/infrastructure/queue/stripe-webhook/stripe-webhook-queue.service';
 
@@ -27,7 +28,8 @@ export class StripeWebhookService {
     @Inject(STRIPE_CLIENT) private readonly stripe: Stripe,
     @Inject(stripeConfig.KEY)
     private readonly config: ConfigType<typeof stripeConfig>,
-    private readonly billingRepository: BillingRepository,
+    @Inject(BILLING_REPOSITORY)
+    private readonly billingRepository: IBillingRepository,
     private readonly webhookQueue: StripeWebhookQueueService,
     private readonly logger: LoggerService,
   ) {}

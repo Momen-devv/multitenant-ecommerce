@@ -2,7 +2,11 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { DataSyncJobName, JobNames, QueueNames } from '../queue.constants';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
-import { StoreRepository } from '@/modules/stores/repos/store.repository';
+import {
+  STORE_REPOSITORY,
+  type IStoreRepository,
+} from '@/modules/stores/interfaces/repos';
+import { Inject } from '@nestjs/common';
 
 interface SyncOrgNameJobData {
   organizationId: string;
@@ -13,7 +17,8 @@ interface SyncOrgNameJobData {
 export class DataSyncProcessor extends WorkerHost {
   constructor(
     private readonly logger: LoggerService,
-    private readonly storeRepository: StoreRepository,
+    @Inject(STORE_REPOSITORY)
+    private readonly storeRepository: IStoreRepository,
   ) {
     super();
   }

@@ -1,10 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PublicPlansRepository } from '../repos/public-plans.repository';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  PUBLIC_PLANS_REPOSITORY,
+  type IPublicPlansRepository,
+} from '../interfaces/repos';
 import type { ApiListQueryInput } from '@/common/api-query';
 
 @Injectable()
 export class PublicPlansService {
-  constructor(private readonly plansRepository: PublicPlansRepository) {}
+  constructor(
+    @Inject(PUBLIC_PLANS_REPOSITORY)
+    private readonly plansRepository: IPublicPlansRepository,
+  ) {}
 
   listActivePlans(query: ApiListQueryInput) {
     return this.plansRepository.findActivePage(query);

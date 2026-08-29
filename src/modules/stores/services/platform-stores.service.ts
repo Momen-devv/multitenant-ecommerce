@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { StoreRepository } from '../repos/store.repository';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { STORE_REPOSITORY, type IStoreRepository } from '../interfaces/repos';
 import type {
   PlatformStoreResponse,
   StoreWithOwner,
@@ -10,7 +10,8 @@ import type { ApiListQueryInput, CursorPage } from '@/common/api-query';
 @Injectable()
 export class PlatformStoresService {
   constructor(
-    private readonly storeRepository: StoreRepository,
+    @Inject(STORE_REPOSITORY)
+    private readonly storeRepository: IStoreRepository,
     private readonly storeLifecycleService: StoreLifecycleService,
   ) {}
 

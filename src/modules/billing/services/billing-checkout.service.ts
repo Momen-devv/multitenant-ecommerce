@@ -7,10 +7,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Stripe } from 'stripe';
+import { CHECKOUT_SESSION_LIFETIME_MS } from '../repos/billing.repository';
 import {
-  BillingRepository,
-  CHECKOUT_SESSION_LIFETIME_MS,
-} from '../repos/billing.repository';
+  BILLING_REPOSITORY,
+  type IBillingRepository,
+} from '../interfaces/repos';
 import { STRIPE_CLIENT } from '../stripe/stripe.constants';
 
 export type CreateSubscriptionCheckoutInput = {
@@ -31,7 +32,8 @@ export type SubscriptionCheckoutResult = {
 export class BillingCheckoutService {
   constructor(
     @Inject(STRIPE_CLIENT) private readonly stripe: Stripe,
-    private readonly billingRepository: BillingRepository,
+    @Inject(BILLING_REPOSITORY)
+    private readonly billingRepository: IBillingRepository,
   ) {}
 
   async createSubscriptionCheckout(

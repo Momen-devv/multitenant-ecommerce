@@ -1,10 +1,15 @@
 import {
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PlatformPlansRepository } from '../repos/platform-plans.repository';
-import { PlanPricesRepository } from '../repos/plan-prices.repository';
+import {
+  PLAN_PRICES_REPOSITORY,
+  PLATFORM_PLANS_REPOSITORY,
+  type IPlanPricesRepository,
+  type IPlatformPlansRepository,
+} from '../interfaces/repos';
 import { CreatePlanPriceDto } from '../dto';
 import { BillingCatalogService } from '@/modules/billing/services/billing-catalog.service';
 import { BillingInterval } from '@/common/enums';
@@ -12,8 +17,10 @@ import { BillingInterval } from '@/common/enums';
 @Injectable()
 export class PlanPricesService {
   constructor(
-    private readonly planPricesRepository: PlanPricesRepository,
-    private readonly platformPlansRepository: PlatformPlansRepository,
+    @Inject(PLAN_PRICES_REPOSITORY)
+    private readonly planPricesRepository: IPlanPricesRepository,
+    @Inject(PLATFORM_PLANS_REPOSITORY)
+    private readonly platformPlansRepository: IPlatformPlansRepository,
     private readonly billingCatalog: BillingCatalogService,
   ) {}
 

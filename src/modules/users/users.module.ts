@@ -6,6 +6,7 @@ import { UserRepository } from './repos/user.repository';
 import { AccountController } from './controllers/account.controller';
 import { AccountService } from './services/account.service';
 import { AccountRepository } from './repos';
+import { ACCOUNT_REPOSITORY, USER_REPOSITORY } from './interfaces/repos';
 import { AccountCleanupTask } from './tasks/account-cleanup.task';
 import { ImageProcessingService } from '@/common/services/Image-processing.service';
 import { SecureTokenService } from '@/common/services/secure-token.service';
@@ -20,6 +21,8 @@ import { PlatformImpersonationService } from './services/platform-impersonation.
     AccountService,
     UserRepository,
     AccountRepository,
+    { provide: USER_REPOSITORY, useExisting: UserRepository },
+    { provide: ACCOUNT_REPOSITORY, useExisting: AccountRepository },
     AccountCleanupTask,
     ImageProcessingService,
     SecureTokenService,

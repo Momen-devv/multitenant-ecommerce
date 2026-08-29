@@ -1,10 +1,14 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PlatformPlansRepository } from '../repos/platform-plans.repository';
+import {
+  PLATFORM_PLANS_REPOSITORY,
+  type IPlatformPlansRepository,
+} from '../interfaces/repos';
 import { CreatePlanDto, UpdatePlanDto } from '../dto';
 import { PlanCodeConflictError } from '@/common/errors/plan-code-conflict.error';
 import { PlanProvisioningStatus } from '@/common/enums/plan-provisioning-status.enum';
@@ -15,7 +19,8 @@ import type { ApiListQueryInput } from '@/common/api-query';
 @Injectable()
 export class PlatformPlansService {
   constructor(
-    private readonly plansRepository: PlatformPlansRepository,
+    @Inject(PLATFORM_PLANS_REPOSITORY)
+    private readonly plansRepository: IPlatformPlansRepository,
     private readonly planProvisioningQueue: PlanProvisioningQueueService,
     private readonly billingCatalog: BillingCatalogService,
   ) {}

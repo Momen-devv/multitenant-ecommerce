@@ -6,6 +6,11 @@ import { BillingModule } from '@/modules/billing/billing.module';
 import { PlatformPlansRepository } from './repos/platform-plans.repository';
 import { PlanPricesRepository } from './repos/plan-prices.repository';
 import { PublicPlansRepository } from './repos/public-plans.repository';
+import {
+  PLAN_PRICES_REPOSITORY,
+  PLATFORM_PLANS_REPOSITORY,
+  PUBLIC_PLANS_REPOSITORY,
+} from './interfaces/repos';
 import { PlatformPlansController } from './controllers/platform-plans.controller';
 import { PlanPricesController } from './controllers/plan-prices.controller';
 import { PublicPlansController } from './controllers/public-plans.controller';
@@ -29,14 +34,20 @@ import { PlanProvisioningReconciler } from './provisioning/plan-provisioning.rec
     PlatformPlansRepository,
     PlanPricesRepository,
     PublicPlansRepository,
+    {
+      provide: PLATFORM_PLANS_REPOSITORY,
+      useExisting: PlatformPlansRepository,
+    },
+    { provide: PLAN_PRICES_REPOSITORY, useExisting: PlanPricesRepository },
+    { provide: PUBLIC_PLANS_REPOSITORY, useExisting: PublicPlansRepository },
     PlanProvisioningOutboxDispatcher,
     PlanProvisioningReconciler,
     PlanProvisioningProcessor,
   ],
   exports: [
-    PlatformPlansRepository,
-    PlanPricesRepository,
-    PublicPlansRepository,
+    PLATFORM_PLANS_REPOSITORY,
+    PLAN_PRICES_REPOSITORY,
+    PUBLIC_PLANS_REPOSITORY,
   ],
 })
 export class PlansModule {}

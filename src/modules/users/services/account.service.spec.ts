@@ -5,7 +5,7 @@ import { CACHE_SERVICE } from '@/common/constants/injection-tokens.constants';
 import { AuthService } from '@thallesp/nestjs-better-auth';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { EmailQueueService } from '@/infrastructure/queue/email/email-queue.service';
-import { AccountRepository } from '../repos';
+import { ACCOUNT_REPOSITORY } from '../interfaces/repos';
 import appConfig from '@/core/config/app.config';
 import { SecureTokenService } from '@/common/services/secure-token.service';
 
@@ -56,7 +56,7 @@ describe('AccountService', () => {
         { provide: AuthService, useValue: authService },
         { provide: LoggerService, useValue: logger },
         { provide: EmailQueueService, useValue: emailQueue },
-        { provide: AccountRepository, useValue: accountRepository },
+        { provide: ACCOUNT_REPOSITORY, useValue: accountRepository },
         { provide: SecureTokenService, useValue: secureToken },
       ],
     }).compile();

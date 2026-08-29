@@ -3,7 +3,11 @@ import { Job, UnrecoverableError } from 'bullmq';
 import { BillingInterval, PlanProvisioningStatus } from '@/common/enums';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { BillingCatalogService } from '@/modules/billing/services/billing-catalog.service';
-import { PlatformPlansRepository } from '@/modules/plans/repos/platform-plans.repository';
+import {
+  PLATFORM_PLANS_REPOSITORY,
+  type IPlatformPlansRepository,
+} from '@/modules/plans/interfaces/repos';
+import { Inject } from '@nestjs/common';
 import {
   JobNames,
   type PlanProvisioningJobName,
@@ -14,7 +18,8 @@ import type { ProvisionPlanJobData } from './plan-provisioning-queue.service';
 @Processor(QueueNames.PLAN_PROVISIONING)
 export class PlanProvisioningProcessor extends WorkerHost {
   constructor(
-    private readonly plansRepository: PlatformPlansRepository,
+    @Inject(PLATFORM_PLANS_REPOSITORY)
+    private readonly plansRepository: IPlatformPlansRepository,
     private readonly billingCatalog: BillingCatalogService,
     private readonly logger: LoggerService,
   ) {

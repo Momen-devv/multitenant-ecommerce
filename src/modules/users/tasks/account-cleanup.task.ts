@@ -1,7 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
-import { AccountRepository } from '../repos';
+import {
+  ACCOUNT_REPOSITORY,
+  type IAccountRepository,
+} from '../interfaces/repos';
 
 // 30 days grace period for reactivation
 const REACTIVATION_GRACE_PERIOD_DAYS = 30;
@@ -9,7 +12,8 @@ const REACTIVATION_GRACE_PERIOD_DAYS = 30;
 @Injectable()
 export class AccountCleanupTask {
   constructor(
-    private readonly accountRepository: AccountRepository,
+    @Inject(ACCOUNT_REPOSITORY)
+    private readonly accountRepository: IAccountRepository,
     private readonly logger: LoggerService,
   ) {}
 

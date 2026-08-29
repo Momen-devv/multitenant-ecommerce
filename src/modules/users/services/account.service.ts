@@ -6,7 +6,10 @@ import type { ICacheService } from '@/infrastructure/cache/cache.interface';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { AuthService } from '@thallesp/nestjs-better-auth';
 import { fromNodeHeaders } from 'better-auth/node';
-import { AccountRepository } from '../repos';
+import {
+  ACCOUNT_REPOSITORY,
+  type IAccountRepository,
+} from '../interfaces/repos';
 import type { ConfigType } from '@nestjs/config';
 import appConfig from '@/core/config/app.config';
 import { SecureTokenService } from '@/common/services/secure-token.service';
@@ -24,7 +27,8 @@ export class AccountService {
     private readonly authService: AuthService<Auth>,
     private readonly logger: LoggerService,
     private readonly emailQueue: EmailQueueService,
-    private readonly accountRepository: AccountRepository,
+    @Inject(ACCOUNT_REPOSITORY)
+    private readonly accountRepository: IAccountRepository,
     private readonly secureToken: SecureTokenService,
   ) {}
 

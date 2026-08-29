@@ -12,7 +12,7 @@ describe('SubscriptionsService', () => {
     jest.resetAllMocks();
     service = new SubscriptionsService(
       storeRepository as never,
-      subscriptionsRepository as never,
+      subscriptionsRepository,
       billingCheckout as never,
       billingPortal as never,
     );

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { StoresService } from './stores.service';
-import { StoreRepository } from '../repos/store.repository';
+import { STORE_REPOSITORY } from '../interfaces/repos';
 import { StoreLifecycleService } from './store-lifecycle.service';
 import { StorageService } from '@/common/abstracts/storage.abstracts';
 import { ImageProcessingService } from '@/common/services/Image-processing.service';
@@ -64,7 +64,7 @@ describe('StoresService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StoresService,
-        { provide: StoreRepository, useValue: storeRepository },
+        { provide: STORE_REPOSITORY, useValue: storeRepository },
         { provide: StorageService, useValue: storage },
         { provide: ImageProcessingService, useValue: imageProcessingService },
         {

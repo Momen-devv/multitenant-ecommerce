@@ -59,7 +59,7 @@ describe('PlatformUsersService', () => {
     jest.resetAllMocks();
     service = new PlatformUsersService(
       { api: authApi } as never,
-      userRepository as never,
+      userRepository,
       logger as never,
     );
   });

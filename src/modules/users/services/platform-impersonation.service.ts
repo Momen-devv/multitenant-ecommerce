@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   HttpException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -11,7 +12,7 @@ import { isAPIError } from 'better-auth/api';
 import type { Auth } from '@/core/auth/auth';
 import { AuthRole } from '@/common/enums';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
-import { UserRepository } from '../repos';
+import { USER_REPOSITORY, type IUserRepository } from '../interfaces/repos';
 
 type NodeHeaders = Record<string, string>;
 
@@ -19,7 +20,8 @@ type NodeHeaders = Record<string, string>;
 export class PlatformImpersonationService {
   constructor(
     private readonly authService: AuthService<Auth>,
-    private readonly userRepository: UserRepository,
+    @Inject(USER_REPOSITORY)
+    private readonly userRepository: IUserRepository,
     private readonly logger: LoggerService,
   ) {}
 
