@@ -24,6 +24,7 @@ describe('ActiveStoreGuard', () => {
     storeRepository.findStoreIdByOrganizationId.mockResolvedValue({
       id: 'store-1',
       status: StoreStatus.ACTIVE,
+      defaultCurrency: 'usd',
     });
 
     await expect(guard.canActivate(createContext(request))).resolves.toBe(true);
@@ -34,6 +35,7 @@ describe('ActiveStoreGuard', () => {
     expect(request.activeStore).toEqual({
       organizationId: 'organization-1',
       storeId: 'store-1',
+      currency: 'usd',
     });
   });
 

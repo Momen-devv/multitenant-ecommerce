@@ -16,12 +16,15 @@ import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { OrgRoles } from '@thallesp/nestjs-better-auth';
 import { OrganizationRole } from '@/common/enums';
 import {
-  ActiveStoreId,
+  ActiveStore,
   ApiErrorResponse,
   ApiSuccessResponse,
   ResponseMessage,
 } from '@/common/decorators';
-import { ActiveStoreGuard } from '@/common/guards/active-store.guard';
+import {
+  ActiveStoreGuard,
+  type ActiveStoreContext,
+} from '@/common/guards/active-store.guard';
 import { ProductsService } from '../services/products.service';
 import {
   CreateProductDto,
@@ -63,9 +66,9 @@ export class ProductsController {
   @Post()
   createProduct(
     @Body() dto: CreateProductDto,
-    @ActiveStoreId() storeId: string,
+    @ActiveStore() store: ActiveStoreContext,
   ) {
-    return this.productsService.createProduct(dto, storeId);
+    return this.productsService.createProduct(dto, store);
   }
 
   @Get()
@@ -86,9 +89,9 @@ export class ProductsController {
   @Get(':productId')
   getProduct(
     @Param('productId', new ParseUUIDPipe()) productId: string,
-    @ActiveStoreId() storeId: string,
+    @ActiveStore() store: ActiveStoreContext,
   ) {
-    return this.productsService.getProduct(productId, storeId);
+    return this.productsService.getProduct(productId, store);
   }
 
   @Patch(':productId')

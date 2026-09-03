@@ -16,6 +16,7 @@ import {
 export type ActiveStoreContext = {
   organizationId: string;
   storeId: string;
+  currency: string;
 };
 
 export type ActiveStoreRequest = {
@@ -53,7 +54,11 @@ export class ActiveStoreGuard implements CanActivate {
       );
     }
 
-    request.activeStore = { organizationId, storeId: store.id };
+    request.activeStore = {
+      organizationId,
+      storeId: store.id,
+      currency: store.defaultCurrency,
+    };
     return true;
   }
 }

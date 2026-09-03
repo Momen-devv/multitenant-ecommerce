@@ -28,7 +28,7 @@ export interface IStoreRepository {
   findByIdWithOwner(storeId: string): Promise<StoreWithOwner | undefined>;
   findStoreIdByOrganizationId(
     organizationId: string,
-  ): Promise<Pick<Store, 'id' | 'status'> | undefined>;
+  ): Promise<Pick<Store, 'id' | 'status' | 'defaultCurrency'> | undefined>;
   findBySlug(slug: string): Promise<Store | undefined>;
   update(id: string, data: Partial<Store>): Promise<Store | undefined>;
   updateActiveStore(id: string, data: Partial<Store>): Promise<Store>;

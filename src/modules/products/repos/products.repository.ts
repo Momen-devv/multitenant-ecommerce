@@ -1,7 +1,13 @@
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
-import { products } from '@/infrastructure/database/schema/products.schema';
+import {
+  productImages,
+  productOptionValues,
+  productOptions,
+  productVariants,
+  products,
+} from '@/infrastructure/database/schema/products.schema';
 import * as schema from '@/infrastructure/database/schema/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { DrizzleQueryError } from 'drizzle-orm';
 import { Inject, Injectable } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -10,8 +16,8 @@ import { SlugConflictError } from '@/common/errors/slug-conflict.error';
 import type {
   CreateProductInput,
   IProductsRepository,
+  ProductAggregate,
 } from '../interfaces/repos';
-import { Product } from '@/infrastructure/database/schema/schema.types';
 
 @Injectable()
 export class ProductsRepository implements IProductsRepository {
@@ -35,9 +41,43 @@ export class ProductsRepository implements IProductsRepository {
     }
   }
 
-  findOne(storeId: string, productId: string): Promise<Product | undefined> {
+  async findOne(
+    storeId: string,
+    productId: string,
+  ): Promise<ProductAggregate | undefined> {
     return this.db.query.products.findFirst({
       where: and(eq(products.storeId, storeId), eq(products.id, productId)),
+      with: {
+        store: {
+          columns: {
+            defaultCurrency: true,
+          },
+        },
+        images: {
+          orderBy: [asc(productImages.position), asc(productImages.id)],
+        },
+        options: {
+          orderBy: [asc(productOptions.position), asc(productOptions.id)],
+          with: {
+            values: {
+              orderBy: [
+                asc(productOptionValues.position),
+                asc(productOptionValues.id),
+              ],
+            },
+          },
+        },
+        variants: {
+          orderBy: [asc(productVariants.createdAt), asc(productVariants.id)],
+          with: {
+            optionValues: {
+              with: {
+                optionValue: true,
+              },
+            },
+          },
+        },
+      },
     });
   }
 

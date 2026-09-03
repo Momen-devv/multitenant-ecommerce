@@ -96,7 +96,7 @@ export class StoreRepository implements IStoreRepository {
 
   async findStoreIdByOrganizationId(organizationId: string) {
     return this.db.query.store.findFirst({
-      columns: { id: true, status: true },
+      columns: { id: true, status: true, defaultCurrency: true },
       where: eq(store.organizationId, organizationId),
     });
   }
