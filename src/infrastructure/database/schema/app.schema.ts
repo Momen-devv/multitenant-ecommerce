@@ -13,10 +13,11 @@ import { user, organization } from './auth.schema';
 import { generateUUIDv7 } from '@/common/utils';
 import { StoreStatus } from '@/common/enums';
 
-export const storeStatus = pgEnum(
-  'store_status',
-  Object.values(StoreStatus) as [StoreStatus, ...StoreStatus[]],
-);
+export const storeStatus = pgEnum('store_status', [
+  StoreStatus.ACTIVE,
+  StoreStatus.OWNER_CLOSED,
+  StoreStatus.PLATFORM_SUSPENDED,
+]);
 
 export const storeLifecycleActorAuthority = pgEnum('store_actor_authority', [
   'store_owner',
