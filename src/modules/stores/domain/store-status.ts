@@ -1,10 +1,11 @@
-export const STORE_STATUSES = [
-  'active',
-  'owner_closed',
-  'platform_suspended',
-] as const;
+import { StoreStatus as CommonStoreStatus } from '@/common/enums';
 
-export type StoreStatus = (typeof STORE_STATUSES)[number];
+export const STORE_STATUSES = Object.values(CommonStoreStatus) as [
+  CommonStoreStatus,
+  ...CommonStoreStatus[],
+];
+
+export type StoreStatus = CommonStoreStatus;
 
 export type StoreLifecycleActorAuthority =
   | 'store_owner'

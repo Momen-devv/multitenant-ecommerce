@@ -11,12 +11,12 @@ import {
 } from 'drizzle-orm/pg-core';
 import { user, organization } from './auth.schema';
 import { generateUUIDv7 } from '@/common/utils';
+import { StoreStatus } from '@/common/enums';
 
-export const storeStatus = pgEnum('store_status', [
-  'active',
-  'owner_closed',
-  'platform_suspended',
-]);
+export const storeStatus = pgEnum(
+  'store_status',
+  Object.values(StoreStatus) as [StoreStatus, ...StoreStatus[]],
+);
 
 export const storeLifecycleActorAuthority = pgEnum('store_actor_authority', [
   'store_owner',
@@ -48,7 +48,7 @@ export const store = pgTable(
     logo: text('logo'),
     logoKey: text('logo_key'),
 
-    status: storeStatus('status').default('active').notNull(),
+    status: storeStatus('status').default(StoreStatus.ACTIVE).notNull(),
 
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')

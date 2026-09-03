@@ -7,6 +7,7 @@ import {
   ActiveStoreGuard,
   type ActiveStoreRequest,
 } from './active-store.guard';
+import { StoreStatus } from '@/common/enums';
 
 describe('ActiveStoreGuard', () => {
   const storeRepository = {
@@ -22,6 +23,7 @@ describe('ActiveStoreGuard', () => {
     } as ActiveStoreRequest;
     storeRepository.findStoreIdByOrganizationId.mockResolvedValue({
       id: 'store-1',
+      status: StoreStatus.ACTIVE,
     });
 
     await expect(guard.canActivate(createContext(request))).resolves.toBe(true);
@@ -53,6 +55,20 @@ describe('ActiveStoreGuard', () => {
     await expect(
       guard.canActivate(createContext(request)),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('rejects an organization with an inactive store', async () => {
+    const request = {
+      session: { session: { activeOrganizationId: 'organization-1' } },
+    } as ActiveStoreRequest;
+    storeRepository.findStoreIdByOrganizationId.mockResolvedValue({
+      id: 'store-1',
+      status: StoreStatus.OWNER_CLOSED,
+    });
+
+    await expect(
+      guard.canActivate(createContext(request)),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
 

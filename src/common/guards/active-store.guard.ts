@@ -7,6 +7,7 @@ import {
   type ExecutionContext,
 } from '@nestjs/common';
 import type { CurrentUser } from '@/core/auth/auth.types';
+import { StoreStatus } from '@/common/enums';
 import {
   STORE_REPOSITORY,
   type IStoreRepository,
@@ -43,6 +44,12 @@ export class ActiveStoreGuard implements CanActivate {
     if (!store) {
       throw new NotFoundException(
         'Store not found for the active organization.',
+      );
+    }
+
+    if (store.status !== StoreStatus.ACTIVE) {
+      throw new ForbiddenException(
+        'The active store is closed or suspended. Reactivate it before continuing.',
       );
     }
 

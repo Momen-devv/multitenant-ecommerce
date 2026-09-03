@@ -12,10 +12,8 @@ import { SlugConflictError } from '@/common/errors/slug-conflict.error';
 import { StoreLifecycleConflictError } from '@/common/errors/store-lifecycle-conflict.error';
 import { organization } from '@/infrastructure/database/schema/auth.schema';
 import { storeLifecycleAudit } from '@/infrastructure/database/schema/app.schema';
-import type {
-  StoreLifecycleActorAuthority,
-  StoreStatus,
-} from '../domain/store-status';
+import { StoreStatus } from '@/common/enums';
+import type { StoreLifecycleActorAuthority } from '../domain/store-status';
 import { compileApiQuery, type ApiListQueryInput } from '@/common/api-query';
 import { platformStoreQuery } from '../queries/platform-store.query';
 import type { IStoreRepository } from '../interfaces/repos/store-repository.interface';
@@ -38,7 +36,7 @@ export class StoreRepository implements IStoreRepository {
           name: data.name,
           slug: data.slug,
           description: data.description,
-          status: 'active',
+          status: StoreStatus.ACTIVE,
         })
         .returning();
 
@@ -98,7 +96,7 @@ export class StoreRepository implements IStoreRepository {
 
   async findStoreIdByOrganizationId(organizationId: string) {
     return this.db.query.store.findFirst({
-      columns: { id: true },
+      columns: { id: true, status: true },
       where: eq(store.organizationId, organizationId),
     });
   }
@@ -123,7 +121,7 @@ export class StoreRepository implements IStoreRepository {
     const [updated] = await this.db
       .update(store)
       .set({ ...data, updatedAt: new Date() })
-      .where(and(eq(store.id, id), eq(store.status, 'active')))
+      .where(and(eq(store.id, id), eq(store.status, StoreStatus.ACTIVE)))
       .returning();
 
     if (!updated) {

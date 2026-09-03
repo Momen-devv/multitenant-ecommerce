@@ -4,10 +4,8 @@ import type {
   Store,
   User,
 } from '@/infrastructure/database/schema/schema.types';
-import type {
-  StoreLifecycleActorAuthority,
-  StoreStatus,
-} from '../../domain/store-status';
+import type { StoreStatus } from '@/common/enums';
+import type { StoreLifecycleActorAuthority } from '../../domain/store-status';
 
 export type StoreWithOwner = Store & {
   owner: Pick<User, 'id' | 'name' | 'email'>;
@@ -30,7 +28,7 @@ export interface IStoreRepository {
   findByIdWithOwner(storeId: string): Promise<StoreWithOwner | undefined>;
   findStoreIdByOrganizationId(
     organizationId: string,
-  ): Promise<Pick<Store, 'id'> | undefined>;
+  ): Promise<Pick<Store, 'id' | 'status'> | undefined>;
   findBySlug(slug: string): Promise<Store | undefined>;
   update(id: string, data: Partial<Store>): Promise<Store | undefined>;
   updateActiveStore(id: string, data: Partial<Store>): Promise<Store>;
