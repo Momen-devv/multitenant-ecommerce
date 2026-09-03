@@ -10,6 +10,7 @@ export {
 
 export { ApiSuccessResponse } from './api-success-response.decorator';
 export { ApiErrorResponse } from './api-error-response.decorator';
+export { ActiveStoreId } from './active-store-id.decorator';
 export {
   IsBooleanRecord,
   IsNonNegativeIntegerRecord,

@@ -28,7 +28,9 @@ export interface IStoreRepository {
     input: ApiListQueryInput,
   ): Promise<CursorPage<Record<string, unknown>>>;
   findByIdWithOwner(storeId: string): Promise<StoreWithOwner | undefined>;
-  findByOrganizationId(organizationId: string): Promise<Store | undefined>;
+  findStoreIdByOrganizationId(
+    organizationId: string,
+  ): Promise<Pick<Store, 'id'> | undefined>;
   findBySlug(slug: string): Promise<Store | undefined>;
   update(id: string, data: Partial<Store>): Promise<Store | undefined>;
   updateActiveStore(id: string, data: Partial<Store>): Promise<Store>;

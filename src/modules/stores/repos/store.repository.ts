@@ -96,8 +96,9 @@ export class StoreRepository implements IStoreRepository {
     });
   }
 
-  async findByOrganizationId(organizationId: string) {
+  async findStoreIdByOrganizationId(organizationId: string) {
     return this.db.query.store.findFirst({
+      columns: { id: true },
       where: eq(store.organizationId, organizationId),
     });
   }

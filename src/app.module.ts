@@ -36,6 +36,7 @@ import { StoresModule } from './modules/stores/stores.module';
 import { PlansModule } from './modules/plans/plans.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { ProductsModule } from './modules/products/products.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     PlansModule,
     BillingModule,
     SubscriptionsModule,
+    ProductsModule,
 
     RouterModule.register([{ path: 'health', module: HealthModule }]),
   ],
