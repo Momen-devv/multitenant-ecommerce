@@ -7,12 +7,13 @@ import {
   products,
 } from '@/infrastructure/database/schema/products.schema';
 import * as schema from '@/infrastructure/database/schema/schema';
-import { and, asc, eq, ne, sql } from 'drizzle-orm';
+import { and, asc, count, eq, ne, sql } from 'drizzle-orm';
 import { DrizzleQueryError } from 'drizzle-orm';
 import { Inject, Injectable } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DatabaseError } from 'pg';
 import { SlugConflictError } from '@/common/errors/slug-conflict.error';
+import { ProductLimitExceededError } from '@/common/errors/product-limit-exceeded.error';
 import { ProductStatus } from '@/common/enums';
 import { compileApiQuery, type ApiListQueryInput } from '@/common/api-query';
 import type {
@@ -29,12 +30,34 @@ export class ProductsRepository implements IProductsRepository {
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
   ) {}
 
-  async create(storeId: string, input: CreateProductInput) {
+  async create(
+    storeId: string,
+    input: CreateProductInput,
+    productLimit: number,
+  ) {
     try {
-      const [product] = await this.db
-        .insert(products)
-        .values({ storeId, ...input })
-        .returning();
+      const product = await this.db.transaction(async (tx) => {
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${storeId}))`,
+        );
+        const [result] = await tx
+          .select({ count: count() })
+          .from(products)
+          .where(
+            and(
+              eq(products.storeId, storeId),
+              ne(products.status, ProductStatus.ARCHIVED),
+            ),
+          );
+        if (result.count >= productLimit) {
+          throw new ProductLimitExceededError(productLimit, result.count);
+        }
+        const [product] = await tx
+          .insert(products)
+          .values({ storeId, ...input })
+          .returning();
+        return product;
+      });
       return product;
     } catch (error) {
       if (this.isUniqueViolation(error, 'products_store_slug_uidx')) {

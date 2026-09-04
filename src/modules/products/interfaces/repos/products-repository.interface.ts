@@ -75,7 +75,11 @@ export type ProductAggregate = Pick<
 };
 
 export interface IProductsRepository {
-  create(storeId: string, input: CreateProductInput): Promise<Product>;
+  create(
+    storeId: string,
+    input: CreateProductInput,
+    productLimit: number,
+  ): Promise<Product>;
   findOne(
     storeId: string,
     productId: string,

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { StoresModule } from '../stores/stores.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { PRODUCTS_REPOSITORY } from './interfaces/repos';
 import { ProductImagesController } from './controllers/product-images.controller';
 import { ProductOptionsController } from './controllers/product-options.controller';
@@ -28,7 +29,7 @@ import { ActiveStoreGuard } from '@/common/guards/active-store.guard';
     ProductImagesController,
     PublicProductsController,
   ],
-  imports: [StoresModule],
+  imports: [StoresModule, SubscriptionsModule],
   providers: [
     ProductsService,
     ProductsRepository,

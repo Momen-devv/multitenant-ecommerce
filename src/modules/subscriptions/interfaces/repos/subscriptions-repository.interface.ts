@@ -25,6 +25,13 @@ export type CurrentSubscription = Pick<
   price: Pick<PlanPrice, 'id' | 'amount' | 'currency' | 'interval'>;
 };
 
+export type CurrentPlanEntitlement = Pick<Subscription, 'status'> & {
+  plan: Pick<Plan, 'limits'>;
+};
+
 export interface ISubscriptionsRepository {
   findCurrentByStoreId(storeId: string): Promise<CurrentSubscription | null>;
+  findCurrentPlanEntitlementByStoreId(
+    storeId: string,
+  ): Promise<CurrentPlanEntitlement | null>;
 }

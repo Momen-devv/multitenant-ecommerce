@@ -14,5 +14,6 @@ import { SubscriptionsService } from './services/subscriptions.service';
     SubscriptionsRepository,
     { provide: SUBSCRIPTIONS_REPOSITORY, useExisting: SubscriptionsRepository },
   ],
+  exports: [SUBSCRIPTIONS_REPOSITORY],
 })
 export class SubscriptionsModule {}
