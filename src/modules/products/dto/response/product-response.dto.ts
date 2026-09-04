@@ -1,4 +1,85 @@
 import { ApiProperty } from '@nestjs/swagger';
+import {
+  InventoryPolicy,
+  ProductStatus,
+  ProductVariantStatus,
+} from '@/common/enums';
+
+export class ProductListItemResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  slug!: string;
+
+  @ApiProperty({ nullable: true })
+  description!: string | null;
+
+  @ApiProperty({ enum: ProductStatus })
+  status!: ProductStatus;
+
+  @ApiProperty()
+  version!: number;
+
+  @ApiProperty()
+  createdAt!: Date;
+
+  @ApiProperty()
+  updatedAt!: Date;
+}
+
+export class ProductListResponseDto {
+  @ApiProperty({ type: () => [ProductListItemResponseDto] })
+  items!: ProductListItemResponseDto[];
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
+    properties: {
+      nextCursor: { type: 'string', nullable: true },
+      hasNextPage: { type: 'boolean' },
+    },
+  })
+  pageInfo!: { nextCursor: string | null; hasNextPage: boolean };
+}
+
+export class ProductContentResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  storeId!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  slug!: string;
+
+  @ApiProperty({ nullable: true })
+  description!: string | null;
+
+  @ApiProperty({ enum: ProductStatus })
+  status!: ProductStatus;
+
+  @ApiProperty({ nullable: true })
+  publishedAt!: Date | null;
+
+  @ApiProperty({ nullable: true })
+  archivedAt!: Date | null;
+
+  @ApiProperty()
+  version!: number;
+
+  @ApiProperty()
+  createdAt!: Date;
+
+  @ApiProperty()
+  updatedAt!: Date;
+}
 
 export class ProductImageResponseDto {
   @ApiProperty({ format: 'uuid' })
@@ -62,6 +143,11 @@ export class ProductVariantAssignmentResponseDto {
   optionValueId!: string;
 }
 
+export class ProductVariantOptionValueResponseDto extends ProductVariantAssignmentResponseDto {
+  @ApiProperty({ type: () => ProductOptionValueResponseDto, nullable: true })
+  optionValue!: ProductOptionValueResponseDto | null;
+}
+
 export class ProductVariantResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -84,11 +170,11 @@ export class ProductVariantResponseDto {
   @ApiProperty({ nullable: true })
   weightGrams!: number | null;
 
-  @ApiProperty({ enum: ['active', 'archived'] })
-  status!: 'active' | 'archived';
+  @ApiProperty({ enum: ProductVariantStatus })
+  status!: ProductVariantStatus;
 
-  @ApiProperty({ enum: ['tracked', 'untracked'] })
-  inventoryPolicy!: 'tracked' | 'untracked';
+  @ApiProperty({ enum: InventoryPolicy })
+  inventoryPolicy!: InventoryPolicy;
 
   @ApiProperty({ nullable: true })
   onHand!: number | null;
@@ -99,13 +185,21 @@ export class ProductVariantResponseDto {
   @ApiProperty()
   version!: number;
 
-  @ApiProperty({ type: () => [ProductVariantAssignmentResponseDto] })
-  assignments!: ProductVariantAssignmentResponseDto[];
+  @ApiProperty({ type: () => [ProductVariantOptionValueResponseDto] })
+  optionValues!: ProductVariantOptionValueResponseDto[];
+}
+
+export class ProductStoreResponseDto {
+  @ApiProperty({ example: 'usd' })
+  defaultCurrency!: string;
 }
 
 export class ProductResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  storeId!: string;
 
   @ApiProperty()
   name!: string;
@@ -116,21 +210,33 @@ export class ProductResponseDto {
   @ApiProperty({ nullable: true })
   description!: string | null;
 
-  @ApiProperty({ enum: ['draft', 'published', 'archived'] })
-  status!: 'draft' | 'published' | 'archived';
+  @ApiProperty({ enum: ProductStatus })
+  status!: ProductStatus;
 
-  @ApiProperty({ example: 'usd' })
-  currency!: string;
+  @ApiProperty({ nullable: true })
+  publishedAt!: Date | null;
+
+  @ApiProperty({ nullable: true })
+  archivedAt!: Date | null;
 
   @ApiProperty()
   version!: number;
 
-  @ApiProperty({ type: () => [ProductVariantResponseDto] })
-  variants!: ProductVariantResponseDto[];
+  @ApiProperty()
+  createdAt!: Date;
+
+  @ApiProperty()
+  updatedAt!: Date;
+
+  @ApiProperty({ type: () => ProductStoreResponseDto, nullable: true })
+  store!: ProductStoreResponseDto | null;
 
   @ApiProperty({ type: () => [ProductOptionResponseDto] })
   options!: ProductOptionResponseDto[];
 
   @ApiProperty({ type: () => [ProductImageResponseDto] })
-  gallery!: ProductImageResponseDto[];
+  images!: ProductImageResponseDto[];
+
+  @ApiProperty({ type: () => [ProductVariantResponseDto] })
+  variants!: ProductVariantResponseDto[];
 }

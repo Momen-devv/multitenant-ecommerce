@@ -6,3 +6,6 @@ export { PlanProvisioningStatus } from './plan-provisioning-status.enum';
 export { OutboxEventType } from './outbox-event-type.enum';
 export { SubscriptionStatus } from './subscription-status.enum';
 export { StoreStatus } from './store-status.enum';
+export { InventoryPolicy } from './inventory-policy.enum';
+export { ProductStatus } from './product-status.enum';
+export { ProductVariantStatus } from './product-variant-status.enum';

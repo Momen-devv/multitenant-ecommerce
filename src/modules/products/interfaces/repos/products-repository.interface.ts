@@ -1,3 +1,4 @@
+import type { ApiListQueryInput, CursorPage } from '@/common/api-query';
 import type {
   Product,
   ProductImage,
@@ -9,16 +10,64 @@ import type {
 } from '@/infrastructure/database/schema/schema.types';
 
 export type CreateProductInput = Pick<Product, 'name' | 'slug' | 'description'>;
+export type UpdateProductInput = Partial<Pick<Product, 'name' | 'description'>>;
 
-export type ProductAggregate = Product & {
+export type ProductAggregate = Pick<
+  Product,
+  | 'id'
+  | 'storeId'
+  | 'name'
+  | 'slug'
+  | 'description'
+  | 'status'
+  | 'publishedAt'
+  | 'archivedAt'
+  | 'version'
+  | 'createdAt'
+  | 'updatedAt'
+> & {
   store: Pick<Store, 'defaultCurrency'> | null;
-  images: ProductImage[];
-  options: Array<ProductOption & { values: ProductOptionValue[] }>;
+  images: Array<
+    Pick<
+      ProductImage,
+      | 'id'
+      | 'imageKey'
+      | 'publicUrl'
+      | 'altText'
+      | 'width'
+      | 'height'
+      | 'mimeType'
+      | 'byteSize'
+      | 'position'
+    >
+  >;
+  options: Array<
+    Pick<ProductOption, 'id' | 'name' | 'position'> & {
+      values: Array<Pick<ProductOptionValue, 'id' | 'value' | 'position'>>;
+    }
+  >;
   variants: Array<
-    ProductVariant & {
+    Pick<
+      ProductVariant,
+      | 'id'
+      | 'title'
+      | 'sku'
+      | 'barcode'
+      | 'price'
+      | 'compareAtPrice'
+      | 'weightGrams'
+      | 'status'
+      | 'inventoryPolicy'
+      | 'onHand'
+      | 'reserved'
+      | 'version'
+    > & {
       optionValues: Array<
-        ProductVariantOptionValue & {
-          optionValue: ProductOptionValue | null;
+        Pick<ProductVariantOptionValue, 'optionId' | 'optionValueId'> & {
+          optionValue: Pick<
+            ProductOptionValue,
+            'id' | 'value' | 'position'
+          > | null;
         }
       >;
     }
@@ -31,4 +80,13 @@ export interface IProductsRepository {
     storeId: string,
     productId: string,
   ): Promise<ProductAggregate | undefined>;
+  findPage(
+    storeId: string,
+    input: ApiListQueryInput,
+  ): Promise<CursorPage<Record<string, unknown>>>;
+  update(
+    storeId: string,
+    productId: string,
+    input: UpdateProductInput,
+  ): Promise<Product | undefined>;
 }

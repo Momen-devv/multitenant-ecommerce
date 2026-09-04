@@ -1,4 +1,9 @@
 import { generateUUIDv7 } from '@/common/utils';
+import {
+  InventoryPolicy,
+  ProductStatus,
+  ProductVariantStatus,
+} from '@/common/enums';
 import { relations, sql } from 'drizzle-orm';
 import {
   check,
@@ -18,19 +23,19 @@ import {
 import { store } from './app.schema';
 
 export const productStatus = pgEnum('product_status', [
-  'draft',
-  'published',
-  'archived',
+  ProductStatus.DRAFT,
+  ProductStatus.PUBLISHED,
+  ProductStatus.ARCHIVED,
 ]);
 
 export const productVariantStatus = pgEnum('product_variant_status', [
-  'active',
-  'archived',
+  ProductVariantStatus.ACTIVE,
+  ProductVariantStatus.ARCHIVED,
 ]);
 
 export const inventoryPolicy = pgEnum('inventory_policy', [
-  'tracked',
-  'untracked',
+  InventoryPolicy.TRACKED,
+  InventoryPolicy.UNTRACKED,
 ]);
 
 export const products = pgTable(
@@ -43,7 +48,7 @@ export const products = pgTable(
     name: varchar('name', { length: 200 }).notNull(),
     slug: varchar('slug', { length: 200 }).notNull(),
     description: text('description'),
-    status: productStatus('status').notNull().default('draft'),
+    status: productStatus('status').notNull().default(ProductStatus.DRAFT),
     publishedAt: timestamp('published_at', { withTimezone: true }),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     version: integer('version').notNull().default(1),
@@ -108,10 +113,12 @@ export const productVariants = pgTable(
     price: integer('price').notNull(),
     compareAtPrice: integer('compare_at_price'),
     weightGrams: integer('weight_grams'),
-    status: productVariantStatus('status').notNull().default('active'),
+    status: productVariantStatus('status')
+      .notNull()
+      .default(ProductVariantStatus.ACTIVE),
     inventoryPolicy: inventoryPolicy('inventory_policy')
       .notNull()
-      .default('tracked'),
+      .default(InventoryPolicy.TRACKED),
     onHand: integer('on_hand').default(0),
     reserved: integer('reserved').default(0),
     archivedAt: timestamp('archived_at', { withTimezone: true }),

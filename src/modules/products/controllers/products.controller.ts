@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { seconds, Throttle } from '@nestjs/throttler';
@@ -28,10 +29,13 @@ import {
 import { ProductsService } from '../services/products.service';
 import {
   CreateProductDto,
+  ProductContentResponseDto,
+  ProductListResponseDto,
   ProductResponseDto,
   UpdateProductDto,
   UpdateProductStatusDto,
 } from '../dto';
+import { ApiListQueryDto } from '@/common/api-query';
 
 @ApiTags('Products')
 @ApiCookieAuth('mte.session_token')
@@ -45,7 +49,7 @@ export class ProductsController {
   @ApiSuccessResponse({
     status: HttpStatus.CREATED,
     description: 'Product created successfully',
-    model: ProductResponseDto,
+    model: ProductContentResponseDto,
   })
   @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid Product data')
   @ApiErrorResponse(
@@ -54,7 +58,7 @@ export class ProductsController {
   )
   @ApiErrorResponse(
     HttpStatus.FORBIDDEN,
-    'Store is not active and cannot be modified',
+    'Store is not active, the subscription is inactive, or the Product limit has been reached',
   )
   @ApiErrorResponse(
     HttpStatus.NOT_FOUND,
@@ -71,9 +75,31 @@ export class ProductsController {
     return this.productsService.createProduct(dto, store);
   }
 
+  @OrgRoles([OrganizationRole.OWNER])
+  @ApiOperation({
+    summary: 'List owner Products',
+    description:
+      'Returns a cursor-paginated catalog. Search matches names; status is filtered with filter[status][eq|ne|in]. Archived Products are excluded unless status is explicitly filtered.',
+  })
+  @ApiSuccessResponse({
+    description: 'Products retrieved successfully',
+    model: ProductListResponseDto,
+  })
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid list query')
+  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Store is not active')
+  @ApiErrorResponse(
+    HttpStatus.NOT_FOUND,
+    'Store not found or you do not have a store',
+  )
+  @Throttle({ default: { limit: 30, ttl: seconds(60) } })
+  @ResponseMessage('Products retrieved successfully')
+  @HttpCode(HttpStatus.OK)
   @Get()
-  listProducts() {
-    return;
+  listProducts(
+    @Query() query: ApiListQueryDto,
+    @ActiveStore() store: ActiveStoreContext,
+  ) {
+    return this.productsService.listProducts(query, store);
   }
 
   @OrgRoles([OrganizationRole.OWNER])
@@ -94,14 +120,33 @@ export class ProductsController {
     return this.productsService.getProduct(productId, store);
   }
 
+  @OrgRoles([OrganizationRole.OWNER])
+  @ApiOperation({
+    summary: 'Update mutable Product content',
+    description:
+      'Updates name and/or description. Slug and lifecycle fields are immutable.',
+  })
+  @ApiSuccessResponse({
+    description: 'Product updated successfully',
+    model: ProductContentResponseDto,
+  })
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid Product ID or update data')
+  @ApiErrorResponse(HttpStatus.CONFLICT, 'Product is archived')
+  @ApiErrorResponse(
+    HttpStatus.FORBIDDEN,
+    'Store is not active and cannot be modified',
+  )
+  @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Product not found')
+  @Throttle({ default: { limit: 10, ttl: seconds(60) } })
+  @ResponseMessage('Product updated successfully')
+  @HttpCode(HttpStatus.OK)
   @Patch(':productId')
   updateProduct(
-    @Param('productId') _productId: string,
-    @Body() _body: UpdateProductDto,
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Body() dto: UpdateProductDto,
+    @ActiveStore() store: ActiveStoreContext,
   ) {
-    void _productId;
-    void _body;
-    return;
+    return this.productsService.updateProduct(productId, dto, store);
   }
 
   @Delete(':productId')
