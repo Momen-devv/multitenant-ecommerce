@@ -92,6 +92,13 @@
       "when": 1788337786465,
       "tag": "0012_handy_microbe",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788606812069,
+      "tag": "0013_spooky_squirrel_girl",
+      "breakpoints": true
     }
   ]
 }
