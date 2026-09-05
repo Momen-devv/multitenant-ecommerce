@@ -155,11 +155,11 @@ export class ProductVariantResponseDto {
   @ApiProperty()
   title!: string;
 
-  @ApiProperty({ nullable: true })
-  sku!: string | null;
+  @ApiProperty()
+  sku!: string;
 
-  @ApiProperty({ nullable: true })
-  barcode!: string | null;
+  @ApiProperty()
+  barcode!: string;
 
   @ApiProperty({ description: 'Minor currency units' })
   price!: number;
@@ -187,6 +187,25 @@ export class ProductVariantResponseDto {
 
   @ApiProperty({ type: () => [ProductVariantOptionValueResponseDto] })
   optionValues!: ProductVariantOptionValueResponseDto[];
+}
+
+export class OwnerProductVariantResponseDto extends ProductVariantResponseDto {
+  @ApiProperty({ example: 'usd' })
+  currency!: string;
+
+  @ApiProperty()
+  inStock!: boolean;
+
+  @ApiProperty()
+  createdAt!: Date;
+
+  @ApiProperty()
+  updatedAt!: Date;
+}
+
+export class ProductVariantBarcodeResponseDto {
+  @ApiProperty({ example: 'SKU-01981B2C3D4E5F6789ABCDEF01234567' })
+  barcode!: string;
 }
 
 export class ProductStoreResponseDto {

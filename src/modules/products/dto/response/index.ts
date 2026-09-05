@@ -10,4 +10,6 @@ export {
   ProductVariantAssignmentResponseDto,
   ProductVariantOptionValueResponseDto,
   ProductVariantResponseDto,
+  OwnerProductVariantResponseDto,
+  ProductVariantBarcodeResponseDto,
 } from './product-response.dto';

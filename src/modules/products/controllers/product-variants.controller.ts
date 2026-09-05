@@ -5,59 +5,142 @@ import {
   Get,
   Param,
   Patch,
+  ParseBoolPipe,
+  ParseUUIDPipe,
   Post,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { seconds, Throttle } from '@nestjs/throttler';
+import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiErrorResponse,
+  ApiSuccessResponse,
+  ResponseMessage,
+} from '@/common/decorators';
+import { OrgRoles } from '@thallesp/nestjs-better-auth';
+import { OrganizationRole } from '@/common/enums';
+import { ActiveStore } from '@/common/decorators';
+import {
+  ActiveStoreGuard,
+  type ActiveStoreContext,
+} from '@/common/guards/active-store.guard';
 import {
   CreateProductVariantDto,
   UpdateProductInventoryDto,
   UpdateProductVariantDto,
 } from '../dto';
+import {
+  OwnerProductVariantResponseDto,
+  ProductVariantBarcodeResponseDto,
+} from '../dto';
 import { ProductVariantsService } from '../services/product-variants.service';
 
 @ApiTags('Product Variants')
+@ApiCookieAuth('mte.session_token')
+@UseGuards(ActiveStoreGuard)
 @Controller('products/:productId/variants')
 export class ProductVariantsController {
   constructor(
     private readonly productVariantsService: ProductVariantsService,
   ) {}
 
+  @OrgRoles([OrganizationRole.OWNER])
+  @ApiOperation({
+    summary: 'Create the default Variant for a draft simple Product',
+  })
+  @ApiSuccessResponse({
+    status: 201,
+    description: 'Variant created successfully',
+    model: OwnerProductVariantResponseDto,
+  })
+  @ApiErrorResponse(409, 'Variant already exists or an identifier conflicts')
+  @ResponseMessage('Variant created successfully')
+  @Throttle({ default: { limit: 10, ttl: seconds(60) } })
   @Post()
   createVariant(
-    @Param('productId') _productId: string,
-    @Body() _body: CreateProductVariantDto,
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Body() dto: CreateProductVariantDto,
+    @ActiveStore() store: ActiveStoreContext,
   ) {
-    void _productId;
-    void _body;
-    return;
+    return this.productVariantsService.createVariant(productId, dto, store);
   }
 
+  @OrgRoles([OrganizationRole.OWNER])
+  @ApiOperation({ summary: 'List owner Variants for a Product' })
+  @ApiSuccessResponse({
+    description: 'Variants retrieved successfully',
+    model: OwnerProductVariantResponseDto,
+  })
+  @ResponseMessage('Variants retrieved successfully')
   @Get()
-  listVariants(@Param('productId') _productId: string) {
-    void _productId;
-    return;
+  listVariants(
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Query('archived', new ParseBoolPipe({ optional: true }))
+    archived: boolean | undefined,
+    @ActiveStore() store: ActiveStoreContext,
+  ) {
+    return this.productVariantsService.listVariants(
+      productId,
+      archived === true,
+      store,
+    );
   }
 
+  @OrgRoles([OrganizationRole.OWNER])
+  @ApiOperation({ summary: 'Get an owner Variant' })
+  @ApiSuccessResponse({
+    description: 'Variant retrieved successfully',
+    model: OwnerProductVariantResponseDto,
+  })
+  @ResponseMessage('Variant retrieved successfully')
   @Get(':variantId')
   getVariant(
-    @Param('productId') _productId: string,
-    @Param('variantId') _variantId: string,
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Param('variantId', new ParseUUIDPipe()) variantId: string,
+    @ActiveStore() store: ActiveStoreContext,
   ) {
-    void _productId;
-    void _variantId;
-    return;
+    return this.productVariantsService.getVariant(productId, variantId, store);
   }
 
+  @OrgRoles([OrganizationRole.OWNER])
+  @ApiOperation({ summary: 'Get a Variant barcode as Code 128 text' })
+  @ApiSuccessResponse({
+    description: 'Barcode retrieved successfully',
+    model: ProductVariantBarcodeResponseDto,
+  })
+  @ResponseMessage('Barcode retrieved successfully')
+  @Get(':variantId/barcode')
+  getBarcode(
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Param('variantId', new ParseUUIDPipe()) variantId: string,
+    @ActiveStore() store: ActiveStoreContext,
+  ) {
+    return this.productVariantsService.getBarcode(productId, variantId, store);
+  }
+
+  @OrgRoles([OrganizationRole.OWNER])
+  @ApiOperation({ summary: 'Update mutable Variant fields' })
+  @ApiSuccessResponse({
+    description: 'Variant updated successfully',
+    model: OwnerProductVariantResponseDto,
+  })
+  @ApiErrorResponse(409, 'Variant version is stale or an identifier conflicts')
+  @ResponseMessage('Variant updated successfully')
+  @Throttle({ default: { limit: 10, ttl: seconds(60) } })
   @Patch(':variantId')
   updateVariant(
-    @Param('productId') _productId: string,
-    @Param('variantId') _variantId: string,
-    @Body() _body: UpdateProductVariantDto,
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Param('variantId', new ParseUUIDPipe()) variantId: string,
+    @Body() dto: UpdateProductVariantDto,
+    @ActiveStore() store: ActiveStoreContext,
   ) {
-    void _productId;
-    void _variantId;
-    void _body;
-    return;
+    return this.productVariantsService.updateVariant(
+      productId,
+      variantId,
+      dto,
+      store,
+    );
   }
 
   @Patch(':variantId/inventory')
