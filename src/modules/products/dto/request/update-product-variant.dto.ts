@@ -26,5 +26,4 @@ export class UpdateProductVariantDto {
   @IsInt()
   @Min(0)
   weightGrams?: number | null;
-
 }
