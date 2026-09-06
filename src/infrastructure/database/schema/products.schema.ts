@@ -141,10 +141,9 @@ export const productVariants = pgTable(
       table.productId,
       table.id,
     ),
-    uniqueIndex('product_variants_product_signature_uidx').on(
-      table.productId,
-      table.optionSignature,
-    ),
+    uniqueIndex('product_variants_product_signature_uidx')
+      .on(table.productId, table.optionSignature)
+      .where(sql`${table.status} = 'active'`),
     uniqueIndex('product_variants_store_sku_uidx')
       .on(table.storeId, sql`lower(${table.sku})`)
       .where(sql`${table.sku} IS NOT NULL`),

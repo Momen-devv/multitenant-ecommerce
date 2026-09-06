@@ -1,0 +1,2 @@
+DROP INDEX "product_variants_product_signature_uidx";--> statement-breakpoint
+CREATE UNIQUE INDEX "product_variants_product_signature_uidx" ON "product_variants" USING btree ("product_id","option_signature") WHERE "product_variants"."status" = 'active';
