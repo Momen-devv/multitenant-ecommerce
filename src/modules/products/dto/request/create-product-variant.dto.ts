@@ -9,6 +9,7 @@ import {
   Min,
 } from 'class-validator';
 import { InventoryPolicy, ProductVariantStatus } from '@/common/enums';
+import { MAX_PRODUCT_OPTIONS } from '../../product-catalog-limits';
 
 export class CreateProductVariantDto {
   @ApiPropertyOptional({
@@ -19,7 +20,7 @@ export class CreateProductVariantDto {
   })
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(3)
+  @ArrayMaxSize(MAX_PRODUCT_OPTIONS)
   @IsUUID('all', { each: true })
   optionValueIds?: string[];
 

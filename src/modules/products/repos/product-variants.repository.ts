@@ -23,6 +23,8 @@ import { DrizzleQueryError } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DatabaseError } from 'pg';
 import { Inject, Injectable } from '@nestjs/common';
+import { deriveVariantPresentation } from '../variant-catalog';
+import { MAX_ACTIVE_PRODUCT_VARIANTS } from '../product-catalog-limits';
 
 export type CreateSimpleVariantInput = {
   price: number;
@@ -76,6 +78,21 @@ export class ProductVariantsRepository {
             'Variants can only be created for a draft Product.',
           );
         }
+        const [{ count }] = await tx
+          .select({ count: sql<number>`count(*)::int` })
+          .from(productVariants)
+          .where(
+            and(
+              eq(productVariants.storeId, storeId),
+              eq(productVariants.productId, productId),
+              eq(productVariants.status, ProductVariantStatus.ACTIVE),
+            ),
+          );
+        if (count >= MAX_ACTIVE_PRODUCT_VARIANTS) {
+          throw new VariantConflictError(
+            `A Product can have at most ${MAX_ACTIVE_PRODUCT_VARIANTS} active Variants.`,
+          );
+        }
         const optionRows = await tx
           .select({
             optionId: productOptions.id,
@@ -123,16 +140,12 @@ export class ProductVariantsRepository {
             Boolean(selection),
           )
           .sort((left, right) => left.optionPosition - right.optionPosition);
-        const optionSignature = selections
-          .map((selection) => selection.valueId)
-          .join('|');
-        const title = optionSignature
-          ? selections
-              .map((selection) => selection.value ?? '')
-              .join(' / ')
-              .slice(0, 200)
-              .trimEnd()
-          : 'Default';
+        const { optionSignature, title } = deriveVariantPresentation(
+          selections.map((selection) => ({
+            optionValueId: selection.valueId!,
+            value: selection.value ?? '',
+          })),
+        );
 
         const [created] = await tx
           .insert(productVariants)
@@ -280,16 +293,12 @@ export class ProductVariantsRepository {
         const selections = [...selectedValues].sort(
           (left, right) => left.optionPosition - right.optionPosition,
         );
-        const optionSignature = selections
-          .map((selection) => selection.valueId)
-          .join('|');
-        const title = optionSignature
-          ? selections
-              .map((selection) => selection.value ?? '')
-              .join(' / ')
-              .slice(0, 200)
-              .trimEnd()
-          : 'Default';
+        const { optionSignature, title } = deriveVariantPresentation(
+          selections.map((selection) => ({
+            optionValueId: selection.valueId!,
+            value: selection.value ?? '',
+          })),
+        );
 
         await tx
           .delete(productVariantOptionValues)
@@ -370,8 +379,7 @@ export class ProductVariantsRepository {
             : [eq(productVariants.status, ProductVariantStatus.ACTIVE)]),
         ),
       )
-      .orderBy(asc(productVariants.createdAt), asc(productVariants.id))
-      .limit(5);
+      .orderBy(asc(productVariants.createdAt), asc(productVariants.id));
   }
 
   async productExists(storeId: string, productId: string): Promise<boolean> {

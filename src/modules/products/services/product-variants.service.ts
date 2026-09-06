@@ -11,7 +11,6 @@ import {
   VariantConflictError,
 } from '@/common/errors';
 import type { ActiveStoreContext } from '@/common/guards/active-store.guard';
-import { generateUUIDv7 } from '@/common/utils';
 import {
   ArchiveProductVariantDto,
   CreateProductVariantDto,
@@ -23,6 +22,7 @@ import {
   ProductVariantsRepository,
   type CreateSimpleVariantInput,
 } from '../repos/product-variants.repository';
+import { generateVariantIdentifiers } from '../variant-catalog';
 
 @Injectable()
 export class ProductVariantsService {
@@ -36,8 +36,7 @@ export class ProductVariantsService {
     store: ActiveStoreContext,
   ) {
     const inventoryPolicy = this.validateCreateVariant(dto);
-    const sku = `SKU-${generateUUIDv7().replaceAll('-', '').toUpperCase()}`;
-    const barcode = `PV-${generateUUIDv7().replaceAll('-', '').toUpperCase()}`;
+    const { sku, barcode } = generateVariantIdentifiers();
     const input: CreateSimpleVariantInput = {
       price: dto.price,
       compareAtPrice: dto.compareAtPrice ?? null,

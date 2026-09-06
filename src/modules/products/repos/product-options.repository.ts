@@ -21,6 +21,10 @@ import type {
   UpdateProductOptionDto,
   UpdateProductOptionValueDto,
 } from '../dto';
+import {
+  MAX_PRODUCT_OPTIONS,
+  MAX_PRODUCT_OPTION_VALUES,
+} from '../product-catalog-limits';
 
 @Injectable()
 export class ProductOptionsRepository {
@@ -79,9 +83,9 @@ export class ProductOptionsRepository {
             eq(productOptions.productId, productId),
           ),
         );
-      if (count >= 3) {
+      if (count >= MAX_PRODUCT_OPTIONS) {
         throw new OptionGraphConflictError(
-          'A Product can have at most three options.',
+          `A Product can have at most ${MAX_PRODUCT_OPTIONS} options.`,
         );
       }
       const [option] = await tx
@@ -212,6 +216,11 @@ export class ProductOptionsRepository {
             eq(productOptionValues.optionId, optionId),
           ),
         );
+      if (count >= MAX_PRODUCT_OPTION_VALUES) {
+        throw new OptionGraphConflictError(
+          `A Product option can have at most ${MAX_PRODUCT_OPTION_VALUES} values.`,
+        );
+      }
       const [value] = await tx
         .insert(productOptionValues)
         .values({
