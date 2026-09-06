@@ -46,6 +46,56 @@ export class ProductListResponseDto {
   pageInfo!: { nextCursor: string | null; hasNextPage: boolean };
 }
 
+export class PublicProductListItemResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  slug!: string;
+
+  @ApiProperty({ nullable: true })
+  description!: string | null;
+
+  @ApiProperty({
+    description: 'Lowest active Variant price, in minor currency units',
+  })
+  price!: number;
+
+  @ApiProperty({
+    description:
+      'Compare-at price for the active Variant that supplies price, in minor currency units',
+    nullable: true,
+  })
+  compareAtPrice!: number | null;
+
+  @ApiProperty({ example: 'usd' })
+  currency!: string;
+
+  @ApiProperty()
+  createdAt!: Date;
+
+  @ApiProperty()
+  updatedAt!: Date;
+}
+
+export class PublicProductListResponseDto {
+  @ApiProperty({ type: () => [PublicProductListItemResponseDto] })
+  items!: PublicProductListItemResponseDto[];
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
+    properties: {
+      nextCursor: { type: 'string', nullable: true },
+      hasNextPage: { type: 'boolean' },
+    },
+  })
+  pageInfo!: { nextCursor: string | null; hasNextPage: boolean };
+}
+
 export class ProductContentResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;

@@ -3,6 +3,8 @@ export {
   ProductImageResponseDto,
   ProductListItemResponseDto,
   ProductListResponseDto,
+  PublicProductListItemResponseDto,
+  PublicProductListResponseDto,
   ProductOptionResponseDto,
   ProductOptionValueResponseDto,
   ProductResponseDto,
