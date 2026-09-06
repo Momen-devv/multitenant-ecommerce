@@ -7,14 +7,16 @@ import {
   text,
   timestamp,
   uuid,
+  varchar,
 } from 'drizzle-orm/pg-core';
 import { user, organization } from './auth.schema';
 import { generateUUIDv7 } from '@/common/utils';
+import { StoreStatus } from '@/common/enums';
 
 export const storeStatus = pgEnum('store_status', [
-  'active',
-  'owner_closed',
-  'platform_suspended',
+  StoreStatus.ACTIVE,
+  StoreStatus.OWNER_CLOSED,
+  StoreStatus.PLATFORM_SUSPENDED,
 ]);
 
 export const storeLifecycleActorAuthority = pgEnum('store_actor_authority', [
@@ -40,11 +42,14 @@ export const store = pgTable(
     name: text('name').notNull(),
     slug: text('slug').notNull().unique(),
     description: text('description'),
+    defaultCurrency: varchar('default_currency', { length: 3 })
+      .notNull()
+      .default('usd'),
 
     logo: text('logo'),
     logoKey: text('logo_key'),
 
-    status: storeStatus('status').default('active').notNull(),
+    status: storeStatus('status').default(StoreStatus.ACTIVE).notNull(),
 
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')
@@ -60,6 +65,10 @@ export const store = pgTable(
     index('store_slug_trgm_idx').using(
       'gin',
       table.slug.asc().op('gin_trgm_ops'),
+    ),
+    check(
+      'store_default_currency_format_check',
+      sql`${table.defaultCurrency} ~ '^[a-z]{3}$'`,
     ),
   ],
 );

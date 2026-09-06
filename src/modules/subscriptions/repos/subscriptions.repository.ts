@@ -66,4 +66,27 @@ export class SubscriptionsRepository implements ISubscriptionsRepository {
 
     return subscription ?? null;
   }
+
+  async findCurrentPlanEntitlementByStoreId(storeId: string) {
+    const [subscription] = await this.db
+      .select({
+        status: subscriptions.status,
+        plan: {
+          limits: plans.limits,
+        },
+      })
+      .from(subscriptions)
+      .innerJoin(planPrices, eq(planPrices.id, subscriptions.planPriceId))
+      .innerJoin(plans, eq(plans.id, planPrices.planId))
+      .where(
+        and(
+          eq(subscriptions.storeId, storeId),
+          notInArray(subscriptions.status, TERMINAL_STATUSES),
+        ),
+      )
+      .orderBy(desc(subscriptions.createdAt))
+      .limit(1);
+
+    return subscription ?? null;
+  }
 }

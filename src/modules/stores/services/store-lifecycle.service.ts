@@ -1,8 +1,8 @@
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
+import { StoreStatus } from '@/common/enums';
 import { StoreLifecycleConflictError } from '@/common/errors/store-lifecycle-conflict.error';
 import type { Store } from '@/infrastructure/database/schema/schema.types';
 import { STORE_REPOSITORY, type IStoreRepository } from '../interfaces/repos';
-import type { StoreStatus } from '../domain/store-status';
 
 @Injectable()
 export class StoreLifecycleService {
@@ -21,8 +21,8 @@ export class StoreLifecycleService {
         storeId,
         actorId,
         actorAuthority: 'store_owner',
-        previousStatus: 'active',
-        newStatus: 'owner_closed',
+        previousStatus: StoreStatus.ACTIVE,
+        newStatus: StoreStatus.OWNER_CLOSED,
         reason: reason.trim(),
       });
     } catch (error) {
@@ -46,8 +46,8 @@ export class StoreLifecycleService {
         storeId,
         actorId,
         actorAuthority: 'platform_super_admin',
-        previousStatus: 'active',
-        newStatus: 'platform_suspended',
+        previousStatus: StoreStatus.ACTIVE,
+        newStatus: StoreStatus.PLATFORM_SUSPENDED,
         reason: reason.trim(),
       });
     } catch (error) {
@@ -68,8 +68,8 @@ export class StoreLifecycleService {
     previousStatus: StoreStatus,
   ): Promise<Store> {
     if (
-      previousStatus !== 'owner_closed' &&
-      previousStatus !== 'platform_suspended'
+      previousStatus !== StoreStatus.OWNER_CLOSED &&
+      previousStatus !== StoreStatus.PLATFORM_SUSPENDED
     ) {
       throw new ConflictException(
         'The Store is already active and does not allow Store Reactivation.',
@@ -82,7 +82,7 @@ export class StoreLifecycleService {
         actorId,
         actorAuthority: 'platform_super_admin',
         previousStatus,
-        newStatus: 'active',
+        newStatus: StoreStatus.ACTIVE,
         reason: reason.trim(),
       });
     } catch (error) {

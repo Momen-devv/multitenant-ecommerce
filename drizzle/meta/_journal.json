@@ -85,6 +85,27 @@
       "when": 1787596361758,
       "tag": "0011_rename-platform-super-admin-role",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788337786465,
+      "tag": "0012_handy_microbe",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788606812069,
+      "tag": "0013_spooky_squirrel_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788725303456,
+      "tag": "0014_tranquil_sunset_bain",
+      "breakpoints": true
     }
   ]
 }

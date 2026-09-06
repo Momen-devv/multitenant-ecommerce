@@ -4,19 +4,26 @@ import { organization, admin, openAPI } from 'better-auth/plugins';
 import * as schema from '@/infrastructure/database/schema/schema';
 import type { Redis } from 'ioredis';
 import { generateUUIDv7, hashPassword, verifyPassword } from '@/common/utils';
-import { AuthRole } from '@/common/enums/auth-role.enum';
+import { AuthRole, OrganizationRole } from '@/common/enums';
 import * as Schema from '@/infrastructure/database/schema/schema';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { ConfigType } from '@nestjs/config';
 import { betterAuthConfig } from '../config';
 import { isProduction } from 'better-auth';
-import { ac, user, platformSuperAdmin } from './permissions';
+import {
+  ac,
+  organizationManager,
+  organizationOwner,
+  platformSuperAdmin,
+  support,
+  user,
+} from './permissions';
 
 const DISABLED_BETTER_AUTH_MANAGEMENT_PATHS = [
   '/organization/create',
   '/organization/update',
   '/organization/delete',
-  '/organization/set-active',
+  // '/organization/set-active',
   '/organization/get-full-organization',
   '/organization/list',
   '/organization/invite-member',
@@ -200,6 +207,12 @@ export function createAuth({
 
     plugins: [
       organization({
+        ac,
+        roles: {
+          [OrganizationRole.OWNER]: organizationOwner,
+          [OrganizationRole.MANAGER]: organizationManager,
+          [OrganizationRole.SUPPORT]: support,
+        },
         allowUserToCreateOrganization: (user) => user.emailVerified === true,
         organizationLimit: 1,
         membershipLimit: 100,
