@@ -8,9 +8,13 @@ import type {
   ProductVariantOptionValue,
   Store,
 } from '@/infrastructure/database/schema/schema.types';
+import { ProductStatus } from '@/common/enums';
 
 export type CreateProductInput = Pick<Product, 'name' | 'slug' | 'description'>;
 export type UpdateProductInput = Partial<Pick<Product, 'name' | 'description'>>;
+export type ProductStatusTransition =
+  | ProductStatus.DRAFT
+  | ProductStatus.PUBLISHED;
 
 export type ProductAggregate = Pick<
   Product,
@@ -92,5 +96,10 @@ export interface IProductsRepository {
     storeId: string,
     productId: string,
     input: UpdateProductInput,
+  ): Promise<Product | undefined>;
+  transitionStatus(
+    storeId: string,
+    productId: string,
+    status: ProductStatusTransition,
   ): Promise<Product | undefined>;
 }

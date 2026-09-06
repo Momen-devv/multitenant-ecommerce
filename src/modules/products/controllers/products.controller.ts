@@ -155,13 +155,35 @@ export class ProductsController {
     return;
   }
 
+  @OrgRoles([OrganizationRole.OWNER])
+  @ApiOperation({
+    summary: 'Publish a complete Product or return it to draft',
+    description:
+      'Publishing validates the locked Product aggregate. Repeating its current status is idempotent.',
+  })
+  @ApiSuccessResponse({
+    description: 'Product status updated successfully',
+    model: ProductContentResponseDto,
+  })
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid Product ID or status')
+  @ApiErrorResponse(
+    HttpStatus.CONFLICT,
+    'Product is archived, incomplete, or changed during publication',
+  )
+  @ApiErrorResponse(
+    HttpStatus.FORBIDDEN,
+    'Store is not active and cannot be modified',
+  )
+  @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Product not found')
+  @Throttle({ default: { limit: 10, ttl: seconds(60) } })
+  @ResponseMessage('Product status updated successfully')
+  @HttpCode(HttpStatus.OK)
   @Patch(':productId/status')
   updateProductStatus(
-    @Param('productId') _productId: string,
-    @Body() _body: UpdateProductStatusDto,
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Body() dto: UpdateProductStatusDto,
+    @ActiveStore() store: ActiveStoreContext,
   ) {
-    void _productId;
-    void _body;
-    return;
+    return this.productsService.updateProductStatus(productId, dto, store);
   }
 }

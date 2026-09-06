@@ -11,7 +11,15 @@ import { SubscriptionStatus } from '@/common/enums';
 import type { ActiveStoreContext } from '@/common/guards/active-store.guard';
 import { SlugConflictError } from '@/common/errors/slug-conflict.error';
 import { ProductLimitExceededError } from '@/common/errors/product-limit-exceeded.error';
-import { CreateProductDto, UpdateProductDto } from '../dto';
+import {
+  ProductLifecycleConflictError,
+  StoreLifecycleConflictError,
+} from '@/common/errors';
+import {
+  CreateProductDto,
+  UpdateProductDto,
+  UpdateProductStatusDto,
+} from '../dto';
 import type { ApiListQueryInput } from '@/common/api-query';
 import {
   PRODUCTS_REPOSITORY,
@@ -80,6 +88,32 @@ export class ProductsService {
     );
     if (!product) throw new NotFoundException('Product not found');
     return product;
+  }
+
+  async updateProductStatus(
+    productId: string,
+    dto: UpdateProductStatusDto,
+    store: ActiveStoreContext,
+  ) {
+    try {
+      const product = await this.productsRepository.transitionStatus(
+        store.storeId,
+        productId,
+        dto.status,
+      );
+      if (!product) throw new NotFoundException('Product not found');
+      return product;
+    } catch (error) {
+      if (error instanceof StoreLifecycleConflictError) {
+        throw new ForbiddenException(
+          'The Store is no longer active and cannot be modified.',
+        );
+      }
+      if (error instanceof ProductLifecycleConflictError) {
+        throw new ConflictException(error.message);
+      }
+      throw error;
+    }
   }
 
   private generateSlug(name: string) {
