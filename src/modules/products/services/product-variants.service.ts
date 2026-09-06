@@ -11,6 +11,7 @@ import { generateUUIDv7 } from '@/common/utils';
 import {
   CreateProductVariantDto,
   ReplaceVariantOptionValuesDto,
+  UpdateProductInventoryDto,
   UpdateProductVariantDto,
 } from '../dto';
 import {
@@ -170,6 +171,34 @@ export class ProductVariantsService {
     }
   }
 
+  async updateInventory(
+    productId: string,
+    variantId: string,
+    dto: UpdateProductInventoryDto,
+    store: ActiveStoreContext,
+  ) {
+    this.validateInventoryUpdate(dto);
+    const { expectedVersion, ...input } = dto;
+    const updated = await this.productVariantsRepository.updateInventory(
+      store.storeId,
+      productId,
+      variantId,
+      expectedVersion,
+      input,
+    );
+    if (updated) return updated;
+
+    const existing = await this.productVariantsRepository.findOne(
+      store.storeId,
+      productId,
+      variantId,
+    );
+    if (!existing) throw new NotFoundException('Variant not found');
+    throw new ConflictException(
+      'Variant inventory was changed, archived, or is no longer compatible with this update.',
+    );
+  }
+
   private validateCreateVariant(dto: CreateProductVariantDto): InventoryPolicy {
     if (dto.status && dto.status !== ProductVariantStatus.ACTIVE) {
       throw new BadRequestException('A newly created Variant must be active.');
@@ -199,6 +228,25 @@ export class ProductVariantsService {
     if (compareAtPrice != null && compareAtPrice <= price) {
       throw new BadRequestException(
         'compareAtPrice must be greater than price.',
+      );
+    }
+  }
+
+  private validateInventoryUpdate(dto: UpdateProductInventoryDto) {
+    if (
+      dto.inventoryPolicy === InventoryPolicy.TRACKED &&
+      dto.onHand === undefined
+    ) {
+      throw new BadRequestException(
+        'onHand is required when setting tracked inventory.',
+      );
+    }
+    if (
+      dto.inventoryPolicy === InventoryPolicy.UNTRACKED &&
+      dto.onHand !== undefined
+    ) {
+      throw new BadRequestException(
+        'onHand must be omitted when setting untracked inventory.',
       );
     }
   }

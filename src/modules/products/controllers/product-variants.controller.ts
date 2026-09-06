@@ -172,16 +172,31 @@ export class ProductVariantsController {
     );
   }
 
+  @OrgRoles([OrganizationRole.OWNER])
+  @ApiOperation({ summary: 'Update a Variant inventory policy and balance' })
+  @ApiSuccessResponse({
+    description: 'Variant inventory updated successfully',
+    model: OwnerProductVariantResponseDto,
+  })
+  @ApiErrorResponse(
+    HttpStatus.CONFLICT,
+    'Variant version is stale, archived, or reserved inventory exceeds on-hand inventory',
+  )
+  @ResponseMessage('Variant inventory updated successfully')
+  @Throttle({ default: { limit: 10, ttl: seconds(60) } })
   @Patch(':variantId/inventory')
   updateInventory(
-    @Param('productId') _productId: string,
-    @Param('variantId') _variantId: string,
-    @Body() _body: UpdateProductInventoryDto,
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Param('variantId', new ParseUUIDPipe()) variantId: string,
+    @Body() dto: UpdateProductInventoryDto,
+    @ActiveStore() store: ActiveStoreContext,
   ) {
-    void _productId;
-    void _variantId;
-    void _body;
-    return;
+    return this.productVariantsService.updateInventory(
+      productId,
+      variantId,
+      dto,
+      store,
+    );
   }
 
   @Delete(':variantId')

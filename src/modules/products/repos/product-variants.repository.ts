@@ -14,7 +14,7 @@ import {
 } from '@/infrastructure/database/schema/products.schema';
 import { store } from '@/infrastructure/database/schema/app.schema';
 import * as schema from '@/infrastructure/database/schema/schema';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, lte, or, sql } from 'drizzle-orm';
 import { DrizzleQueryError } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DatabaseError } from 'pg';
@@ -40,6 +40,11 @@ export type UpdateSimpleVariantInput = Partial<
 
 export type ReplaceVariantOptionValuesInput = {
   optionValueIds: string[];
+};
+
+export type UpdateVariantInventoryInput = {
+  inventoryPolicy?: InventoryPolicy;
+  onHand?: number;
 };
 
 @Injectable()
@@ -168,6 +173,9 @@ export class ProductVariantsRepository {
             inventoryPolicy: productVariants.inventoryPolicy,
             onHand: productVariants.onHand,
             reserved: productVariants.reserved,
+            available: sql<
+              number | null
+            >`case when ${productVariants.inventoryPolicy} = ${InventoryPolicy.TRACKED} then ${productVariants.onHand} - ${productVariants.reserved} else null end`,
             version: productVariants.version,
             createdAt: productVariants.createdAt,
             updatedAt: productVariants.updatedAt,
@@ -333,6 +341,9 @@ export class ProductVariantsRepository {
         inventoryPolicy: productVariants.inventoryPolicy,
         onHand: productVariants.onHand,
         reserved: productVariants.reserved,
+        available: sql<
+          number | null
+        >`case when ${productVariants.inventoryPolicy} = ${InventoryPolicy.TRACKED} then ${productVariants.onHand} - ${productVariants.reserved} else null end`,
         version: productVariants.version,
         createdAt: productVariants.createdAt,
         updatedAt: productVariants.updatedAt,
@@ -380,6 +391,9 @@ export class ProductVariantsRepository {
         inventoryPolicy: productVariants.inventoryPolicy,
         onHand: productVariants.onHand,
         reserved: productVariants.reserved,
+        available: sql<
+          number | null
+        >`case when ${productVariants.inventoryPolicy} = ${InventoryPolicy.TRACKED} then ${productVariants.onHand} - ${productVariants.reserved} else null end`,
         version: productVariants.version,
         createdAt: productVariants.createdAt,
         updatedAt: productVariants.updatedAt,
@@ -449,6 +463,89 @@ export class ProductVariantsRepository {
       }
       throw error;
     }
+  }
+
+  async updateInventory(
+    storeId: string,
+    productId: string,
+    variantId: string,
+    expectedVersion: number,
+    input: UpdateVariantInventoryInput,
+  ) {
+    const isSwitchingToTracked =
+      input.inventoryPolicy === InventoryPolicy.TRACKED;
+    const isSwitchingToUntracked =
+      input.inventoryPolicy === InventoryPolicy.UNTRACKED;
+    const nextOnHand = input.onHand!;
+
+    const balances = isSwitchingToUntracked
+      ? {
+          inventoryPolicy: InventoryPolicy.UNTRACKED,
+          onHand: null,
+          reserved: null,
+        }
+      : isSwitchingToTracked
+        ? {
+            inventoryPolicy: InventoryPolicy.TRACKED,
+            onHand: nextOnHand,
+            reserved: sql<number>`case when ${productVariants.inventoryPolicy} = ${InventoryPolicy.UNTRACKED} then 0 else ${productVariants.reserved} end`,
+          }
+        : { onHand: nextOnHand };
+
+    const inventoryStateIsCompatible = isSwitchingToUntracked
+      ? undefined
+      : isSwitchingToTracked
+        ? or(
+            eq(productVariants.inventoryPolicy, InventoryPolicy.UNTRACKED),
+            lte(productVariants.reserved, nextOnHand),
+          )
+        : and(
+            eq(productVariants.inventoryPolicy, InventoryPolicy.TRACKED),
+            lte(productVariants.reserved, nextOnHand),
+          );
+
+    const [variant] = await this.db
+      .update(productVariants)
+      .set({
+        ...balances,
+        version: sql`${productVariants.version} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(productVariants.storeId, storeId),
+          eq(productVariants.productId, productId),
+          eq(productVariants.id, variantId),
+          eq(productVariants.status, ProductVariantStatus.ACTIVE),
+          eq(productVariants.version, expectedVersion),
+          ...(inventoryStateIsCompatible ? [inventoryStateIsCompatible] : []),
+        ),
+      )
+      .returning({
+        id: productVariants.id,
+        title: productVariants.title,
+        sku: productVariants.sku,
+        barcode: productVariants.barcode,
+        price: productVariants.price,
+        compareAtPrice: productVariants.compareAtPrice,
+        weightGrams: productVariants.weightGrams,
+        status: productVariants.status,
+        inventoryPolicy: productVariants.inventoryPolicy,
+        onHand: productVariants.onHand,
+        reserved: productVariants.reserved,
+        available: sql<
+          number | null
+        >`case when ${productVariants.inventoryPolicy} = ${InventoryPolicy.TRACKED} then ${productVariants.onHand} - ${productVariants.reserved} else null end`,
+        version: productVariants.version,
+        createdAt: productVariants.createdAt,
+        updatedAt: productVariants.updatedAt,
+        currency: sql<string>`(select ${store.defaultCurrency} from ${store} where ${store.id} = ${productVariants.storeId})`,
+        inStock: sql<boolean>`
+          ${productVariants.inventoryPolicy} = ${InventoryPolicy.UNTRACKED}
+          OR coalesce(${productVariants.onHand}, 0) - coalesce(${productVariants.reserved}, 0) > 0
+        `,
+      });
+    return variant;
   }
 
   private isUniqueViolation(err: unknown, constraintName?: string): boolean {

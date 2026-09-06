@@ -193,6 +193,12 @@ export class OwnerProductVariantResponseDto extends ProductVariantResponseDto {
   @ApiProperty({ example: 'usd' })
   currency!: string;
 
+  @ApiProperty({
+    nullable: true,
+    description: 'On-hand quantity less reserved quantity; null when untracked',
+  })
+  available!: number | null;
+
   @ApiProperty()
   inStock!: boolean;
 
