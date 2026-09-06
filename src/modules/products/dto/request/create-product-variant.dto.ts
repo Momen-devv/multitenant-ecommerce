@@ -1,8 +1,28 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsOptional, Min } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsUUID,
+  Min,
+} from 'class-validator';
 import { InventoryPolicy, ProductVariantStatus } from '@/common/enums';
 
 export class CreateProductVariantDto {
+  @ApiPropertyOptional({
+    type: () => [String],
+    format: 'uuid',
+    description:
+      'One value ID for each current option, in the Product option order. Required for configurable Products.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3)
+  @IsUUID('all', { each: true })
+  optionValueIds?: string[];
+
   @ApiProperty({ description: 'Positive minor currency units', minimum: 1 })
   @IsInt()
   @Min(1)

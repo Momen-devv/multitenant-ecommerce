@@ -6,7 +6,9 @@ import {
 } from '@/common/enums';
 import { VariantConflictError } from '@/common/errors';
 import {
+  productOptionValues,
   productOptions,
+  productVariantOptionValues,
   products,
   productVariants,
 } from '@/infrastructure/database/schema/products.schema';
@@ -26,6 +28,7 @@ export type CreateSimpleVariantInput = {
   barcode: string;
   inventoryPolicy: InventoryPolicy;
   onHand: number | null;
+  optionValueIds: string[];
 };
 
 export type UpdateSimpleVariantInput = Partial<
@@ -35,19 +38,24 @@ export type UpdateSimpleVariantInput = Partial<
   >
 >;
 
+export type ReplaceVariantOptionValuesInput = {
+  optionValueIds: string[];
+};
+
 @Injectable()
 export class ProductVariantsRepository {
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
   ) {}
 
-  async createSimple(
+  async createVariant(
     storeId: string,
     productId: string,
     input: CreateSimpleVariantInput,
   ) {
     try {
       return await this.db.transaction(async (tx) => {
+        const { optionValueIds, ...variantInput } = input;
         const [product] = await tx
           .select({ id: products.id, status: products.status })
           .from(products)
@@ -59,37 +67,93 @@ export class ProductVariantsRepository {
             'Variants can only be created for a draft Product.',
           );
         }
-        const [option] = await tx
-          .select({ id: productOptions.id })
+        const optionRows = await tx
+          .select({
+            optionId: productOptions.id,
+            optionPosition: productOptions.position,
+            valueId: productOptionValues.id,
+            value: productOptionValues.value,
+          })
           .from(productOptions)
+          .leftJoin(
+            productOptionValues,
+            eq(productOptionValues.optionId, productOptions.id),
+          )
           .where(
             and(
               eq(productOptions.storeId, storeId),
               eq(productOptions.productId, productId),
             ),
           )
-          .limit(1);
-        if (option) {
+          .orderBy(asc(productOptions.position), asc(productOptions.id));
+        const optionIds = new Set(optionRows.map((row) => row.optionId));
+        const selectedValues = optionRows.filter((row) =>
+          optionValueIds.includes(row.valueId ?? ''),
+        );
+        const selectedOptionIds = new Set(
+          selectedValues.map((row) => row.optionId),
+        );
+        if (
+          optionValueIds.length !== new Set(optionValueIds).size ||
+          (optionIds.size === 0 && optionValueIds.length !== 0) ||
+          (optionIds.size > 0 &&
+            (selectedValues.length !== optionValueIds.length ||
+              selectedOptionIds.size !== optionIds.size ||
+              selectedValues.length !== optionIds.size))
+        ) {
           throw new VariantConflictError(
-            'Configurable Product Variants must be managed with the option graph.',
+            'Configurable Product Variants require one value from every Product option.',
           );
         }
+        const selectedByOption = new Map(
+          selectedValues.map((row) => [row.optionId, row]),
+        );
+        const selections = [...optionIds]
+          .map((optionId) => selectedByOption.get(optionId))
+          .filter((selection): selection is (typeof selectedValues)[number] =>
+            Boolean(selection),
+          )
+          .sort((left, right) => left.optionPosition - right.optionPosition);
+        const optionSignature = selections
+          .map((selection) => selection.valueId)
+          .join('|');
+        const title = optionSignature
+          ? selections
+              .map((selection) => selection.value ?? '')
+              .join(' / ')
+              .slice(0, 200)
+              .trimEnd()
+          : 'Default';
 
         const [created] = await tx
           .insert(productVariants)
           .values({
             storeId,
             productId,
-            title: 'Default',
-            optionSignature: '',
+            title,
+            optionSignature,
             status: ProductVariantStatus.ACTIVE,
-            ...input,
+            ...variantInput,
             reserved:
-              input.inventoryPolicy === InventoryPolicy.TRACKED ? 0 : null,
+              variantInput.inventoryPolicy === InventoryPolicy.TRACKED
+                ? 0
+                : null,
           })
           .returning({ id: productVariants.id });
 
         if (!created) return undefined;
+
+        if (selections.length > 0) {
+          await tx.insert(productVariantOptionValues).values(
+            selections.map((selection) => ({
+              storeId,
+              productId,
+              variantId: created.id,
+              optionId: selection.optionId,
+              optionValueId: selection.valueId!,
+            })),
+          );
+        }
 
         const [variant] = await tx
           .select({
@@ -122,6 +186,133 @@ export class ProductVariantsRepository {
       if (this.isUniqueViolation(error)) {
         throw new VariantConflictError(
           'The default Variant or its SKU/barcode already exists.',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async replaceOptionValues(
+    storeId: string,
+    productId: string,
+    variantId: string,
+    input: ReplaceVariantOptionValuesInput,
+  ): Promise<boolean | undefined> {
+    try {
+      return await this.db.transaction(async (tx) => {
+        const [product] = await tx
+          .select({ id: products.id, status: products.status })
+          .from(products)
+          .where(and(eq(products.storeId, storeId), eq(products.id, productId)))
+          .for('update');
+        if (!product) return undefined;
+        if (product.status !== ProductStatus.DRAFT) {
+          throw new VariantConflictError(
+            'Variant selections can only be changed for a draft Product.',
+          );
+        }
+
+        const [variant] = await tx
+          .select({ id: productVariants.id })
+          .from(productVariants)
+          .where(
+            and(
+              eq(productVariants.storeId, storeId),
+              eq(productVariants.productId, productId),
+              eq(productVariants.id, variantId),
+              eq(productVariants.status, ProductVariantStatus.ACTIVE),
+            ),
+          )
+          .for('update');
+        if (!variant) return false;
+
+        const optionRows = await tx
+          .select({
+            optionId: productOptions.id,
+            optionPosition: productOptions.position,
+            valueId: productOptionValues.id,
+            value: productOptionValues.value,
+          })
+          .from(productOptions)
+          .leftJoin(
+            productOptionValues,
+            eq(productOptionValues.optionId, productOptions.id),
+          )
+          .where(
+            and(
+              eq(productOptions.storeId, storeId),
+              eq(productOptions.productId, productId),
+            ),
+          )
+          .orderBy(
+            asc(productOptions.position),
+            asc(productOptionValues.position),
+          );
+        const optionCount = new Set(optionRows.map((row) => row.optionId)).size;
+        const selectedValues = optionRows.filter((row) =>
+          input.optionValueIds.includes(row.valueId ?? ''),
+        );
+        if (
+          input.optionValueIds.length !== new Set(input.optionValueIds).size ||
+          input.optionValueIds.length !== optionCount ||
+          selectedValues.length !== optionCount ||
+          new Set(selectedValues.map((row) => row.optionId)).size !==
+            optionCount
+        ) {
+          throw new VariantConflictError(
+            'Select exactly one current value from every Product option.',
+          );
+        }
+
+        const selections = [...selectedValues].sort(
+          (left, right) => left.optionPosition - right.optionPosition,
+        );
+        const optionSignature = selections
+          .map((selection) => selection.valueId)
+          .join('|');
+        const title = optionSignature
+          ? selections
+              .map((selection) => selection.value ?? '')
+              .join(' / ')
+              .slice(0, 200)
+              .trimEnd()
+          : 'Default';
+
+        await tx
+          .delete(productVariantOptionValues)
+          .where(
+            and(
+              eq(productVariantOptionValues.storeId, storeId),
+              eq(productVariantOptionValues.productId, productId),
+              eq(productVariantOptionValues.variantId, variantId),
+            ),
+          );
+        if (selections.length > 0) {
+          await tx.insert(productVariantOptionValues).values(
+            selections.map((selection) => ({
+              storeId,
+              productId,
+              variantId,
+              optionId: selection.optionId,
+              optionValueId: selection.valueId!,
+            })),
+          );
+        }
+        await tx
+          .update(productVariants)
+          .set({
+            title,
+            optionSignature,
+            version: sql`${productVariants.version} + 1`,
+            updatedAt: new Date(),
+          })
+          .where(eq(productVariants.id, variantId));
+        return true;
+      });
+    } catch (error) {
+      if (this.isUniqueViolation(error)) {
+        throw new VariantConflictError(
+          'Another Variant already has this option selection.',
         );
       }
       throw error;

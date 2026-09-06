@@ -8,7 +8,11 @@ import { InventoryPolicy, ProductVariantStatus } from '@/common/enums';
 import { VariantConflictError } from '@/common/errors';
 import type { ActiveStoreContext } from '@/common/guards/active-store.guard';
 import { generateUUIDv7 } from '@/common/utils';
-import { CreateProductVariantDto, UpdateProductVariantDto } from '../dto';
+import {
+  CreateProductVariantDto,
+  ReplaceVariantOptionValuesDto,
+  UpdateProductVariantDto,
+} from '../dto';
 import {
   ProductVariantsRepository,
   type CreateSimpleVariantInput,
@@ -36,9 +40,10 @@ export class ProductVariantsService {
       barcode,
       inventoryPolicy,
       onHand: inventoryPolicy === InventoryPolicy.TRACKED ? dto.onHand! : null,
+      optionValueIds: dto.optionValueIds ?? [],
     };
     try {
-      const variant = await this.productVariantsRepository.createSimple(
+      const variant = await this.productVariantsRepository.createVariant(
         store.storeId,
         productId,
         input,
@@ -98,6 +103,28 @@ export class ProductVariantsService {
     );
     if (!barcode) throw new NotFoundException('Variant not found');
     return barcode;
+  }
+
+  async replaceOptionValues(
+    productId: string,
+    variantId: string,
+    dto: ReplaceVariantOptionValuesDto,
+    store: ActiveStoreContext,
+  ) {
+    try {
+      const changed = await this.productVariantsRepository.replaceOptionValues(
+        store.storeId,
+        productId,
+        variantId,
+        dto,
+      );
+      if (!changed) throw new NotFoundException('Variant not found');
+    } catch (error) {
+      if (error instanceof VariantConflictError) {
+        throw new ConflictException(error.message);
+      }
+      throw error;
+    }
   }
 
   async updateVariant(

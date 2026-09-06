@@ -3,11 +3,14 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   ParseBoolPipe,
   ParseUUIDPipe,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -27,6 +30,7 @@ import {
 } from '@/common/guards/active-store.guard';
 import {
   CreateProductVariantDto,
+  ReplaceVariantOptionValuesDto,
   UpdateProductInventoryDto,
   UpdateProductVariantDto,
 } from '../dto';
@@ -117,6 +121,31 @@ export class ProductVariantsController {
     @ActiveStore() store: ActiveStoreContext,
   ) {
     return this.productVariantsService.getBarcode(productId, variantId, store);
+  }
+
+  @OrgRoles([OrganizationRole.OWNER])
+  @ApiOperation({
+    summary: 'Replace one draft Variant’s option-value selections',
+  })
+  @ApiErrorResponse(
+    HttpStatus.CONFLICT,
+    'Product is not draft or selection conflicts',
+  )
+  @ResponseMessage('Variant option values replaced successfully')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Put(':variantId/option-values')
+  replaceOptionValues(
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Param('variantId', new ParseUUIDPipe()) variantId: string,
+    @Body() dto: ReplaceVariantOptionValuesDto,
+    @ActiveStore() store: ActiveStoreContext,
+  ) {
+    return this.productVariantsService.replaceOptionValues(
+      productId,
+      variantId,
+      dto,
+      store,
+    );
   }
 
   @OrgRoles([OrganizationRole.OWNER])
