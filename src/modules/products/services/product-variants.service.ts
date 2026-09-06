@@ -1,14 +1,19 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InventoryPolicy, ProductVariantStatus } from '@/common/enums';
-import { VariantConflictError } from '@/common/errors';
+import {
+  StoreLifecycleConflictError,
+  VariantConflictError,
+} from '@/common/errors';
 import type { ActiveStoreContext } from '@/common/guards/active-store.guard';
 import { generateUUIDv7 } from '@/common/utils';
 import {
+  ArchiveProductVariantDto,
   CreateProductVariantDto,
   ReplaceVariantOptionValuesDto,
   UpdateProductInventoryDto,
@@ -197,6 +202,34 @@ export class ProductVariantsService {
     throw new ConflictException(
       'Variant inventory was changed, archived, or is no longer compatible with this update.',
     );
+  }
+
+  async archiveVariant(
+    productId: string,
+    variantId: string,
+    dto: ArchiveProductVariantDto,
+    store: ActiveStoreContext,
+  ) {
+    try {
+      const archived = await this.productVariantsRepository.archiveVariant(
+        store.storeId,
+        productId,
+        variantId,
+        dto.expectedVersion,
+      );
+      if (!archived) throw new NotFoundException('Variant not found');
+      return archived;
+    } catch (error) {
+      if (error instanceof StoreLifecycleConflictError) {
+        throw new ForbiddenException(
+          'The Store is no longer active and cannot be modified.',
+        );
+      }
+      if (error instanceof VariantConflictError) {
+        throw new ConflictException(error.message);
+      }
+      throw error;
+    }
   }
 
   private validateCreateVariant(dto: CreateProductVariantDto): InventoryPolicy {

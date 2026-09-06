@@ -149,10 +149,31 @@ export class ProductsController {
     return this.productsService.updateProduct(productId, dto, store);
   }
 
+  @OrgRoles([OrganizationRole.OWNER])
+  @ApiOperation({
+    summary: 'Archive a Product and all of its active Variants',
+    description:
+      'Archival is terminal and idempotent. Active Variants are archived atomically with the Product.',
+  })
+  @ApiSuccessResponse({
+    description: 'Product archived successfully',
+    model: ProductContentResponseDto,
+  })
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid Product ID')
+  @ApiErrorResponse(
+    HttpStatus.FORBIDDEN,
+    'Store is not active and cannot be modified',
+  )
+  @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Product not found')
+  @ResponseMessage('Product archived successfully')
+  @Throttle({ default: { limit: 10, ttl: seconds(60) } })
+  @HttpCode(HttpStatus.OK)
   @Delete(':productId')
-  archiveProduct(@Param('productId') _productId: string) {
-    void _productId;
-    return;
+  archiveProduct(
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @ActiveStore() store: ActiveStoreContext,
+  ) {
+    return this.productsService.archiveProduct(productId, store);
   }
 
   @OrgRoles([OrganizationRole.OWNER])

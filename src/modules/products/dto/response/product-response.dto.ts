@@ -190,6 +190,9 @@ export class ProductVariantResponseDto {
 }
 
 export class OwnerProductVariantResponseDto extends ProductVariantResponseDto {
+  @ApiProperty({ nullable: true })
+  archivedAt!: Date | null;
+
   @ApiProperty({ example: 'usd' })
   currency!: string;
 

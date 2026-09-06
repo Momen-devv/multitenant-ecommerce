@@ -196,6 +196,71 @@ export class ProductsRepository implements IProductsRepository {
     return updated;
   }
 
+  async archive(storeId: string, productId: string) {
+    return this.db.transaction(async (tx) => {
+      const [product] = await tx
+        .select()
+        .from(products)
+        .where(and(eq(products.storeId, storeId), eq(products.id, productId)))
+        .for('update');
+      if (!product) return undefined;
+
+      const [lockedStore] = await tx
+        .select({ status: store.status })
+        .from(store)
+        .where(eq(store.id, storeId))
+        .for('update');
+      if (lockedStore?.status !== StoreStatus.ACTIVE) {
+        throw new StoreLifecycleConflictError(
+          'The Store is no longer active and cannot be modified.',
+        );
+      }
+
+      if (product.status === ProductStatus.ARCHIVED) return product;
+
+      const archivedAt = new Date();
+      const [archivedProduct] = await tx
+        .update(products)
+        .set({
+          status: ProductStatus.ARCHIVED,
+          archivedAt,
+          version: sql`${products.version} + 1`,
+          updatedAt: archivedAt,
+        })
+        .where(
+          and(
+            eq(products.storeId, storeId),
+            eq(products.id, productId),
+            eq(products.status, product.status),
+          ),
+        )
+        .returning();
+      if (!archivedProduct) {
+        throw new ProductLifecycleConflictError(
+          'Product status changed during this request.',
+        );
+      }
+
+      await tx
+        .update(productVariants)
+        .set({
+          status: ProductVariantStatus.ARCHIVED,
+          archivedAt,
+          version: sql`${productVariants.version} + 1`,
+          updatedAt: archivedAt,
+        })
+        .where(
+          and(
+            eq(productVariants.storeId, storeId),
+            eq(productVariants.productId, productId),
+            eq(productVariants.status, ProductVariantStatus.ACTIVE),
+          ),
+        );
+
+      return archivedProduct;
+    });
+  }
+
   async transitionStatus(
     storeId: string,
     productId: string,

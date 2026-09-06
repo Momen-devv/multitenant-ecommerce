@@ -90,6 +90,24 @@ export class ProductsService {
     return product;
   }
 
+  async archiveProduct(productId: string, store: ActiveStoreContext) {
+    try {
+      const product = await this.productsRepository.archive(
+        store.storeId,
+        productId,
+      );
+      if (!product) throw new NotFoundException('Product not found');
+      return product;
+    } catch (error) {
+      if (error instanceof StoreLifecycleConflictError) {
+        throw new ForbiddenException(
+          'The Store is no longer active and cannot be modified.',
+        );
+      }
+      throw error;
+    }
+  }
+
   async updateProductStatus(
     productId: string,
     dto: UpdateProductStatusDto,

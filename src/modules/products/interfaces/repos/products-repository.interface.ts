@@ -97,6 +97,7 @@ export interface IProductsRepository {
     productId: string,
     input: UpdateProductInput,
   ): Promise<Product | undefined>;
+  archive(storeId: string, productId: string): Promise<Product | undefined>;
   transitionStatus(
     storeId: string,
     productId: string,

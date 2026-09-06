@@ -3,8 +3,12 @@ import {
   InventoryPolicy,
   ProductStatus,
   ProductVariantStatus,
+  StoreStatus,
 } from '@/common/enums';
-import { VariantConflictError } from '@/common/errors';
+import {
+  StoreLifecycleConflictError,
+  VariantConflictError,
+} from '@/common/errors';
 import {
   productOptionValues,
   productOptions,
@@ -14,7 +18,7 @@ import {
 } from '@/infrastructure/database/schema/products.schema';
 import { store } from '@/infrastructure/database/schema/app.schema';
 import * as schema from '@/infrastructure/database/schema/schema';
-import { and, asc, eq, lte, or, sql } from 'drizzle-orm';
+import { and, asc, eq, lte, ne, or, sql } from 'drizzle-orm';
 import { DrizzleQueryError } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DatabaseError } from 'pg';
@@ -170,6 +174,7 @@ export class ProductVariantsRepository {
             compareAtPrice: productVariants.compareAtPrice,
             weightGrams: productVariants.weightGrams,
             status: productVariants.status,
+            archivedAt: productVariants.archivedAt,
             inventoryPolicy: productVariants.inventoryPolicy,
             onHand: productVariants.onHand,
             reserved: productVariants.reserved,
@@ -338,6 +343,7 @@ export class ProductVariantsRepository {
         compareAtPrice: productVariants.compareAtPrice,
         weightGrams: productVariants.weightGrams,
         status: productVariants.status,
+        archivedAt: productVariants.archivedAt,
         inventoryPolicy: productVariants.inventoryPolicy,
         onHand: productVariants.onHand,
         reserved: productVariants.reserved,
@@ -388,6 +394,7 @@ export class ProductVariantsRepository {
         compareAtPrice: productVariants.compareAtPrice,
         weightGrams: productVariants.weightGrams,
         status: productVariants.status,
+        archivedAt: productVariants.archivedAt,
         inventoryPolicy: productVariants.inventoryPolicy,
         onHand: productVariants.onHand,
         reserved: productVariants.reserved,
@@ -530,6 +537,7 @@ export class ProductVariantsRepository {
         compareAtPrice: productVariants.compareAtPrice,
         weightGrams: productVariants.weightGrams,
         status: productVariants.status,
+        archivedAt: productVariants.archivedAt,
         inventoryPolicy: productVariants.inventoryPolicy,
         onHand: productVariants.onHand,
         reserved: productVariants.reserved,
@@ -546,6 +554,126 @@ export class ProductVariantsRepository {
         `,
       });
     return variant;
+  }
+
+  async archiveVariant(
+    storeId: string,
+    productId: string,
+    variantId: string,
+    expectedVersion: number,
+  ) {
+    const archivedVariantId = await this.db.transaction(async (tx) => {
+      const [product] = await tx
+        .select({ id: products.id, status: products.status })
+        .from(products)
+        .where(and(eq(products.storeId, storeId), eq(products.id, productId)))
+        .for('update');
+      if (!product) return undefined;
+
+      const [lockedStore] = await tx
+        .select({ status: store.status })
+        .from(store)
+        .where(eq(store.id, storeId))
+        .for('update');
+      if (lockedStore?.status !== StoreStatus.ACTIVE) {
+        throw new StoreLifecycleConflictError(
+          'The Store is no longer active and cannot be modified.',
+        );
+      }
+
+      const [variant] = await tx
+        .select({
+          id: productVariants.id,
+          status: productVariants.status,
+          version: productVariants.version,
+        })
+        .from(productVariants)
+        .where(
+          and(
+            eq(productVariants.storeId, storeId),
+            eq(productVariants.productId, productId),
+            eq(productVariants.id, variantId),
+          ),
+        )
+        .for('update');
+      if (!variant) return undefined;
+      if (variant.status === ProductVariantStatus.ARCHIVED) return variant.id;
+
+      if (product.status === ProductStatus.ARCHIVED) {
+        throw new VariantConflictError('Archived Products cannot be modified.');
+      }
+      if (variant.version !== expectedVersion) {
+        throw new VariantConflictError(
+          'Variant was changed by another request.',
+        );
+      }
+      if (product.status === ProductStatus.PUBLISHED) {
+        const hasReplacement = await this.hasOtherActiveVariant(
+          tx,
+          storeId,
+          productId,
+          variantId,
+        );
+        if (!hasReplacement) {
+          throw new VariantConflictError(
+            'A published Product must retain at least one active Variant.',
+          );
+        }
+      }
+
+      const archivedAt = new Date();
+      const [archived] = await tx
+        .update(productVariants)
+        .set({
+          status: ProductVariantStatus.ARCHIVED,
+          archivedAt,
+          version: sql`${productVariants.version} + 1`,
+          updatedAt: archivedAt,
+        })
+        .where(
+          and(
+            eq(productVariants.storeId, storeId),
+            eq(productVariants.productId, productId),
+            eq(productVariants.id, variantId),
+            eq(productVariants.status, ProductVariantStatus.ACTIVE),
+            eq(productVariants.version, expectedVersion),
+          ),
+        )
+        .returning({ id: productVariants.id });
+      if (!archived) {
+        throw new VariantConflictError(
+          'Variant was changed or archived by another request.',
+        );
+      }
+      return archived.id;
+    });
+
+    if (!archivedVariantId) return undefined;
+    return this.findOne(storeId, productId, archivedVariantId);
+  }
+
+  private async hasOtherActiveVariant(
+    tx: NodePgDatabase<typeof schema>,
+    storeId: string,
+    productId: string,
+    excludedVariantId: string,
+  ) {
+    // Publishing validates catalog completeness. Published Products cannot
+    // change their option structure, so archiving only needs a replacement.
+    const [replacement] = await tx
+      .select({ id: productVariants.id })
+      .from(productVariants)
+      .where(
+        and(
+          eq(productVariants.storeId, storeId),
+          eq(productVariants.productId, productId),
+          eq(productVariants.status, ProductVariantStatus.ACTIVE),
+          ne(productVariants.id, excludedVariantId),
+        ),
+      )
+      .limit(1)
+      .for('update');
+    return Boolean(replacement);
   }
 
   private isUniqueViolation(err: unknown, constraintName?: string): boolean {

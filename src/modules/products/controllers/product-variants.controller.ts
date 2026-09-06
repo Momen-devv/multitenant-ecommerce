@@ -29,6 +29,7 @@ import {
   type ActiveStoreContext,
 } from '@/common/guards/active-store.guard';
 import {
+  ArchiveProductVariantDto,
   CreateProductVariantDto,
   ReplaceVariantOptionValuesDto,
   UpdateProductInventoryDto,
@@ -199,13 +200,41 @@ export class ProductVariantsController {
     );
   }
 
+  @OrgRoles([OrganizationRole.OWNER])
+  @ApiOperation({
+    summary: 'Archive a Variant',
+    description:
+      'Archival is terminal. The expected version prevents stale active Variant archives; repeating an archive is idempotent.',
+  })
+  @ApiSuccessResponse({
+    description: 'Variant archived successfully',
+    model: OwnerProductVariantResponseDto,
+  })
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid Variant ID or version')
+  @ApiErrorResponse(
+    HttpStatus.CONFLICT,
+    'Variant version is stale or this would leave a published Product without a complete active Variant',
+  )
+  @ApiErrorResponse(
+    HttpStatus.FORBIDDEN,
+    'Store is not active and cannot be modified',
+  )
+  @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Variant not found')
+  @ResponseMessage('Variant archived successfully')
+  @Throttle({ default: { limit: 10, ttl: seconds(60) } })
+  @HttpCode(HttpStatus.OK)
   @Delete(':variantId')
   archiveVariant(
-    @Param('productId') _productId: string,
-    @Param('variantId') _variantId: string,
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Param('variantId', new ParseUUIDPipe()) variantId: string,
+    @Body() dto: ArchiveProductVariantDto,
+    @ActiveStore() store: ActiveStoreContext,
   ) {
-    void _productId;
-    void _variantId;
-    return;
+    return this.productVariantsService.archiveVariant(
+      productId,
+      variantId,
+      dto,
+      store,
+    );
   }
 }
