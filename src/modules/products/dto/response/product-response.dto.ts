@@ -74,6 +74,13 @@ export class PublicProductListItemResponseDto {
   @ApiProperty({ example: 'usd' })
   currency!: string;
 
+  @ApiProperty({
+    type: () => PublicProductImageResponseDto,
+    nullable: true,
+    description: 'The first gallery image, ordered by its gallery position.',
+  })
+  image!: PublicProductImageResponseDto | null;
+
   @ApiProperty()
   createdAt!: Date;
 
@@ -94,6 +101,96 @@ export class PublicProductListResponseDto {
     },
   })
   pageInfo!: { nextCursor: string | null; hasNextPage: boolean };
+}
+
+export class PublicProductImageResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ nullable: true })
+  publicUrl!: string | null;
+
+  @ApiProperty({ nullable: true })
+  altText!: string | null;
+}
+
+export class PublicProductOptionValueResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  value!: string;
+}
+
+export class PublicProductOptionResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty({ type: () => [PublicProductOptionValueResponseDto] })
+  values!: PublicProductOptionValueResponseDto[];
+}
+
+export class PublicProductVariantAssignmentResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  optionId!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  optionValueId!: string;
+}
+
+export class PublicProductVariantResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  title!: string;
+
+  @ApiProperty({ description: 'Minor currency units' })
+  price!: number;
+
+  @ApiProperty({ description: 'Minor currency units', nullable: true })
+  compareAtPrice!: number | null;
+
+  @ApiProperty({ nullable: true })
+  weightGrams!: number | null;
+
+  @ApiProperty({
+    description:
+      'Whether this Variant can currently be purchased. Untracked Variants are always available.',
+  })
+  available!: boolean;
+
+  @ApiProperty({ type: () => [PublicProductVariantAssignmentResponseDto] })
+  optionValues!: PublicProductVariantAssignmentResponseDto[];
+}
+
+export class PublicProductResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  slug!: string;
+
+  @ApiProperty({ nullable: true })
+  description!: string | null;
+
+  @ApiProperty({ example: 'usd' })
+  currency!: string;
+
+  @ApiProperty({ type: () => [PublicProductImageResponseDto] })
+  images!: PublicProductImageResponseDto[];
+
+  @ApiProperty({ type: () => [PublicProductOptionResponseDto] })
+  options!: PublicProductOptionResponseDto[];
+
+  @ApiProperty({ type: () => [PublicProductVariantResponseDto] })
+  variants!: PublicProductVariantResponseDto[];
 }
 
 export class ProductContentResponseDto {

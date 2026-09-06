@@ -16,4 +16,13 @@ export class PublicProductsService {
     if (!page) throw new NotFoundException('Store not found');
     return page;
   }
+
+  async getPublishedProduct(storeSlug: string, slug: string) {
+    const product = await this.publicProductsRepository.findPublishedBySlug(
+      storeSlug,
+      slug,
+    );
+    if (!product) throw new NotFoundException('Published Product not found');
+    return product;
+  }
 }

@@ -16,7 +16,7 @@ import {
   ResponseMessage,
 } from '@/common/decorators';
 import { ParseSlugPipe } from '@/common/pipes/parse-slug.pipe';
-import { PublicProductListResponseDto } from '../dto';
+import { PublicProductListResponseDto, PublicProductResponseDto } from '../dto';
 import { PublicProductsService } from '../services/public-products.service';
 
 @ApiTags('Public Products')
@@ -28,7 +28,7 @@ export class PublicProductsController {
   @ApiOperation({
     summary: 'Browse published Products for an active Store',
     description:
-      'Supports cursor pagination, name search, and sorting by createdAt, updatedAt, or name.',
+      'Each Product includes its first ordered gallery image. Supports cursor pagination, name search, and sorting by createdAt, updatedAt, or name.',
   })
   @ApiParam({ name: 'storeSlug', example: 'acme-store' })
   @ApiSuccessResponse({
@@ -49,13 +49,28 @@ export class PublicProductsController {
     return this.publicProductsService.listPublishedProducts(storeSlug, query);
   }
 
+  @ApiOperation({
+    summary: 'Get a published Product by slug',
+    description:
+      'Returns the storefront Product aggregate for an active Store. Missing, inactive, draft, and archived resources are all reported as not found.',
+  })
+  @ApiParam({ name: 'storeSlug', example: 'acme-store' })
+  @ApiParam({ name: 'slug', example: 'classic-tee' })
+  @ApiSuccessResponse({
+    description: 'Published Product retrieved successfully',
+    model: PublicProductResponseDto,
+  })
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid Store or Product slug')
+  @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Published Product not found')
+  @ApiErrorResponse(HttpStatus.TOO_MANY_REQUESTS, 'Rate limit exceeded')
+  @Throttle({ default: { limit: 60, ttl: seconds(60) } })
+  @ResponseMessage('Published Product retrieved successfully')
+  @HttpCode(HttpStatus.OK)
   @Get(':slug')
   getPublishedProduct(
-    @Param('storeSlug') _storeSlug: string,
-    @Param('slug') _slug: string,
+    @Param('storeSlug', ParseSlugPipe) storeSlug: string,
+    @Param('slug', ParseSlugPipe) slug: string,
   ) {
-    void _storeSlug;
-    void _slug;
-    return;
+    return this.publicProductsService.getPublishedProduct(storeSlug, slug);
   }
 }
