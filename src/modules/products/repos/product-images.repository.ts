@@ -225,29 +225,41 @@ export class ProductImagesRepository {
     productId: string,
     imageId: string,
   ): Promise<{ imageKey: string } | false | undefined> {
-    return this.inMutableTransaction(storeId, productId, async (tx) => {
-      const [image] = await tx
-        .select({
-          id: productImages.id,
-          imageKey: productImages.imageKey,
-          position: productImages.position,
-        })
-        .from(productImages)
-        .where(
-          and(
-            eq(productImages.storeId, storeId),
-            eq(productImages.productId, productId),
-            eq(productImages.id, imageId),
-          ),
-        )
-        .for('update');
-      if (!image) return false;
+    return this.inMutableTransaction(
+      storeId,
+      productId,
+      async (tx, product) => {
+        const [image] = await tx
+          .select({
+            id: productImages.id,
+            imageKey: productImages.imageKey,
+            position: productImages.position,
+          })
+          .from(productImages)
+          .where(
+            and(
+              eq(productImages.storeId, storeId),
+              eq(productImages.productId, productId),
+              eq(productImages.id, imageId),
+            ),
+          )
+          .for('update');
+        if (!image) return false;
 
-      await tx.delete(productImages).where(eq(productImages.id, imageId));
-      await this.closePositionGap(tx, storeId, productId, image.position);
-      await this.touchProduct(tx, productId);
-      return { imageKey: image.imageKey };
-    });
+        await this.assertPublishedProductRetainsImage(
+          tx,
+          storeId,
+          productId,
+          product.status,
+          1,
+        );
+
+        await tx.delete(productImages).where(eq(productImages.id, imageId));
+        await this.closePositionGap(tx, storeId, productId, image.position);
+        await this.touchProduct(tx, productId);
+        return { imageKey: image.imageKey };
+      },
+    );
   }
 
   async deleteMany(
@@ -255,40 +267,55 @@ export class ProductImagesRepository {
     productId: string,
     imageIds: string[],
   ): Promise<{ imageKeys: string[] } | false | undefined> {
-    return this.inMutableTransaction(storeId, productId, async (tx) => {
-      const selected = await tx
-        .select({ id: productImages.id, imageKey: productImages.imageKey })
-        .from(productImages)
-        .where(
-          and(
-            eq(productImages.storeId, storeId),
-            eq(productImages.productId, productId),
-            inArray(productImages.id, imageIds),
-          ),
-        )
-        .for('update');
+    return this.inMutableTransaction(
+      storeId,
+      productId,
+      async (tx, product) => {
+        const selected = await tx
+          .select({ id: productImages.id, imageKey: productImages.imageKey })
+          .from(productImages)
+          .where(
+            and(
+              eq(productImages.storeId, storeId),
+              eq(productImages.productId, productId),
+              inArray(productImages.id, imageIds),
+            ),
+          )
+          .for('update');
 
-      if (selected.length !== imageIds.length) return false;
+        if (selected.length !== imageIds.length) return false;
 
-      await tx
-        .delete(productImages)
-        .where(
-          and(
-            eq(productImages.storeId, storeId),
-            eq(productImages.productId, productId),
-            inArray(productImages.id, imageIds),
-          ),
+        await this.assertPublishedProductRetainsImage(
+          tx,
+          storeId,
+          productId,
+          product.status,
+          selected.length,
         );
-      await this.normalizePositions(tx, storeId, productId);
-      await this.touchProduct(tx, productId);
-      return { imageKeys: selected.map((image) => image.imageKey) };
-    });
+
+        await tx
+          .delete(productImages)
+          .where(
+            and(
+              eq(productImages.storeId, storeId),
+              eq(productImages.productId, productId),
+              inArray(productImages.id, imageIds),
+            ),
+          );
+        await this.normalizePositions(tx, storeId, productId);
+        await this.touchProduct(tx, productId);
+        return { imageKeys: selected.map((image) => image.imageKey) };
+      },
+    );
   }
 
   private async inMutableTransaction<Result>(
     storeId: string,
     productId: string,
-    operation: (tx: NodePgDatabase<typeof schema>) => Promise<Result>,
+    operation: (
+      tx: NodePgDatabase<typeof schema>,
+      product: { status: ProductStatus },
+    ) => Promise<Result>,
   ): Promise<Result | undefined> {
     return this.db.transaction(async (tx) => {
       const [product] = await tx
@@ -298,7 +325,7 @@ export class ProductImagesRepository {
         .for('update');
       if (!product) return undefined;
       this.assertMutable(product.status);
-      return operation(tx);
+      return operation(tx, product);
     });
   }
 
@@ -306,6 +333,30 @@ export class ProductImagesRepository {
     if (status === ProductStatus.ARCHIVED) {
       throw new ProductImageGalleryConflictError(
         'Archived Products cannot have their image gallery changed.',
+      );
+    }
+  }
+
+  private async assertPublishedProductRetainsImage(
+    tx: NodePgDatabase<typeof schema>,
+    storeId: string,
+    productId: string,
+    status: ProductStatus,
+    removing: number,
+  ) {
+    if (status !== ProductStatus.PUBLISHED) return;
+    const [{ count }] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(productImages)
+      .where(
+        and(
+          eq(productImages.storeId, storeId),
+          eq(productImages.productId, productId),
+        ),
+      );
+    if (count <= removing) {
+      throw new ProductImageGalleryConflictError(
+        'A published Product must retain at least one image.',
       );
     }
   }
