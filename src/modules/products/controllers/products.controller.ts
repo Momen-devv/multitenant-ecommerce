@@ -29,6 +29,7 @@ import {
 import { ProductsService } from '../services/products.service';
 import {
   CreateProductDto,
+  CreateProductSetupDto,
   ProductContentResponseDto,
   ProductListResponseDto,
   ProductResponseDto,
@@ -73,6 +74,37 @@ export class ProductsController {
     @ActiveStore() store: ActiveStoreContext,
   ) {
     return this.productsService.createProduct(dto, store);
+  }
+
+  @OrgRoles([OrganizationRole.OWNER])
+  @ApiOperation({
+    summary: 'Create a draft Product with its options, values, and Variants',
+    description:
+      'Creates the Product catalog graph atomically. Image uploads remain separate and are required before publishing.',
+  })
+  @ApiSuccessResponse({
+    status: HttpStatus.CREATED,
+    description: 'Product setup created successfully',
+    model: ProductResponseDto,
+  })
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid Product setup data')
+  @ApiErrorResponse(
+    HttpStatus.CONFLICT,
+    'Product slug or option/Variant configuration conflicts',
+  )
+  @ApiErrorResponse(
+    HttpStatus.FORBIDDEN,
+    'Store is not active, the subscription is inactive, or the Product limit has been reached',
+  )
+  @Throttle({ default: { limit: 10, ttl: seconds(60) } })
+  @ResponseMessage('Product setup created successfully')
+  @HttpCode(HttpStatus.CREATED)
+  @Post('setup')
+  createProductSetup(
+    @Body() dto: CreateProductSetupDto,
+    @ActiveStore() store: ActiveStoreContext,
+  ) {
+    return this.productsService.createProductSetup(dto, store);
   }
 
   @OrgRoles([OrganizationRole.OWNER])

@@ -8,10 +8,25 @@ import type {
   ProductVariantOptionValue,
   Store,
 } from '@/infrastructure/database/schema/schema.types';
-import { ProductStatus } from '@/common/enums';
+import { InventoryPolicy, ProductStatus } from '@/common/enums';
 
 export type CreateProductInput = Pick<Product, 'name' | 'slug' | 'description'>;
 export type UpdateProductInput = Partial<Pick<Product, 'name' | 'description'>>;
+export type CreateProductSetupInput = CreateProductInput & {
+  options: Array<{
+    clientKey: string;
+    name: string;
+    values: Array<{ clientKey: string; value: string }>;
+  }>;
+  variants: Array<{
+    optionValueClientKeys: string[];
+    price: number;
+    compareAtPrice: number | null;
+    weightGrams: number | null;
+    inventoryPolicy: InventoryPolicy;
+    onHand: number | null;
+  }>;
+};
 export type ProductStatusTransition =
   | ProductStatus.DRAFT
   | ProductStatus.PUBLISHED;
@@ -84,6 +99,11 @@ export interface IProductsRepository {
     input: CreateProductInput,
     productLimit: number,
   ): Promise<Product>;
+  createSetup(
+    storeId: string,
+    input: CreateProductSetupInput,
+    productLimit: number,
+  ): Promise<ProductAggregate>;
   findOne(
     storeId: string,
     productId: string,

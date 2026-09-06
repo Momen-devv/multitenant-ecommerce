@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import slugify from 'slugify';
-import { SubscriptionStatus } from '@/common/enums';
+import { InventoryPolicy, SubscriptionStatus } from '@/common/enums';
 import type { ActiveStoreContext } from '@/common/guards/active-store.guard';
 import { SlugConflictError } from '@/common/errors/slug-conflict.error';
 import { ProductLimitExceededError } from '@/common/errors/product-limit-exceeded.error';
@@ -17,12 +17,14 @@ import {
 } from '@/common/errors';
 import {
   CreateProductDto,
+  CreateProductSetupDto,
   UpdateProductDto,
   UpdateProductStatusDto,
 } from '../dto';
 import type { ApiListQueryInput } from '@/common/api-query';
 import {
   PRODUCTS_REPOSITORY,
+  type CreateProductSetupInput,
   type IProductsRepository,
 } from '../interfaces/repos';
 import {
@@ -60,6 +62,100 @@ export class ProductsService {
         );
       }
       throw err;
+    }
+  }
+
+  async createProductSetup(
+    dto: CreateProductSetupDto,
+    store: ActiveStoreContext,
+  ) {
+    const productLimit = await this.getProductLimit(store.storeId);
+    const input = this.toCreateProductSetupInput(dto);
+
+    try {
+      return this.productsRepository.createSetup(
+        store.storeId,
+        input,
+        productLimit,
+      );
+    } catch (err) {
+      if (err instanceof SlugConflictError) {
+        throw new ConflictException(this.buildSlugConflictMessage(dto));
+      }
+      if (err instanceof ProductLimitExceededError) {
+        throw new ForbiddenException(
+          `Your plan allows ${err.limit} Products; you currently have ${err.usage}. Archive Products or upgrade your plan to create another.`,
+        );
+      }
+      if (err instanceof ProductLifecycleConflictError) {
+        throw new ConflictException(err.message);
+      }
+      throw err;
+    }
+  }
+
+  private toCreateProductSetupInput(
+    dto: CreateProductSetupDto,
+  ): CreateProductSetupInput {
+    return {
+      name: dto.name,
+      slug: dto.slug ?? this.generateSlug(dto.name),
+      description: dto.description ?? null,
+      options: (dto.options ?? []).map((option) => ({
+        clientKey: option.key,
+        name: option.name,
+        values: option.values.map((value) => ({
+          clientKey: value.key,
+          value: value.value,
+        })),
+      })),
+      variants: dto.variants.map((variant) =>
+        this.toCreateProductSetupVariantInput(variant),
+      ),
+    };
+  }
+
+  private toCreateProductSetupVariantInput(
+    variant: CreateProductSetupDto['variants'][number],
+  ): CreateProductSetupInput['variants'][number] {
+    this.assertValidProductSetupVariant(variant);
+    const inventoryPolicy = variant.inventoryPolicy ?? InventoryPolicy.TRACKED;
+
+    return {
+      optionValueClientKeys: variant.optionValueKeys ?? [],
+      price: variant.price,
+      compareAtPrice: variant.compareAtPrice ?? null,
+      weightGrams: variant.weightGrams ?? null,
+      inventoryPolicy,
+      onHand:
+        inventoryPolicy === InventoryPolicy.TRACKED ? variant.onHand! : null,
+    };
+  }
+
+  private assertValidProductSetupVariant(
+    variant: CreateProductSetupDto['variants'][number],
+  ) {
+    const inventoryPolicy = variant.inventoryPolicy ?? InventoryPolicy.TRACKED;
+    if (
+      variant.compareAtPrice != null &&
+      variant.compareAtPrice <= variant.price
+    ) {
+      throw new BadRequestException(
+        'compareAtPrice must be greater than price.',
+      );
+    }
+    if (inventoryPolicy === InventoryPolicy.TRACKED && variant.onHand == null) {
+      throw new BadRequestException(
+        'onHand is required for tracked inventory.',
+      );
+    }
+    if (
+      inventoryPolicy === InventoryPolicy.UNTRACKED &&
+      variant.onHand != null
+    ) {
+      throw new BadRequestException(
+        'onHand must be omitted for untracked inventory.',
+      );
     }
   }
 

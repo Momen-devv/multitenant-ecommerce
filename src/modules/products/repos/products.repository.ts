@@ -18,21 +18,31 @@ import { SlugConflictError } from '@/common/errors/slug-conflict.error';
 import { ProductLimitExceededError } from '@/common/errors/product-limit-exceeded.error';
 import { ProductLifecycleConflictError } from '@/common/errors/product-lifecycle-conflict.error';
 import { StoreLifecycleConflictError } from '@/common/errors/store-lifecycle-conflict.error';
-import { ProductStatus } from '@/common/enums';
 import {
   InventoryPolicy,
+  ProductStatus,
   ProductVariantStatus,
   StoreStatus,
 } from '@/common/enums';
 import { compileApiQuery, type ApiListQueryInput } from '@/common/api-query';
 import type {
   CreateProductInput,
+  CreateProductSetupInput,
   IProductsRepository,
   ProductAggregate,
   ProductStatusTransition,
   UpdateProductInput,
 } from '../interfaces/repos';
 import { ownerProductQuery } from '../queries/owner-product.query';
+import {
+  deriveVariantPresentation,
+  generateVariantIdentifiers,
+} from '../variant-catalog';
+import {
+  MAX_ACTIVE_PRODUCT_VARIANTS,
+  MAX_PRODUCT_OPTIONS,
+  MAX_PRODUCT_OPTION_VALUES,
+} from '../product-catalog-limits';
 
 @Injectable()
 export class ProductsRepository implements IProductsRepository {
@@ -47,26 +57,8 @@ export class ProductsRepository implements IProductsRepository {
   ) {
     try {
       const product = await this.db.transaction(async (tx) => {
-        await tx.execute(
-          sql`select pg_advisory_xact_lock(hashtext(${storeId}))`,
-        );
-        const [result] = await tx
-          .select({ count: count() })
-          .from(products)
-          .where(
-            and(
-              eq(products.storeId, storeId),
-              ne(products.status, ProductStatus.ARCHIVED),
-            ),
-          );
-        if (result.count >= productLimit) {
-          throw new ProductLimitExceededError(productLimit, result.count);
-        }
-        const [product] = await tx
-          .insert(products)
-          .values({ storeId, ...input })
-          .returning();
-        return product;
+        await this.assertProductLimit(tx, storeId, productLimit);
+        return this.insertProduct(tx, storeId, input);
       });
       return product;
     } catch (error) {
@@ -78,11 +70,153 @@ export class ProductsRepository implements IProductsRepository {
     }
   }
 
+  async createSetup(
+    storeId: string,
+    input: CreateProductSetupInput,
+    productLimit: number,
+  ) {
+    try {
+      return await this.db.transaction(async (tx) => {
+        await this.assertProductLimit(tx, storeId, productLimit);
+        this.assertSetupInput(input);
+        const product = await this.insertProduct(tx, storeId, input);
+
+        const optionClientKeys = new Set<string>();
+        const valueByKey = new Map<
+          string,
+          {
+            id: string;
+            optionId: string;
+            optionPosition: number;
+            value: string;
+          }
+        >();
+        for (const [optionPosition, optionInput] of input.options.entries()) {
+          const [option] = await tx
+            .insert(productOptions)
+            .values({
+              storeId,
+              productId: product.id,
+              name: optionInput.name,
+              position: optionPosition,
+            })
+            .returning({ id: productOptions.id });
+          optionClientKeys.add(optionInput.clientKey);
+
+          const values = await tx
+            .insert(productOptionValues)
+            .values(
+              optionInput.values.map((valueInput, position) => ({
+                storeId,
+                productId: product.id,
+                optionId: option.id,
+                value: valueInput.value,
+                position,
+              })),
+            )
+            .returning({
+              id: productOptionValues.id,
+              value: productOptionValues.value,
+            });
+          for (const [
+            valuePosition,
+            valueInput,
+          ] of optionInput.values.entries()) {
+            const value = values[valuePosition];
+            valueByKey.set(valueInput.clientKey, {
+              id: value.id,
+              optionId: option.id,
+              optionPosition,
+              value: value.value,
+            });
+          }
+        }
+
+        for (const variantInput of input.variants) {
+          const selectedValues = variantInput.optionValueClientKeys.map((key) =>
+            valueByKey.get(key),
+          );
+          if (
+            selectedValues.some((value) => !value) ||
+            new Set(selectedValues.map((value) => value?.optionId)).size !==
+              optionClientKeys.size
+          ) {
+            throw new ProductLifecycleConflictError(
+              'Every Variant must select one value from every Product option.',
+            );
+          }
+          const selections = selectedValues
+            .filter((value): value is NonNullable<typeof value> =>
+              Boolean(value),
+            )
+            .sort((left, right) => left.optionPosition - right.optionPosition);
+          const { optionSignature, title } = deriveVariantPresentation(
+            selections.map((value) => ({
+              optionValueId: value.id,
+              value: value.value,
+            })),
+          );
+          const [variant] = await tx
+            .insert(productVariants)
+            .values({
+              storeId,
+              productId: product.id,
+              title,
+              optionSignature,
+              ...generateVariantIdentifiers(),
+              price: variantInput.price,
+              compareAtPrice: variantInput.compareAtPrice,
+              weightGrams: variantInput.weightGrams,
+              status: ProductVariantStatus.ACTIVE,
+              inventoryPolicy: variantInput.inventoryPolicy,
+              onHand: variantInput.onHand,
+              reserved:
+                variantInput.inventoryPolicy === InventoryPolicy.TRACKED
+                  ? 0
+                  : null,
+            })
+            .returning({ id: productVariants.id });
+          if (selections.length > 0) {
+            await tx.insert(productVariantOptionValues).values(
+              selections.map((value) => ({
+                storeId,
+                productId: product.id,
+                variantId: variant.id,
+                optionId: value.optionId,
+                optionValueId: value.id,
+              })),
+            );
+          }
+        }
+        const aggregate = await this.findOneWith(tx, storeId, product.id);
+        if (!aggregate) {
+          throw new ProductLifecycleConflictError(
+            'Product setup could not be read after creation.',
+          );
+        }
+        return aggregate;
+      });
+    } catch (error) {
+      if (this.isUniqueViolation(error, 'products_store_slug_uidx')) {
+        throw new SlugConflictError();
+      }
+      throw error;
+    }
+  }
+
   async findOne(
     storeId: string,
     productId: string,
   ): Promise<ProductAggregate | undefined> {
-    return this.db.query.products.findFirst({
+    return this.findOneWith(this.db, storeId, productId);
+  }
+
+  private async findOneWith(
+    db: Pick<NodePgDatabase<typeof schema>, 'query'>,
+    storeId: string,
+    productId: string,
+  ): Promise<ProductAggregate | undefined> {
+    return db.query.products.findFirst({
       where: and(eq(products.storeId, storeId), eq(products.id, productId)),
       columns: {
         id: true,
@@ -478,6 +612,111 @@ export class ProductsRepository implements IProductsRepository {
       }
       signatures.add(variant.optionSignature);
     }
+  }
+
+  private assertSetupInput(input: CreateProductSetupInput) {
+    if (input.options.length > MAX_PRODUCT_OPTIONS) {
+      throw new ProductLifecycleConflictError(
+        `A Product can have at most ${MAX_PRODUCT_OPTIONS} options.`,
+      );
+    }
+    if (input.variants.length > MAX_ACTIVE_PRODUCT_VARIANTS) {
+      throw new ProductLifecycleConflictError(
+        `A Product can have at most ${MAX_ACTIVE_PRODUCT_VARIANTS} active Variants.`,
+      );
+    }
+
+    const optionKeys = new Set<string>();
+    const valueKeys = new Set<string>();
+    const optionNames = new Set<string>();
+    for (const option of input.options) {
+      if (option.values.length > MAX_PRODUCT_OPTION_VALUES) {
+        throw new ProductLifecycleConflictError(
+          `A Product option can have at most ${MAX_PRODUCT_OPTION_VALUES} values.`,
+        );
+      }
+      if (
+        optionKeys.has(option.clientKey) ||
+        optionNames.has(option.name.toLowerCase())
+      ) {
+        throw new ProductLifecycleConflictError(
+          'Product option keys and names must be unique.',
+        );
+      }
+      optionKeys.add(option.clientKey);
+      optionNames.add(option.name.toLowerCase());
+      const values = new Set<string>();
+      for (const value of option.values) {
+        if (
+          valueKeys.has(value.clientKey) ||
+          values.has(value.value.toLowerCase())
+        ) {
+          throw new ProductLifecycleConflictError(
+            'Product option value keys and values must be unique.',
+          );
+        }
+        valueKeys.add(value.clientKey);
+        values.add(value.value.toLowerCase());
+      }
+    }
+
+    const expectedSelections = input.options.length;
+    const variantSignatures = new Set<string>();
+    if (expectedSelections === 0 && input.variants.length !== 1) {
+      throw new ProductLifecycleConflictError(
+        'A Product without options requires exactly one default Variant.',
+      );
+    }
+    for (const variant of input.variants) {
+      if (
+        variant.optionValueClientKeys.length !== expectedSelections ||
+        new Set(variant.optionValueClientKeys).size !==
+          variant.optionValueClientKeys.length
+      ) {
+        throw new ProductLifecycleConflictError(
+          'Every Variant must select one value from every Product option.',
+        );
+      }
+      const signature = [...variant.optionValueClientKeys].sort().join('|');
+      if (variantSignatures.has(signature)) {
+        throw new ProductLifecycleConflictError(
+          'Every Variant must have a unique option selection.',
+        );
+      }
+      variantSignatures.add(signature);
+    }
+  }
+
+  private async assertProductLimit(
+    tx: NodePgDatabase<typeof schema>,
+    storeId: string,
+    productLimit: number,
+  ) {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${storeId}))`);
+    const [result] = await tx
+      .select({ count: count() })
+      .from(products)
+      .where(
+        and(
+          eq(products.storeId, storeId),
+          ne(products.status, ProductStatus.ARCHIVED),
+        ),
+      );
+    if (result.count >= productLimit) {
+      throw new ProductLimitExceededError(productLimit, result.count);
+    }
+  }
+
+  private async insertProduct(
+    tx: NodePgDatabase<typeof schema>,
+    storeId: string,
+    input: CreateProductInput,
+  ) {
+    const [product] = await tx
+      .insert(products)
+      .values({ storeId, ...input })
+      .returning();
+    return product;
   }
 
   private assertVariantCatalogState(variant: {
