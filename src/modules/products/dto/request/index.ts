@@ -1,4 +1,5 @@
 export { AddProductImageDto } from './add-product-image.dto';
+export { BulkDeleteProductImagesDto } from './bulk-delete-product-images.dto';
 export { CreateProductDto } from './create-product.dto';
 export { CreateProductVariantDto } from './create-product-variant.dto';
 export {

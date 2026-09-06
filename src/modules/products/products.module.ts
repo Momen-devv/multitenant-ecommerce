@@ -20,6 +20,9 @@ import { ProductVariantsService } from './services/product-variants.service';
 import { ProductsService } from './services/products.service';
 import { PublicProductsService } from './services/public-products.service';
 import { ActiveStoreGuard } from '@/common/guards/active-store.guard';
+import { StorageModule } from '@/infrastructure/storage/storage.module';
+import { ResourceCleanupQueueModule } from '@/infrastructure/queue/resource-cleanup/resource-cleanup-queue.module';
+import { ImageProcessingService } from '@/common/services/Image-processing.service';
 
 @Module({
   controllers: [
@@ -29,7 +32,12 @@ import { ActiveStoreGuard } from '@/common/guards/active-store.guard';
     ProductImagesController,
     PublicProductsController,
   ],
-  imports: [StoresModule, SubscriptionsModule],
+  imports: [
+    StoresModule,
+    SubscriptionsModule,
+    StorageModule,
+    ResourceCleanupQueueModule,
+  ],
   providers: [
     ProductsService,
     ProductsRepository,
@@ -43,6 +51,7 @@ import { ActiveStoreGuard } from '@/common/guards/active-store.guard';
     PublicProductsService,
     PublicProductsRepository,
     ActiveStoreGuard,
+    ImageProcessingService,
   ],
 })
 export class ProductsModule {}

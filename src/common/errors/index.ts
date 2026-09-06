@@ -4,3 +4,4 @@ export { StoreLifecycleConflictError } from './store-lifecycle-conflict.error';
 export { ProductLimitExceededError } from './product-limit-exceeded.error';
 export { VariantConflictError } from './variant-conflict.error';
 export { OptionGraphConflictError } from './option-graph-conflict.error';
+export { ProductImageGalleryConflictError } from './product-image-gallery-conflict.error';
