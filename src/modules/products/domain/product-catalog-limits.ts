@@ -1,3 +1,4 @@
+export const MAX_CATEGORIES_PER_PRODUCT = 20;
 export const MAX_PRODUCT_OPTIONS = 3;
 export const MAX_PRODUCT_OPTION_VALUES = 10;
 export const MAX_ACTIVE_PRODUCT_VARIANTS = 30;
