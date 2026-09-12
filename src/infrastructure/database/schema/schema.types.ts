@@ -9,6 +9,8 @@ import {
   productVariantOptionValues,
   productVariants,
   products,
+  categories,
+  productCategories,
   store,
   storeLifecycleAudit,
   subscriptionCheckoutAttempts,
@@ -27,6 +29,11 @@ export type NewStoreLifecycleAudit = typeof storeLifecycleAudit.$inferInsert;
 
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
+
+export type Category = typeof categories.$inferSelect;
+export type NewCategory = typeof categories.$inferInsert;
+export type ProductCategory = typeof productCategories.$inferSelect;
+export type NewProductCategory = typeof productCategories.$inferInsert;
 
 export type ProductVariant = typeof productVariants.$inferSelect;
 export type NewProductVariant = typeof productVariants.$inferInsert;

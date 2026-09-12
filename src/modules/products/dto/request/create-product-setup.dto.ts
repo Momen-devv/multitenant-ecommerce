@@ -19,7 +19,7 @@ import {
   MAX_ACTIVE_PRODUCT_VARIANTS,
   MAX_PRODUCT_OPTIONS,
   MAX_PRODUCT_OPTION_VALUES,
-} from '../../product-catalog-limits';
+} from '../../domain/product-catalog-limits';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;

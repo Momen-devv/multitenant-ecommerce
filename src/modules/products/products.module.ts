@@ -53,5 +53,6 @@ import { ImageProcessingService } from '@/common/services/Image-processing.servi
     ActiveStoreGuard,
     ImageProcessingService,
   ],
+  exports: [PublicProductsRepository],
 })
 export class ProductsModule {}

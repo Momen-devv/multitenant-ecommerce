@@ -8,10 +8,15 @@ export class PublicProductsService {
     private readonly publicProductsRepository: PublicProductsRepository,
   ) {}
 
-  async listPublishedProducts(storeSlug: string, query: ApiListQueryInput) {
+  async listPublishedProducts(
+    storeSlug: string,
+    query: ApiListQueryInput,
+    categorySlug?: string,
+  ) {
     const page = await this.publicProductsRepository.findPublishedPage(
       storeSlug,
       query,
+      categorySlug,
     );
     if (!page) throw new NotFoundException('Store not found');
     return page;

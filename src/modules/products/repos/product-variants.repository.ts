@@ -23,8 +23,8 @@ import { DrizzleQueryError } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DatabaseError } from 'pg';
 import { Inject, Injectable } from '@nestjs/common';
-import { deriveVariantPresentation } from '../variant-catalog';
-import { MAX_ACTIVE_PRODUCT_VARIANTS } from '../product-catalog-limits';
+import { deriveVariantPresentation } from '../domain/variant-catalog';
+import { MAX_ACTIVE_PRODUCT_VARIANTS } from '../domain/product-catalog-limits';
 
 export type CreateSimpleVariantInput = {
   price: number;

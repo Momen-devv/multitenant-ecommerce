@@ -3,6 +3,7 @@ export { ApiListQueryDto } from './api-list-query.dto';
 export {
   booleanCodec,
   enumCodec,
+  integerCodec,
   stringCodec,
   timestampCodec,
   uuidCodec,

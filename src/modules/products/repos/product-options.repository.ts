@@ -24,7 +24,7 @@ import type {
 import {
   MAX_PRODUCT_OPTIONS,
   MAX_PRODUCT_OPTION_VALUES,
-} from '../product-catalog-limits';
+} from '../domain/product-catalog-limits';
 
 @Injectable()
 export class ProductOptionsRepository {

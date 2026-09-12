@@ -6,12 +6,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import slugify from 'slugify';
-import { InventoryPolicy, SubscriptionStatus } from '@/common/enums';
+import { InventoryPolicy } from '@/common/enums';
 import type { ActiveStoreContext } from '@/common/guards/active-store.guard';
+import { createCatalogSlug } from '@/common/utils';
 import { SlugConflictError } from '@/common/errors/slug-conflict.error';
 import { ProductLimitExceededError } from '@/common/errors/product-limit-exceeded.error';
 import {
+  CategoryAssignmentNotFoundError,
   ProductLifecycleConflictError,
   StoreLifecycleConflictError,
 } from '@/common/errors';
@@ -20,6 +21,7 @@ import {
   CreateProductSetupDto,
   UpdateProductDto,
   UpdateProductStatusDto,
+  ReplaceProductCategoriesDto,
 } from '../dto';
 import type { ApiListQueryInput } from '@/common/api-query';
 import {
@@ -31,6 +33,7 @@ import {
   SUBSCRIPTIONS_REPOSITORY,
   type ISubscriptionsRepository,
 } from '@/modules/subscriptions/interfaces/repos';
+import { resolvePlanLimit } from '@/modules/subscriptions/domain/plan-limit';
 
 @Injectable()
 export class ProductsService {
@@ -48,7 +51,12 @@ export class ProductsService {
     try {
       const product = await this.productsRepository.create(
         store.storeId,
-        { name: dto.name, slug, description: dto.description ?? null },
+        {
+          name: dto.name,
+          slug,
+          description: dto.description ?? null,
+          categoryIds: dto.categoryIds ?? [],
+        },
         productLimit,
       );
       return product;
@@ -61,7 +69,7 @@ export class ProductsService {
           `Your plan allows ${err.limit} Products; you currently have ${err.usage}. Archive Products or upgrade your plan to create another.`,
         );
       }
-      throw err;
+      this.rethrowCategoryAssignmentError(err);
     }
   }
 
@@ -90,7 +98,7 @@ export class ProductsService {
       if (err instanceof ProductLifecycleConflictError) {
         throw new ConflictException(err.message);
       }
-      throw err;
+      this.rethrowCategoryAssignmentError(err);
     }
   }
 
@@ -101,6 +109,7 @@ export class ProductsService {
       name: dto.name,
       slug: dto.slug ?? this.generateSlug(dto.name),
       description: dto.description ?? null,
+      categoryIds: dto.categoryIds ?? [],
       options: (dto.options ?? []).map((option) => ({
         clientKey: option.key,
         name: option.name,
@@ -230,8 +239,35 @@ export class ProductsService {
     }
   }
 
+  async replaceProductCategories(
+    productId: string,
+    dto: ReplaceProductCategoriesDto,
+    store: ActiveStoreContext,
+  ) {
+    try {
+      const product = await this.productsRepository.replaceCategories(
+        store.storeId,
+        productId,
+        dto.categoryIds,
+        dto.expectedVersion,
+      );
+      if (!product) throw new NotFoundException('Product not found');
+      return product;
+    } catch (error) {
+      if (error instanceof StoreLifecycleConflictError) {
+        throw new ForbiddenException(
+          'The Store is no longer active and cannot be modified.',
+        );
+      }
+      if (error instanceof ProductLifecycleConflictError) {
+        throw new ConflictException(error.message);
+      }
+      this.rethrowCategoryAssignmentError(error);
+    }
+  }
+
   private generateSlug(name: string) {
-    const slug = slugify(name, { lower: true, strict: true, trim: true });
+    const slug = createCatalogSlug(name);
 
     if (!slug) {
       throw new BadRequestException(
@@ -242,26 +278,31 @@ export class ProductsService {
     return slug;
   }
 
+  private rethrowCategoryAssignmentError(error: unknown): never {
+    if (error instanceof CategoryAssignmentNotFoundError) {
+      throw new NotFoundException('One or more Categories were not found.');
+    }
+    throw error;
+  }
+
   private async getProductLimit(storeId: string): Promise<number> {
-    const subscription =
+    const resolution = resolvePlanLimit(
       await this.subscriptionsRepository.findCurrentPlanEntitlementByStoreId(
         storeId,
-      );
-    if (
-      subscription?.status !== SubscriptionStatus.ACTIVE &&
-      subscription?.status !== SubscriptionStatus.TRIALING
-    ) {
+      ),
+      'products',
+    );
+    if (resolution.kind === 'subscription-required') {
       throw new ForbiddenException(
         'An active or trial subscription is required to create Products.',
       );
     }
-    const productLimit = subscription.plan.limits.products;
-    if (typeof productLimit !== 'number') {
+    if (resolution.kind === 'limit-missing') {
       throw new ForbiddenException(
         'Your plan does not include a Product limit.',
       );
     }
-    return productLimit;
+    return resolution.limit;
   }
 
   private buildSlugConflictMessage(dto: CreateProductDto): string {

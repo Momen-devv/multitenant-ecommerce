@@ -9,7 +9,7 @@ import {
   Min,
 } from 'class-validator';
 import { InventoryPolicy, ProductVariantStatus } from '@/common/enums';
-import { MAX_PRODUCT_OPTIONS } from '../../product-catalog-limits';
+import { MAX_PRODUCT_OPTIONS } from '../../domain/product-catalog-limits';
 
 export class CreateProductVariantDto {
   @ApiPropertyOptional({

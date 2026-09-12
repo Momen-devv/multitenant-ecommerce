@@ -8,8 +8,12 @@ import {
   products,
 } from '@/infrastructure/database/schema/products.schema';
 import { store } from '@/infrastructure/database/schema/app.schema';
+import {
+  categories,
+  productCategories,
+} from '@/infrastructure/database/schema/categories.schema';
 import * as schema from '@/infrastructure/database/schema/schema';
-import { and, asc, count, eq, ne, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import { DrizzleQueryError } from 'drizzle-orm';
 import { Inject, Injectable } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -19,11 +23,14 @@ import { ProductLimitExceededError } from '@/common/errors/product-limit-exceede
 import { ProductLifecycleConflictError } from '@/common/errors/product-lifecycle-conflict.error';
 import { StoreLifecycleConflictError } from '@/common/errors/store-lifecycle-conflict.error';
 import {
+  CategoryStatus,
   InventoryPolicy,
   ProductStatus,
   ProductVariantStatus,
   StoreStatus,
 } from '@/common/enums';
+import { CategoryAssignmentNotFoundError } from '@/common/errors';
+import { findCategorySummariesByProduct } from '@/modules/categories/repos/category-membership.reader';
 import { compileApiQuery, type ApiListQueryInput } from '@/common/api-query';
 import type {
   CreateProductInput,
@@ -37,12 +44,13 @@ import { ownerProductQuery } from '../queries/owner-product.query';
 import {
   deriveVariantPresentation,
   generateVariantIdentifiers,
-} from '../variant-catalog';
+} from '../domain/variant-catalog';
 import {
+  MAX_CATEGORIES_PER_PRODUCT,
   MAX_ACTIVE_PRODUCT_VARIANTS,
   MAX_PRODUCT_OPTIONS,
   MAX_PRODUCT_OPTION_VALUES,
-} from '../product-catalog-limits';
+} from '../domain/product-catalog-limits';
 
 @Injectable()
 export class ProductsRepository implements IProductsRepository {
@@ -58,7 +66,15 @@ export class ProductsRepository implements IProductsRepository {
     try {
       const product = await this.db.transaction(async (tx) => {
         await this.assertProductLimit(tx, storeId, productLimit);
-        return this.insertProduct(tx, storeId, input);
+        await this.assertAssignableCategories(tx, storeId, input.categoryIds);
+        const product = await this.insertProduct(tx, storeId, input);
+        await this.insertCategoryMemberships(
+          tx,
+          storeId,
+          product.id,
+          input.categoryIds,
+        );
+        return product;
       });
       return product;
     } catch (error) {
@@ -79,7 +95,14 @@ export class ProductsRepository implements IProductsRepository {
       return await this.db.transaction(async (tx) => {
         await this.assertProductLimit(tx, storeId, productLimit);
         this.assertSetupInput(input);
+        await this.assertAssignableCategories(tx, storeId, input.categoryIds);
         const product = await this.insertProduct(tx, storeId, input);
+        await this.insertCategoryMemberships(
+          tx,
+          storeId,
+          product.id,
+          input.categoryIds,
+        );
 
         const optionClientKeys = new Set<string>();
         const valueByKey = new Map<
@@ -212,11 +235,11 @@ export class ProductsRepository implements IProductsRepository {
   }
 
   private async findOneWith(
-    db: Pick<NodePgDatabase<typeof schema>, 'query'>,
+    db: NodePgDatabase<typeof schema>,
     storeId: string,
     productId: string,
   ): Promise<ProductAggregate | undefined> {
-    return db.query.products.findFirst({
+    const product = await db.query.products.findFirst({
       where: and(eq(products.storeId, storeId), eq(products.id, productId)),
       columns: {
         id: true,
@@ -293,6 +316,14 @@ export class ProductsRepository implements IProductsRepository {
         },
       },
     });
+    if (!product) return undefined;
+    const categoryRows = await findCategorySummariesByProduct(
+      db,
+      storeId,
+      [product.id],
+      'all',
+    );
+    return { ...product, categories: categoryRows.get(product.id) ?? [] };
   }
 
   async findPage(storeId: string, input: ApiListQueryInput) {
@@ -303,12 +334,102 @@ export class ProductsRepository implements IProductsRepository {
       conditions.push(ne(products.status, ProductStatus.ARCHIVED));
     }
     const rows = await this.db.query.products.findMany({
-      columns: query.columns,
+      columns: { ...query.columns, id: true },
       where: and(...conditions),
       orderBy: query.orderBy,
       limit: query.limit + 1,
     });
-    return query.createPage(rows);
+    const categoryRows = await findCategorySummariesByProduct(
+      this.db,
+      storeId,
+      rows.map((item) => item.id),
+      'non-archived',
+    );
+    return query.createPage(rows, (item) => ({
+      categories: categoryRows.get(item.id) ?? [],
+    }));
+  }
+
+  async replaceCategories(
+    storeId: string,
+    productId: string,
+    categoryIds: string[],
+    expectedVersion: number,
+  ) {
+    return this.db.transaction(async (tx) => {
+      const [product] = await tx
+        .select()
+        .from(products)
+        .where(and(eq(products.storeId, storeId), eq(products.id, productId)))
+        .for('update');
+      if (!product) return undefined;
+      const [lockedStore] = await tx
+        .select({ status: store.status })
+        .from(store)
+        .where(eq(store.id, storeId))
+        .for('update');
+      if (lockedStore?.status !== StoreStatus.ACTIVE) {
+        throw new StoreLifecycleConflictError();
+      }
+      if (product.status === ProductStatus.ARCHIVED) {
+        throw new ProductLifecycleConflictError(
+          'Archived Products cannot change Categories.',
+        );
+      }
+      if (product.version !== expectedVersion) {
+        throw new ProductLifecycleConflictError(
+          'Product changed during this request.',
+        );
+      }
+      await this.assertAssignableCategories(tx, storeId, categoryIds);
+      const currentNonArchivedMemberships = await tx
+        .select({ categoryId: productCategories.categoryId })
+        .from(productCategories)
+        .innerJoin(
+          categories,
+          and(
+            eq(categories.storeId, productCategories.storeId),
+            eq(categories.id, productCategories.categoryId),
+          ),
+        )
+        .where(
+          and(
+            eq(productCategories.storeId, storeId),
+            eq(productCategories.productId, productId),
+            ne(categories.status, CategoryStatus.ARCHIVED),
+          ),
+        );
+      if (currentNonArchivedMemberships.length > 0) {
+        await tx.delete(productCategories).where(
+          and(
+            eq(productCategories.storeId, storeId),
+            eq(productCategories.productId, productId),
+            inArray(
+              productCategories.categoryId,
+              currentNonArchivedMemberships.map((row) => row.categoryId),
+            ),
+          ),
+        );
+      }
+      await this.insertCategoryMemberships(tx, storeId, productId, categoryIds);
+      const [updated] = await tx
+        .update(products)
+        .set({ version: sql`${products.version} + 1`, updatedAt: new Date() })
+        .where(
+          and(
+            eq(products.storeId, storeId),
+            eq(products.id, productId),
+            eq(products.version, expectedVersion),
+          ),
+        )
+        .returning({ id: products.id });
+      if (!updated) {
+        throw new ProductLifecycleConflictError(
+          'Product changed during this request.',
+        );
+      }
+      return this.findOneWith(tx, storeId, productId);
+    });
   }
 
   async update(storeId: string, productId: string, input: UpdateProductInput) {
@@ -714,9 +835,55 @@ export class ProductsRepository implements IProductsRepository {
   ) {
     const [product] = await tx
       .insert(products)
-      .values({ storeId, ...input })
+      .values({
+        storeId,
+        name: input.name,
+        slug: input.slug,
+        description: input.description,
+      })
       .returning();
     return product;
+  }
+
+  private async assertAssignableCategories(
+    tx: NodePgDatabase<typeof schema>,
+    storeId: string,
+    categoryIds: string[],
+  ) {
+    if (categoryIds.length > MAX_CATEGORIES_PER_PRODUCT) {
+      throw new ProductLifecycleConflictError(
+        `A Product can belong to at most ${MAX_CATEGORIES_PER_PRODUCT} Categories.`,
+      );
+    }
+    if (categoryIds.length === 0) return;
+    const rows = await tx
+      .select({ id: categories.id })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.storeId, storeId),
+          inArray(categories.id, categoryIds),
+          ne(categories.status, CategoryStatus.ARCHIVED),
+        ),
+      )
+      .for('update');
+    if (rows.length !== new Set(categoryIds).size) {
+      throw new CategoryAssignmentNotFoundError();
+    }
+  }
+
+  private async insertCategoryMemberships(
+    tx: NodePgDatabase<typeof schema>,
+    storeId: string,
+    productId: string,
+    categoryIds: string[],
+  ) {
+    if (categoryIds.length === 0) return;
+    await tx
+      .insert(productCategories)
+      .values(
+        categoryIds.map((categoryId) => ({ storeId, productId, categoryId })),
+      );
   }
 
   private assertVariantCatalogState(variant: {

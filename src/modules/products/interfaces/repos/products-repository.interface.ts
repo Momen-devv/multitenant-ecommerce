@@ -1,5 +1,6 @@
 import type { ApiListQueryInput, CursorPage } from '@/common/api-query';
 import type {
+  Category,
   Product,
   ProductImage,
   ProductOption,
@@ -10,7 +11,12 @@ import type {
 } from '@/infrastructure/database/schema/schema.types';
 import { InventoryPolicy, ProductStatus } from '@/common/enums';
 
-export type CreateProductInput = Pick<Product, 'name' | 'slug' | 'description'>;
+export type CreateProductInput = Pick<
+  Product,
+  'name' | 'slug' | 'description'
+> & {
+  categoryIds: string[];
+};
 export type UpdateProductInput = Partial<Pick<Product, 'name' | 'description'>>;
 export type CreateProductSetupInput = CreateProductInput & {
   options: Array<{
@@ -45,6 +51,7 @@ export type ProductAggregate = Pick<
   | 'createdAt'
   | 'updatedAt'
 > & {
+  categories: Array<Pick<Category, 'id' | 'name' | 'slug' | 'status'>>;
   store: Pick<Store, 'defaultCurrency'> | null;
   images: Array<
     Pick<
@@ -123,4 +130,10 @@ export interface IProductsRepository {
     productId: string,
     status: ProductStatusTransition,
   ): Promise<Product | undefined>;
+  replaceCategories(
+    storeId: string,
+    productId: string,
+    categoryIds: string[],
+    expectedVersion: number,
+  ): Promise<ProductAggregate | undefined>;
 }

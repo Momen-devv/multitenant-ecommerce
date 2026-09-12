@@ -22,7 +22,7 @@ import {
   ProductVariantsRepository,
   type CreateSimpleVariantInput,
 } from '../repos/product-variants.repository';
-import { generateVariantIdentifiers } from '../variant-catalog';
+import { generateVariantIdentifiers } from '../domain/variant-catalog';
 
 @Injectable()
 export class ProductVariantsService {

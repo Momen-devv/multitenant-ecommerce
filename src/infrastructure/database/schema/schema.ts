@@ -3,3 +3,4 @@ export * from './app.schema';
 export * from './billing.schema';
 export * from './outbox.schema';
 export * from './products.schema';
+export * from './categories.schema';

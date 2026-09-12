@@ -6,3 +6,8 @@ export { VariantConflictError } from './variant-conflict.error';
 export { OptionGraphConflictError } from './option-graph-conflict.error';
 export { ProductImageGalleryConflictError } from './product-image-gallery-conflict.error';
 export { ProductLifecycleConflictError } from './product-lifecycle-conflict.error';
+export { CategoryAssignmentNotFoundError } from './category-assignment-not-found.error';
+export { CategoryLifecycleConflictError } from './category-lifecycle-conflict.error';
+export { CategoryLimitExceededError } from './category-limit-exceeded.error';
+export { CategoryReorderConflictError } from './category-reorder-conflict.error';
+export { CategoryVersionConflictError } from './category-version-conflict.error';

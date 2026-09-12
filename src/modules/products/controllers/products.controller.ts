@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -35,6 +36,7 @@ import {
   ProductResponseDto,
   UpdateProductDto,
   UpdateProductStatusDto,
+  ReplaceProductCategoriesDto,
 } from '../dto';
 import { ApiListQueryDto } from '@/common/api-query';
 
@@ -150,6 +152,27 @@ export class ProductsController {
     @ActiveStore() store: ActiveStoreContext,
   ) {
     return this.productsService.getProduct(productId, store);
+  }
+
+  @OrgRoles([OrganizationRole.OWNER])
+  @ApiOperation({
+    summary: "Atomically replace a Product's non-archived Categories",
+  })
+  @ApiSuccessResponse({
+    description: 'Product Categories replaced successfully',
+    model: ProductResponseDto,
+  })
+  @ApiErrorResponse(HttpStatus.CONFLICT, 'Product is archived or stale')
+  @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Product or Category not found')
+  @Throttle({ default: { limit: 10, ttl: seconds(60) } })
+  @ResponseMessage('Product Categories replaced successfully')
+  @Put(':productId/categories')
+  replaceCategories(
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Body() dto: ReplaceProductCategoriesDto,
+    @ActiveStore() store: ActiveStoreContext,
+  ) {
+    return this.productsService.replaceProductCategories(productId, dto, store);
   }
 
   @OrgRoles([OrganizationRole.OWNER])
