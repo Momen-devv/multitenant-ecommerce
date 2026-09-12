@@ -1,5 +1,6 @@
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import {
+  CategoryStatus,
   ProductStatus,
   ProductVariantStatus,
   StoreStatus,
@@ -14,11 +15,16 @@ import {
   productVariantOptionValues,
   productVariants,
 } from '@/infrastructure/database/schema/products.schema';
+import {
+  categories,
+  productCategories,
+} from '@/infrastructure/database/schema/categories.schema';
 import * as schema from '@/infrastructure/database/schema/schema';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Inject, Injectable } from '@nestjs/common';
 import { publicProductQuery } from '../queries/public-product.query';
+import { findCategorySummariesByProduct } from '@/modules/categories/repos/category-membership.reader';
 
 @Injectable()
 export class PublicProductsRepository {
@@ -26,7 +32,11 @@ export class PublicProductsRepository {
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
   ) {}
 
-  async findPublishedPage(storeSlug: string, input: ApiListQueryInput) {
+  async findPublishedPage(
+    storeSlug: string,
+    input: ApiListQueryInput,
+    categorySlug?: string,
+  ) {
     return this.db.transaction(
       async (tx) => {
         const activeStore = await tx.query.store.findFirst({
@@ -39,8 +49,30 @@ export class PublicProductsRepository {
         if (!activeStore) return undefined;
 
         const query = compileApiQuery(publicProductQuery, input);
+        const categoryCondition = categorySlug
+          ? exists(
+              tx
+                .select({ value: sql`1` })
+                .from(productCategories)
+                .innerJoin(
+                  categories,
+                  and(
+                    eq(categories.storeId, productCategories.storeId),
+                    eq(categories.id, productCategories.categoryId),
+                  ),
+                )
+                .where(
+                  and(
+                    eq(productCategories.storeId, activeStore.id),
+                    eq(productCategories.productId, products.id),
+                    eq(categories.slug, categorySlug),
+                    eq(categories.status, CategoryStatus.PUBLISHED),
+                  ),
+                ),
+            )
+          : undefined;
         const rows = await tx.query.products.findMany({
-          columns: query.columns,
+          columns: { ...query.columns, id: true },
           with: {
             images: {
               columns: { id: true, publicUrl: true, altText: true },
@@ -57,21 +89,35 @@ export class PublicProductsRepository {
           where: and(
             eq(products.storeId, activeStore.id),
             eq(products.status, ProductStatus.PUBLISHED),
+            categoryCondition,
             query.where,
           ),
           orderBy: query.orderBy,
           limit: query.limit + 1,
         });
 
-        return query.createPage(
-          rows,
-          ({ images: [image], variants: [variant] }) => ({
+        const categoryMap = await findCategorySummariesByProduct(
+          tx,
+          activeStore.id,
+          rows.map((row) => (row as unknown as { id: string }).id),
+          'published',
+        );
+        return query.createPage(rows, (row) => {
+          const {
+            id,
+            images: [image],
+            variants: [variant],
+          } = row as unknown as typeof row & { id: string };
+          return {
             price: variant.price,
             compareAtPrice: variant.compareAtPrice,
             currency: activeStore.defaultCurrency,
             image: image ?? null,
-          }),
-        );
+            categories: (categoryMap.get(id) ?? []).map(
+              this.toPublicCategorySummary,
+            ),
+          };
+        });
       },
       { isolationLevel: 'repeatable read', accessMode: 'read only' },
     );
@@ -155,9 +201,31 @@ export class PublicProductsRepository {
             },
           },
         });
-        return product;
+        if (!product) return undefined;
+        const categoryMap = await findCategorySummariesByProduct(
+          tx,
+          activeStore.id,
+          [product.id],
+          'published',
+        );
+        return {
+          ...product,
+          categories: (categoryMap.get(product.id) ?? []).map(
+            this.toPublicCategorySummary,
+          ),
+        };
       },
       { isolationLevel: 'repeatable read', accessMode: 'read only' },
     );
   }
+
+  private readonly toPublicCategorySummary = (category: {
+    id: string;
+    name: string;
+    slug: string;
+  }) => ({
+    id: category.id,
+    name: category.name,
+    slug: category.slug,
+  });
 }

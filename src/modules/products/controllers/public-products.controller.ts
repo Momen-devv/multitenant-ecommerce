@@ -9,14 +9,17 @@ import {
 } from '@nestjs/common';
 import { seconds, Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { ApiListQueryDto } from '@/common/api-query';
 import {
   ApiErrorResponse,
   ApiSuccessResponse,
   ResponseMessage,
 } from '@/common/decorators';
 import { ParseSlugPipe } from '@/common/pipes/parse-slug.pipe';
-import { PublicProductListResponseDto, PublicProductResponseDto } from '../dto';
+import {
+  PublicProductListQueryDto,
+  PublicProductListResponseDto,
+  PublicProductResponseDto,
+} from '../dto';
 import { PublicProductsService } from '../services/public-products.service';
 
 @ApiTags('Public Products')
@@ -44,9 +47,14 @@ export class PublicProductsController {
   @Get()
   listPublishedProducts(
     @Param('storeSlug', ParseSlugPipe) storeSlug: string,
-    @Query() query: ApiListQueryDto,
+    @Query() query: PublicProductListQueryDto,
   ) {
-    return this.publicProductsService.listPublishedProducts(storeSlug, query);
+    const { category, ...listQuery } = query;
+    return this.publicProductsService.listPublishedProducts(
+      storeSlug,
+      listQuery,
+      category,
+    );
   }
 
   @ApiOperation({
