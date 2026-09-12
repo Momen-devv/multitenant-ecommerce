@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  CategoryStatus,
   InventoryPolicy,
   ProductStatus,
   ProductVariantStatus,
@@ -29,6 +30,29 @@ export class ProductListItemResponseDto {
 
   @ApiProperty()
   updatedAt!: Date;
+
+  @ApiProperty({ type: () => [ProductCategorySummaryResponseDto] })
+  categories!: ProductCategorySummaryResponseDto[];
+}
+
+export class ProductCategorySummaryResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+  @ApiProperty()
+  name!: string;
+  @ApiProperty()
+  slug!: string;
+  @ApiProperty({ enum: CategoryStatus })
+  status!: CategoryStatus;
+}
+
+export class PublicProductCategorySummaryResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+  @ApiProperty()
+  name!: string;
+  @ApiProperty()
+  slug!: string;
 }
 
 export class ProductListResponseDto {
@@ -86,6 +110,9 @@ export class PublicProductListItemResponseDto {
 
   @ApiProperty()
   updatedAt!: Date;
+
+  @ApiProperty({ type: () => [PublicProductCategorySummaryResponseDto] })
+  categories!: PublicProductCategorySummaryResponseDto[];
 }
 
 export class PublicProductListResponseDto {
@@ -191,6 +218,9 @@ export class PublicProductResponseDto {
 
   @ApiProperty({ type: () => [PublicProductVariantResponseDto] })
   variants!: PublicProductVariantResponseDto[];
+
+  @ApiProperty({ type: () => [PublicProductCategorySummaryResponseDto] })
+  categories!: PublicProductCategorySummaryResponseDto[];
 }
 
 export class ProductContentResponseDto {
@@ -414,4 +444,7 @@ export class ProductResponseDto {
 
   @ApiProperty({ type: () => [ProductVariantResponseDto] })
   variants!: ProductVariantResponseDto[];
+
+  @ApiProperty({ type: () => [ProductCategorySummaryResponseDto] })
+  categories!: ProductCategorySummaryResponseDto[];
 }

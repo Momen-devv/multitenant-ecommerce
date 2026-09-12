@@ -1,18 +1,21 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, Length, Matches } from 'class-validator';
-
-const trim = ({ value }: { value: unknown }) =>
-  typeof value === 'string' ? value.trim() : value;
-
-const trimOrNull = ({ value }: { value: unknown }) => {
-  if (typeof value !== 'string') return value;
-  return value.trim() || null;
-};
+import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Matches,
+} from 'class-validator';
+import { MAX_CATEGORIES_PER_PRODUCT } from '@/modules/products/domain/product-catalog-limits';
+import { trimStringOrNull, trimStringValue } from '@/common/utils';
 
 export class CreateProductDto {
   @ApiProperty({ example: 'Classic T-shirt', minLength: 1, maxLength: 200 })
-  @Transform(trim)
+  @Transform(trimStringValue)
   @IsString()
   @Length(1, 200)
   name!: string;
@@ -23,7 +26,7 @@ export class CreateProductDto {
     pattern: '^[a-z0-9]+(-[a-z0-9]+)*$',
     maxLength: 200,
   })
-  @Transform(trimOrNull)
+  @Transform(trimStringOrNull)
   @IsOptional()
   @IsString()
   @Length(1, 200)
@@ -33,9 +36,22 @@ export class CreateProductDto {
   slug?: string | null;
 
   @ApiProperty({ required: false, maxLength: 50000 })
-  @Transform(trimOrNull)
+  @Transform(trimStringOrNull)
   @IsOptional()
   @IsString()
   @Length(1, 50000)
   description?: string | null;
+
+  @ApiProperty({
+    required: false,
+    type: () => [String],
+    format: 'uuid',
+    maxItems: MAX_CATEGORIES_PER_PRODUCT,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_CATEGORIES_PER_PRODUCT)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  categoryIds?: string[];
 }

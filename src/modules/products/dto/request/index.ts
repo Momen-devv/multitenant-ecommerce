@@ -17,4 +17,6 @@ export { UpdateProductDto } from './update-product.dto';
 export { UpdateProductImageDto } from './update-product-image.dto';
 export { UpdateProductInventoryDto } from './update-product-inventory.dto';
 export { UpdateProductStatusDto } from './update-product-status.dto';
+export { ReplaceProductCategoriesDto } from './replace-product-categories.dto';
+export { PublicProductListQueryDto } from './public-product-list-query.dto';
 export { UpdateProductVariantDto } from './update-product-variant.dto';

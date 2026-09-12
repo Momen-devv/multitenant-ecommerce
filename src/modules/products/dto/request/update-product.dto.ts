@@ -2,14 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsOptional, IsString, Length } from 'class-validator';
 import { AtLeastOneField } from '@/common/decorators';
-
-const trim = ({ value }: { value: unknown }) =>
-  typeof value === 'string' ? value.trim() : value;
-
-const trimOrNull = ({ value }: { value: unknown }) => {
-  if (typeof value !== 'string') return value;
-  return value.trim() || null;
-};
+import { trimStringOrNull, trimStringValue } from '@/common/utils';
 
 @AtLeastOneField(['name', 'description'])
 export class UpdateProductDto {
@@ -18,7 +11,7 @@ export class UpdateProductDto {
     minLength: 1,
     maxLength: 200,
   })
-  @Transform(trim)
+  @Transform(trimStringValue)
   @IsOptional()
   @IsString()
   @Length(1, 200)
@@ -29,7 +22,7 @@ export class UpdateProductDto {
     maxLength: 50000,
     nullable: true,
   })
-  @Transform(trimOrNull)
+  @Transform(trimStringOrNull)
   @IsOptional()
   @IsString()
   @Length(1, 50000)
