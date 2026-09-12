@@ -84,6 +84,19 @@ export const booleanCodec: ApiQueryCodec<boolean> = {
   },
 };
 
+export const integerCodec: ApiQueryCodec<number> = {
+  parse(value) {
+    const parsed = typeof value === 'number' ? value : Number(value);
+    if (!Number.isInteger(parsed)) {
+      throw new BadRequestException('Expected an integer value');
+    }
+    return parsed;
+  },
+  serialize(value) {
+    return value;
+  },
+};
+
 export function enumCodec<const T extends string>(
   values: readonly T[],
 ): ApiQueryCodec<T> {
