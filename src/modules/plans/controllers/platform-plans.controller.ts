@@ -38,7 +38,7 @@ export class PlatformPlansController {
   @ApiOperation({
     summary: 'Create a plan',
     description:
-      'Creates a pending plan and schedules its Stripe product and prices for asynchronous provisioning.',
+      'Creates an inactive pending plan and schedules its Stripe product and prices for asynchronous provisioning. Activate the plan separately once provisioning is ready.',
   })
   @ApiSuccessResponse({
     status: HttpStatus.ACCEPTED,

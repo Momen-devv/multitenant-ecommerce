@@ -270,7 +270,7 @@ export class PlatformPlansRepository implements IPlatformPlansRepository {
           stripeProductId: input.stripeProductId,
           provisioningStatus: PlanProvisioningStatus.READY,
           provisioningError: null,
-          isActive: true,
+          isActive: false,
           updatedAt: new Date(),
         })
         .where(

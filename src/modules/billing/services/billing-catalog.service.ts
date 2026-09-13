@@ -37,6 +37,7 @@ export class BillingCatalogService {
       {
         name: input.name,
         description: input.description,
+        active: false,
         metadata: {
           planId: input.planId,
           planCode: input.code,
