@@ -1,4 +1,5 @@
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
+import { compileApiQuery } from '@/common/api-query';
 import {
   CartState,
   InventoryPolicy,
@@ -9,7 +10,10 @@ import {
   ProductVariantStatus,
   StoreStatus,
 } from '@/common/enums';
-import { CheckoutConflictError } from '@/common/errors';
+import {
+  CheckoutConflictError,
+  OrderTransitionConflictError,
+} from '@/common/errors';
 import { calculateLineTotal, sumMinorUnits } from '@/common/commerce/money';
 import { store } from '@/infrastructure/database/schema/app.schema';
 import {
@@ -33,6 +37,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { and, asc, DrizzleQueryError, eq, inArray, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -41,15 +46,20 @@ import { DatabaseError } from 'pg';
 import type {
   CheckoutInput,
   CheckoutReceipt,
+  OrderDetail,
+  OrderListQuery,
+  OrderListResult,
+  OrdersPort,
   OrderedOptionSnapshot,
 } from '../contracts';
+import { ownerOrderQuery } from '../queries/owner-order.query';
 
 /**
  * Checkout lock order is Cart, Products (ascending ID), Store, then Variants
  * (ascending ID). Catalog write paths already lock Products before Store.
  */
 @Injectable()
-export class OrdersRepository {
+export class OrdersRepository implements OrdersPort {
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
   ) {}
@@ -71,10 +81,71 @@ export class OrdersRepository {
           requestFingerprint,
         );
       } catch (error) {
-        if (!isDetectedDeadlock(error) || attempt === 2) throw error;
+        if (isDetectedDeadlock(error) && attempt < 2) continue;
+        throw databaseCause(error);
       }
     }
     throw new Error('Checkout transaction retries were exhausted.');
+  }
+
+  async listOrders(
+    storeId: string,
+    input: OrderListQuery,
+  ): Promise<OrderListResult> {
+    const query = compileApiQuery(ownerOrderQuery, {
+      cursor: input.cursor,
+      limit: input.limit,
+      filter: input.status ? { status: { eq: input.status } } : undefined,
+    });
+    const rows = await this.db.query.orders.findMany({
+      columns: { ...query.columns, id: true },
+      where: and(eq(orders.storeId, storeId), query.where),
+      orderBy: query.orderBy,
+      limit: query.limit + 1,
+    });
+    const page = query.createPage(rows);
+    return {
+      items: page.items.map((item) => ({
+        id: item.id,
+        status: item.status,
+        currency: item.currency,
+        total: item.total,
+        placedAt: item.placedAt,
+      })),
+      nextCursor: page.pageInfo.nextCursor,
+    };
+  }
+
+  async getOrder(storeId: string, orderId: string): Promise<OrderDetail> {
+    return this.detailFor(this.db, storeId, orderId);
+  }
+
+  async fulfillOrder(
+    storeId: string,
+    orderId: string,
+    actorId: string,
+  ): Promise<OrderDetail> {
+    return this.transitionOrder(
+      storeId,
+      orderId,
+      actorId,
+      OrderStatus.FULFILLED,
+    );
+  }
+
+  async cancelOrder(
+    storeId: string,
+    orderId: string,
+    actorId: string,
+    reason: string,
+  ): Promise<OrderDetail> {
+    return this.transitionOrder(
+      storeId,
+      orderId,
+      actorId,
+      OrderStatus.CANCELLED,
+      reason,
+    );
   }
 
   private async placeOrderAttempt(
@@ -351,10 +422,173 @@ export class OrdersRepository {
         placedAt: order.placedAt,
         items: itemValues.map((item, index) => ({
           id: insertedItems[index].id,
-          ...item,
+          sourceProductId: item.sourceProductId,
+          sourceVariantId: item.sourceVariantId,
+          productName: item.productName,
+          variantTitle: item.variantTitle,
+          sku: item.sku,
+          orderedOptions: item.orderedOptions,
+          unitPrice: item.unitPrice,
+          quantity: item.quantity,
+          lineTotal: item.lineTotal,
+          inventoryPolicy: item.inventoryPolicy,
         })),
       };
     });
+  }
+
+  /**
+   * Terminal transitions lock the Order, then Store, then Variants by ID.
+   * This remains compatible with checkout and catalog write paths, which take
+   * the Store lock before their Variant locks.
+   */
+  private async transitionOrder(
+    storeId: string,
+    orderId: string,
+    actorId: string,
+    targetStatus: OrderStatus.FULFILLED | OrderStatus.CANCELLED,
+    reason?: string,
+  ): Promise<OrderDetail> {
+    if (!actorId.trim()) throw new BadRequestException('actorId is required');
+    if (targetStatus === OrderStatus.CANCELLED) {
+      if (!reason || reason !== reason.trim() || reason.length > 500) {
+        throw new BadRequestException(
+          'Cancellation reason must be between 1 and 500 trimmed characters.',
+        );
+      }
+    }
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await this.db.transaction(async (tx) => {
+          const [order] = await tx
+            .select({ id: orders.id, status: orders.status })
+            .from(orders)
+            .where(and(eq(orders.storeId, storeId), eq(orders.id, orderId)))
+            .for('update');
+          if (!order) throw new NotFoundException('Order not found');
+
+          if (order.status === targetStatus) {
+            return this.detailFor(tx, storeId, orderId);
+          }
+          if (order.status !== OrderStatus.PLACED) {
+            throw new OrderTransitionConflictError(
+              `Order has already been ${order.status}.`,
+            );
+          }
+
+          const items = await tx
+            .select({
+              sourceVariantId: orderItems.sourceVariantId,
+              quantity: orderItems.quantity,
+              inventoryPolicy: orderItems.inventoryPolicy,
+            })
+            .from(orderItems)
+            .where(
+              and(
+                eq(orderItems.storeId, storeId),
+                eq(orderItems.orderId, orderId),
+              ),
+            )
+            .orderBy(asc(orderItems.sourceVariantId));
+
+          const [lockedStore] = await tx
+            .select({ id: store.id, status: store.status })
+            .from(store)
+            .where(eq(store.id, storeId))
+            .for('update');
+          if (!lockedStore) throw new NotFoundException('Store not found');
+          if (
+            targetStatus === OrderStatus.FULFILLED &&
+            lockedStore.status !== StoreStatus.ACTIVE
+          ) {
+            throw new OrderTransitionConflictError(
+              'Inactive Stores cannot fulfill Orders.',
+            );
+          }
+
+          const trackedItems = items.filter(
+            (item) => item.inventoryPolicy === InventoryPolicy.TRACKED,
+          );
+          if (trackedItems.length) {
+            const variantIds = trackedItems.map((item) => item.sourceVariantId);
+            const lockedVariants = await tx
+              .select({
+                id: productVariants.id,
+                onHand: productVariants.onHand,
+                reserved: productVariants.reserved,
+              })
+              .from(productVariants)
+              .where(
+                and(
+                  eq(productVariants.storeId, storeId),
+                  inArray(productVariants.id, variantIds),
+                ),
+              )
+              .orderBy(asc(productVariants.id))
+              .for('update');
+            const variantsById = new Map(
+              lockedVariants.map((variant) => [variant.id, variant]),
+            );
+
+            for (const item of trackedItems) {
+              const variant = variantsById.get(item.sourceVariantId);
+              if (
+                !variant ||
+                variant.onHand === null ||
+                variant.reserved === null ||
+                variant.reserved < item.quantity ||
+                (targetStatus === OrderStatus.FULFILLED &&
+                  variant.onHand < item.quantity)
+              ) {
+                throw new OrderTransitionConflictError(
+                  'Order reservation is no longer available.',
+                );
+              }
+              await tx
+                .update(productVariants)
+                .set({
+                  ...(targetStatus === OrderStatus.FULFILLED
+                    ? {
+                        onHand: sql`${productVariants.onHand} - ${item.quantity}`,
+                      }
+                    : {}),
+                  reserved: sql`${productVariants.reserved} - ${item.quantity}`,
+                  version: sql`${productVariants.version} + 1`,
+                  updatedAt: new Date(),
+                })
+                .where(eq(productVariants.id, item.sourceVariantId));
+            }
+          }
+
+          const now = new Date();
+          await tx
+            .update(orders)
+            .set({
+              status: targetStatus,
+              ...(targetStatus === OrderStatus.FULFILLED
+                ? { fulfilledAt: now }
+                : { cancelledAt: now }),
+              updatedAt: now,
+            })
+            .where(eq(orders.id, orderId));
+          await tx.insert(orderEvents).values({
+            storeId,
+            orderId,
+            transition: targetStatus,
+            actorId,
+            actorAuthority: OrderEventActorAuthority.STORE_OWNER,
+            ...(targetStatus === OrderStatus.CANCELLED ? { reason } : {}),
+          });
+
+          return this.detailFor(tx, storeId, orderId);
+        });
+      } catch (error) {
+        if (isDetectedDeadlock(error) && attempt < 2) continue;
+        throw databaseCause(error);
+      }
+    }
+    throw new Error('Order transition transaction retries were exhausted.');
   }
 
   private async lockAuthorizedCart(
@@ -467,6 +701,99 @@ export class OrdersRepository {
       items,
     };
   }
+
+  private async detailFor(
+    db: NodePgDatabase<typeof schema>,
+    storeId: string,
+    orderId: string,
+  ): Promise<OrderDetail> {
+    const [order] = await db
+      .select({
+        id: orders.id,
+        sourceCartId: orders.sourceCartId,
+        status: orders.status,
+        currency: orders.currency,
+        paymentMethod: orders.paymentMethod,
+        subtotal: orders.subtotal,
+        shippingAmount: orders.shippingAmount,
+        taxAmount: orders.taxAmount,
+        total: orders.total,
+        recipientName: orders.recipientName,
+        email: orders.email,
+        phone: orders.phone,
+        addressLine1: orders.addressLine1,
+        addressLine2: orders.addressLine2,
+        city: orders.city,
+        region: orders.region,
+        postalCode: orders.postalCode,
+        countryCode: orders.countryCode,
+        placedAt: orders.placedAt,
+      })
+      .from(orders)
+      .where(and(eq(orders.storeId, storeId), eq(orders.id, orderId)));
+    if (!order) throw new NotFoundException('Order not found');
+
+    const items = await db
+      .select({
+        id: orderItems.id,
+        sourceProductId: orderItems.sourceProductId,
+        sourceVariantId: orderItems.sourceVariantId,
+        productName: orderItems.productName,
+        variantTitle: orderItems.variantTitle,
+        sku: orderItems.sku,
+        orderedOptions: orderItems.orderedOptions,
+        unitPrice: orderItems.unitPrice,
+        quantity: orderItems.quantity,
+        lineTotal: orderItems.lineTotal,
+        inventoryPolicy: orderItems.inventoryPolicy,
+      })
+      .from(orderItems)
+      .where(
+        and(eq(orderItems.storeId, storeId), eq(orderItems.orderId, orderId)),
+      )
+      .orderBy(asc(orderItems.id));
+    const events = await db
+      .select({
+        transition: orderEvents.transition,
+        actorId: orderEvents.actorId,
+        actorAuthority: orderEvents.actorAuthority,
+        reason: orderEvents.reason,
+        createdAt: orderEvents.createdAt,
+      })
+      .from(orderEvents)
+      .where(
+        and(eq(orderEvents.storeId, storeId), eq(orderEvents.orderId, orderId)),
+      )
+      .orderBy(asc(orderEvents.createdAt), asc(orderEvents.id));
+
+    return {
+      id: order.id,
+      status: order.status,
+      currency: order.currency,
+      total: order.total,
+      placedAt: order.placedAt,
+      sourceCartId: order.sourceCartId,
+      paymentMethod: order.paymentMethod,
+      subtotal: order.subtotal,
+      shippingAmount: order.shippingAmount,
+      taxAmount: order.taxAmount,
+      contact: {
+        recipientName: order.recipientName,
+        email: order.email,
+        phone: order.phone,
+      },
+      deliveryAddress: {
+        addressLine1: order.addressLine1,
+        ...(order.addressLine2 ? { addressLine2: order.addressLine2 } : {}),
+        city: order.city,
+        ...(order.region ? { region: order.region } : {}),
+        ...(order.postalCode ? { postalCode: order.postalCode } : {}),
+        countryCode: order.countryCode,
+      },
+      items,
+      events,
+    };
+  }
 }
 
 function checkoutRequestFingerprint(input: CheckoutInput): string {
@@ -499,4 +826,10 @@ function isDetectedDeadlock(error: unknown): boolean {
     error.cause instanceof DatabaseError &&
     error.cause.code === '40P01'
   );
+}
+
+function databaseCause(error: unknown): unknown {
+  return error instanceof DrizzleQueryError && error.cause instanceof Error
+    ? error.cause
+    : error;
 }
