@@ -17,6 +17,7 @@ import { InfrastructureModule } from '@/infrastructure/infrastructure.module';
 import { CacheModule } from '@/infrastructure/cache/cache.module';
 import { CACHE_CLIENT } from '@/infrastructure/cache/cache.constants';
 import { EmailQueueService } from '@/infrastructure/queue/email/email-queue.service';
+import { SmsQueueService } from '@/infrastructure/queue/sms/sms-queue.service';
 import { createAuth } from '@/core/auth/auth';
 import { DATABASE } from './common/constants/injection-tokens.constants';
 
@@ -58,15 +59,23 @@ import { OrdersModule } from './modules/orders/orders.module';
 
     AuthModule.forRootAsync({
       imports: [InfrastructureModule],
-      inject: [EmailQueueService, CACHE_CLIENT, DATABASE, betterAuthConfig.KEY],
+      inject: [
+        EmailQueueService,
+        SmsQueueService,
+        CACHE_CLIENT,
+        DATABASE,
+        betterAuthConfig.KEY,
+      ],
       useFactory: (
         emailQueue: EmailQueueService,
+        smsQueue: SmsQueueService,
         redis: Redis,
         database: NodePgDatabase<typeof Schema>,
         configuration: ConfigType<typeof betterAuthConfig>,
       ) => ({
         auth: createAuth({
           emailQueue,
+          smsQueue,
           redis,
           database,
           configuration,

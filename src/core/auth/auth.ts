@@ -59,6 +59,14 @@ const DISABLED_BETTER_AUTH_MANAGEMENT_PATHS = [
   '/admin/has-permission',
 ] as const;
 
+const DISABLED_BETTER_AUTH_PHONE_PATHS = [
+  '/phone-number/send-otp',
+  '/phone-number/verify',
+  '/sign-in/phone-number',
+  '/phone-number/request-password-reset',
+  '/phone-number/reset-password',
+] as const;
+
 type AuthEmailQueue = {
   addVerificationEmailJob: (
     to: string,
@@ -68,8 +76,13 @@ type AuthEmailQueue = {
   addResetPasswordJob: (to: string, url: string) => Promise<void>;
 };
 
+type AuthSmsQueue = {
+  addSendJob: (to: string, body: string) => Promise<void>;
+};
+
 type AuthDependencies = {
   emailQueue: AuthEmailQueue;
+  smsQueue: AuthSmsQueue;
   redis: Redis;
   database: NodePgDatabase<typeof Schema>;
   configuration: ConfigType<typeof betterAuthConfig>;
@@ -77,6 +90,7 @@ type AuthDependencies = {
 
 export function createAuth({
   emailQueue,
+  smsQueue,
   redis,
   database,
   configuration,
@@ -103,7 +117,11 @@ export function createAuth({
       },
     },
 
-    disabledPaths: ['/update-user', ...DISABLED_BETTER_AUTH_MANAGEMENT_PATHS],
+    disabledPaths: [
+      '/update-user',
+      ...DISABLED_BETTER_AUTH_MANAGEMENT_PATHS,
+      ...DISABLED_BETTER_AUTH_PHONE_PATHS,
+    ],
 
     user: {
       changeEmail: {
@@ -234,7 +252,14 @@ export function createAuth({
           'Your account has been banned due to violation of platform terms. Please contact support for more information.',
       }),
       openAPI(),
-      phoneNumber(),
+      phoneNumber({
+        sendOTP: ({ phoneNumber, code }) => {
+          void smsQueue.addSendJob(
+            phoneNumber,
+            `Your verification code is ${code}. It expires in 5 minutes.`,
+          );
+        },
+      }),
     ],
     hooks: {},
     databaseHooks: {},

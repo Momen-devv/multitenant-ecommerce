@@ -23,6 +23,8 @@ export const user = pgTable('user', {
   banned: boolean('banned').default(false),
   banReason: text('ban_reason'),
   banExpires: timestamp('ban_expires'),
+  phoneNumber: text('phone_number').unique(),
+  phoneNumberVerified: boolean('phone_number_verified'),
   imageKey: text('image_key'),
   isActive: boolean('is_active').default(true),
   deactivatedAt: timestamp('deactivated_at'),

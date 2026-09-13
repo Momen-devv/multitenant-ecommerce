@@ -14,6 +14,8 @@ import { PlatformUsersController } from './controllers/platform-users.controller
 import { PlatformImpersonationController } from './controllers/platform-impersonation.controller';
 import { PlatformUsersService } from './services/platform-users.service';
 import { PlatformImpersonationService } from './services/platform-impersonation.service';
+import { PhoneController } from './controllers/phone.controller';
+import { PhoneService } from './services/phone.service';
 @Module({
   imports: [StorageModule],
   providers: [
@@ -28,12 +30,14 @@ import { PlatformImpersonationService } from './services/platform-impersonation.
     SecureTokenService,
     PlatformUsersService,
     PlatformImpersonationService,
+    PhoneService,
   ],
   controllers: [
     UsersController,
     AccountController,
     PlatformUsersController,
     PlatformImpersonationController,
+    PhoneController,
   ],
 })
 export class UsersModule {}
