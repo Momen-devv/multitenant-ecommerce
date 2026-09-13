@@ -16,7 +16,7 @@
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "lint:check": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "test": "jest",
-    "test:integration": "cross-env REQUIRE_TEST_DATABASE=true jest src/common/api-query/api-query.integration.spec.ts src/modules/billing/repos/billing.repository.integration.spec.ts src/modules/categories/repos/categories.repository.integration.spec.ts src/modules/orders/orders.persistence.integration.spec.ts --runInBand",
+    "test:integration": "cross-env REQUIRE_TEST_DATABASE=true jest src/common/api-query/api-query.integration.spec.ts src/modules/billing/repos/billing.repository.integration.spec.ts src/modules/categories/repos/categories.repository.integration.spec.ts src/modules/carts/repos/carts.repository.integration.spec.ts src/modules/orders/orders.persistence.integration.spec.ts --runInBand",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",

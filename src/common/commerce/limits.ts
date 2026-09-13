@@ -7,3 +7,9 @@ export const MAX_UNIT_PRICE_MINOR_UNITS = Math.floor(
 );
 export const MAX_LINE_TOTAL_MINOR_UNITS =
   MAX_UNIT_PRICE_MINOR_UNITS * MAX_CART_ITEM_QUANTITY;
+/** PostgreSQL `integer` prices multiplied by the bounded Cart shape stay safe in JS. */
+export const MAX_CART_UNIT_PRICE_MINOR_UNITS = 2_147_483_647;
+export const MAX_CART_TOTAL_MINOR_UNITS =
+  MAX_CART_UNIT_PRICE_MINOR_UNITS *
+  MAX_CART_ITEM_QUANTITY *
+  MAX_CART_DISTINCT_VARIANTS;
