@@ -12,6 +12,9 @@ const envSchema = z.object({
   REDIS_URL: z.url('REDIS_URL must be a valid URL'),
   RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
   MAIL_FROM: z.email().describe('MAIL_FROM must be a valid email address'),
+  TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
+  TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
+  TWILIO_FROM: z.string().min(1).optional(),
   BETTER_AUTH_SECRET: z.string().min(1, 'BETTER_AUTH_SECRET is required'),
   BETTER_AUTH_URL: z.string().min(1, 'BETTER_AUTH_URL must be a valid URL'),
   GOOGLE_CLIENT_ID: z.string().min(1, 'GOOGLE_CLIENT_ID is required'),
@@ -37,5 +40,17 @@ export function validate(config: Record<string, unknown>) {
   const result = envSchema.safeParse(config);
   if (!result.success)
     throw new Error(`Config validation error: ${result.error.message}`);
+
+  const twilioValues = [
+    result.data.TWILIO_ACCOUNT_SID,
+    result.data.TWILIO_AUTH_TOKEN,
+    result.data.TWILIO_FROM,
+  ];
+  if (twilioValues.some(Boolean) && !twilioValues.every(Boolean)) {
+    throw new Error(
+      'Config validation error: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM must be set together',
+    );
+  }
+
   return result.data;
 }

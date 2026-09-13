@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bullmq';
 import redisConfig from '@/core/config/redis.config';
 import { ConfigType } from '@nestjs/config';
 import { EmailQueueModule } from './email/email-queue.module';
+import { SmsQueueModule } from './sms/sms-queue.module';
 import { bullRedisOptions } from '@/infrastructure/cache/redis.config';
 import { ResourceCleanupQueueModule } from './resource-cleanup/resource-cleanup-queue.module';
 import { DataSyncModule } from './data-sync/data-sync.module';
@@ -31,6 +32,7 @@ import { StripeWebhookQueueModule } from './stripe-webhook/stripe-webhook-queue.
       }),
     }),
     EmailQueueModule,
+    SmsQueueModule,
     ResourceCleanupQueueModule,
     DataSyncModule,
     PlanProvisioningQueueModule,
@@ -38,6 +40,7 @@ import { StripeWebhookQueueModule } from './stripe-webhook/stripe-webhook-queue.
   ],
   exports: [
     EmailQueueModule,
+    SmsQueueModule,
     ResourceCleanupQueueModule,
     DataSyncModule,
     PlanProvisioningQueueModule,

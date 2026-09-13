@@ -1,5 +1,6 @@
 export enum QueueNames {
   EMAIL = 'email',
+  SMS = 'sms',
   RESOURCE_CLEANUP = 'resource-cleanup',
   DATA_SYNC = 'data-sync',
   PLAN_PROVISIONING = 'plan-provisioning',
@@ -13,6 +14,9 @@ export const JobNames = {
     VERIFICATION: 'verification',
     ACCOUNT_DEACTIVATED: 'account-deactivated',
     ACCOUNT_REACTIVATION: 'account-reactivation',
+  },
+  SMS: {
+    SEND: 'send',
   },
   RESOURCE_CLEANUP: {
     DELETE_ORPHANED_FILE: 'delete-orphaned-file',
@@ -32,6 +36,7 @@ export const JobNames = {
 } as const;
 
 export type EmailJobName = (typeof JobNames.EMAIL)[keyof typeof JobNames.EMAIL];
+export type SmsJobName = (typeof JobNames.SMS)[keyof typeof JobNames.SMS];
 export type ResourceCleanupJobName =
   (typeof JobNames.RESOURCE_CLEANUP)[keyof typeof JobNames.RESOURCE_CLEANUP];
 export type DataSyncJobName =

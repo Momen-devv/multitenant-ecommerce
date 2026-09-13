@@ -1,6 +1,6 @@
 import { betterAuth, type BetterAuthOptions } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { organization, admin, openAPI } from 'better-auth/plugins';
+import { organization, admin, openAPI, phoneNumber } from 'better-auth/plugins';
 import * as schema from '@/infrastructure/database/schema/schema';
 import type { Redis } from 'ioredis';
 import { generateUUIDv7, hashPassword, verifyPassword } from '@/common/utils';
@@ -234,6 +234,7 @@ export function createAuth({
           'Your account has been banned due to violation of platform terms. Please contact support for more information.',
       }),
       openAPI(),
+      phoneNumber(),
     ],
     hooks: {},
     databaseHooks: {},
