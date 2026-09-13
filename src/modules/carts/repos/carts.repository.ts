@@ -130,6 +130,21 @@ export class CartsRepository implements ICartsRepository {
     return { ...cart, items: itemRows };
   }
 
+  async hasCheckoutAccess(input: CartAccessInput): Promise<boolean> {
+    const [cart] = await this.db
+      .select({ id: carts.id })
+      .from(carts)
+      .innerJoin(store, eq(store.id, carts.storeId))
+      .where(
+        and(
+          eq(carts.id, input.cartId),
+          eq(carts.tokenDigest, input.tokenDigest),
+          eq(store.slug, input.storeSlug),
+        ),
+      );
+    return Boolean(cart);
+  }
+
   async setQuantity(input: SetCartItemQuantityPersistenceInput): Promise<void> {
     await this.db.transaction(async (tx) => {
       const cart = await this.findAuthorizedCartForUpdate(tx, input);

@@ -147,19 +147,28 @@ export class CartsController {
   )
   @ResponseMessage('Order placed successfully')
   checkout(
+    @Param('storeSlug', ParseSlugPipe) storeSlug: string,
     @Param('cartId', ParseUUIDPipe) cartId: string,
     @Headers(CART_TOKEN_HEADER) token: string | undefined,
     @Headers('idempotency-key') idempotencyKey: string | undefined,
     @Body() dto: CheckoutCartDto,
   ) {
-    return this.ordersRepository.placeOrder(
-      cartId,
-      requiredHeader(token, CART_TOKEN_HEADER),
-      {
-        ...dto,
-        idempotencyKey: requiredHeader(idempotencyKey, 'idempotency-key'),
-      },
-    );
+    return this.checkoutForStore(storeSlug, cartId, token, idempotencyKey, dto);
+  }
+
+  private async checkoutForStore(
+    storeSlug: string,
+    cartId: string,
+    token: string | undefined,
+    idempotencyKey: string | undefined,
+    dto: CheckoutCartDto,
+  ) {
+    const cartToken = requiredHeader(token, CART_TOKEN_HEADER);
+    await this.cartsService.assertCheckoutAccess(storeSlug, cartId, cartToken);
+    return this.ordersRepository.placeOrder(cartId, cartToken, {
+      ...dto,
+      idempotencyKey: requiredHeader(idempotencyKey, 'idempotency-key'),
+    });
   }
 }
 

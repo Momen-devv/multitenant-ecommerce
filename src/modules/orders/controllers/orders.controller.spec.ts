@@ -1,5 +1,6 @@
 import { OrdersController } from './orders.controller';
 import { StoreStatus } from '@/common/enums';
+import { ConflictException } from '@nestjs/common';
 
 jest.mock('@thallesp/nestjs-better-auth', () => ({
   OrgRoles: () => () => undefined,
@@ -57,5 +58,12 @@ describe('OrdersController', () => {
       status: undefined,
       limit: 20,
     });
+  });
+
+  it('rejects fulfillment for an inactive Store before transitioning the Order', () => {
+    expect(() =>
+      controller.fulfill('order-1', inactiveStore, session as never),
+    ).toThrow(ConflictException);
+    expect(ordersRepository.fulfillOrder).not.toHaveBeenCalled();
   });
 });

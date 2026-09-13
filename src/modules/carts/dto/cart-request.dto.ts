@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsEmail,
+  IsDefined,
   IsInt,
   IsOptional,
   IsString,
@@ -103,11 +104,13 @@ export class CheckoutCartDto {
   quoteFingerprint!: string;
 
   @ApiProperty({ type: () => CheckoutContactDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => CheckoutContactDto)
   contact!: CheckoutContactDto;
 
   @ApiProperty({ type: () => CheckoutDeliveryAddressDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => CheckoutDeliveryAddressDto)
   deliveryAddress!: CheckoutDeliveryAddressDto;

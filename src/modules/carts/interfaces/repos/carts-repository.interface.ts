@@ -55,6 +55,7 @@ export interface ICartsRepository {
     Pick<CartPersistenceSnapshot, 'id' | 'version' | 'expiresAt'> | undefined
   >;
   read(input: CartAccessInput): Promise<CartPersistenceSnapshot | undefined>;
+  hasCheckoutAccess(input: CartAccessInput): Promise<boolean>;
   setQuantity(input: SetCartItemQuantityPersistenceInput): Promise<void>;
   remove(input: RemoveCartItemPersistenceInput): Promise<void>;
 }

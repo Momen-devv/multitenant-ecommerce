@@ -64,6 +64,17 @@ export class CartsService {
     );
   }
 
+  async assertCheckoutAccess(
+    storeSlug: string,
+    cartId: string,
+    token: string,
+  ): Promise<void> {
+    const accessible = await this.cartsRepository.hasCheckoutAccess(
+      this.accessInput(storeSlug, cartId, token),
+    );
+    if (!accessible) throw new NotFoundException('Cart not found');
+  }
+
   async setQuantity(
     storeSlug: string,
     cartId: string,

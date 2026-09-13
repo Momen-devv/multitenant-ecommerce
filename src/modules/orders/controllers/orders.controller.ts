@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Get,
   Header,
@@ -13,7 +14,7 @@ import {
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { OrgRoles } from '@thallesp/nestjs-better-auth';
 import { seconds, Throttle } from '@nestjs/throttler';
-import { OrganizationRole } from '@/common/enums';
+import { OrganizationRole, StoreStatus } from '@/common/enums';
 import {
   ApiErrorResponse,
   ApiSuccessResponse,
@@ -75,6 +76,9 @@ export class OrdersController {
     @OrderStore() store: OrderStoreContext,
     @Session() session: CurrentUser,
   ) {
+    if (store.status !== StoreStatus.ACTIVE) {
+      throw new ConflictException('Inactive Stores cannot fulfill Orders.');
+    }
     return this.ordersRepository.fulfillOrder(
       store.storeId,
       orderId,

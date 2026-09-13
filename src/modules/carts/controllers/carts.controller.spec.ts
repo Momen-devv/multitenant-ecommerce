@@ -10,6 +10,7 @@ describe('CartsController', () => {
   const cartsService = {
     create: jest.fn(),
     read: jest.fn(),
+    assertCheckoutAccess: jest.fn(),
     setQuantity: jest.fn(),
     remove: jest.fn(),
   };
@@ -30,6 +31,7 @@ describe('CartsController', () => {
 
   it('places an Order using only the Cart capability and idempotency headers', async () => {
     const receipt = { id: 'order-1' };
+    cartsService.assertCheckoutAccess.mockResolvedValue(undefined);
     ordersRepository.placeOrder.mockResolvedValue(receipt);
     const body = {
       expectedCartVersion: 2,
@@ -47,7 +49,13 @@ describe('CartsController', () => {
     };
 
     await expect(
-      controller.checkout('cart-1', ' guest-token ', ' checkout-1 ', body),
+      controller.checkout(
+        'shop',
+        'cart-1',
+        ' guest-token ',
+        ' checkout-1 ',
+        body,
+      ),
     ).resolves.toBe(receipt);
 
     expect(ordersRepository.placeOrder).toHaveBeenCalledWith(
@@ -58,17 +66,22 @@ describe('CartsController', () => {
         idempotencyKey: 'checkout-1',
       }),
     );
+    expect(cartsService.assertCheckoutAccess).toHaveBeenCalledWith(
+      'shop',
+      'cart-1',
+      'guest-token',
+    );
   });
 
-  it('rejects checkout requests without an idempotency key before placing an Order', () => {
-    expect(() =>
-      controller.checkout('cart-1', 'guest-token', undefined, {
+  it('rejects checkout requests without an idempotency key before placing an Order', async () => {
+    await expect(
+      controller.checkout('shop', 'cart-1', 'guest-token', undefined, {
         expectedCartVersion: 1,
         quoteFingerprint: 'a'.repeat(64),
         contact: {} as never,
         deliveryAddress: {} as never,
       }),
-    ).toThrow(BadRequestException);
+    ).rejects.toThrow(BadRequestException);
     expect(ordersRepository.placeOrder).not.toHaveBeenCalled();
   });
 });

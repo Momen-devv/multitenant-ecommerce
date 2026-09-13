@@ -11,6 +11,7 @@ describe('CartsService', () => {
   const repository = {
     create: jest.fn(),
     read: jest.fn(),
+    hasCheckoutAccess: jest.fn(),
     setQuantity: jest.fn(),
     remove: jest.fn(),
   };
@@ -235,5 +236,20 @@ describe('CartsService', () => {
     await expect(
       service.read('shop', 'cart-1', 'wrong-token'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('does not allow checkout through a different Store slug', async () => {
+    tokens.hash.mockReturnValue('wrong-store-digest');
+    repository.hasCheckoutAccess.mockResolvedValue(false);
+
+    await expect(
+      service.assertCheckoutAccess('other-store', 'cart-1', 'guest-token'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(repository.hasCheckoutAccess).toHaveBeenCalledWith({
+      storeSlug: 'other-store',
+      cartId: 'cart-1',
+      tokenDigest: 'wrong-store-digest',
+    });
   });
 });
