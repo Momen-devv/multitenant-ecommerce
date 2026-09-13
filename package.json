@@ -8,11 +8,13 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "cross-env NODE_ENV=development nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "cross-env NODE_ENV=production node dist/src/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "lint:check": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "test": "jest",
     "test:integration": "cross-env REQUIRE_TEST_DATABASE=true jest src/common/api-query/api-query.integration.spec.ts src/modules/billing/repos/billing.repository.integration.spec.ts src/modules/categories/repos/categories.repository.integration.spec.ts --runInBand",
     "test:watch": "jest --watch",
@@ -25,7 +27,8 @@
     "db:generate": "npx drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "npx drizzle-kit migrate --config=drizzle.config.ts",
     "db:push": "npx drizzle-kit push --config=drizzle.config.ts",
-    "auth:generate": "npx @better-auth/cli generate --config ./src/core/auth/auth.cli.ts --output ./src/infrastructure/database/schema/auth.schema.ts"
+    "auth:generate": "npx @better-auth/cli generate --config ./src/core/auth/auth.cli.ts --output ./src/infrastructure/database/schema/auth.schema.ts",
+    "prepare": "husky"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1089.0",
@@ -84,7 +87,9 @@
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^16.0.0",
+    "husky": "^9.1.7",
     "jest": "^30.0.0",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.4.2",
     "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",
@@ -94,6 +99,12 @@
     "tsx": "^4.22.4",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "eslint",
+      "prettier --check"
+    ]
   },
   "jest": {
     "moduleFileExtensions": [
