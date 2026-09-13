@@ -16,6 +16,11 @@ import {
   subscriptionCheckoutAttempts,
   subscriptions,
   user,
+  carts,
+  cartItems,
+  orders,
+  orderItems,
+  orderEvents,
 } from './schema';
 
 export type User = typeof user.$inferSelect;
@@ -71,3 +76,14 @@ export type NewSubscriptionCheckoutAttempt =
 
 export type Subscription = typeof subscriptions.$inferSelect;
 export type NewSubscription = typeof subscriptions.$inferInsert;
+
+export type Cart = typeof carts.$inferSelect;
+export type NewCart = typeof carts.$inferInsert;
+export type CartItem = typeof cartItems.$inferSelect;
+export type NewCartItem = typeof cartItems.$inferInsert;
+export type Order = typeof orders.$inferSelect;
+export type NewOrder = typeof orders.$inferInsert;
+export type OrderItem = typeof orderItems.$inferSelect;
+export type NewOrderItem = typeof orderItems.$inferInsert;
+export type OrderEvent = typeof orderEvents.$inferSelect;
+export type NewOrderEvent = typeof orderEvents.$inferInsert;

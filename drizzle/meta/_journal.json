@@ -120,6 +120,13 @@
       "when": 1789258639310,
       "tag": "0016_restore-outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789273586258,
+      "tag": "0017_add-commerce-persistence",
+      "breakpoints": true
     }
   ]
 }
