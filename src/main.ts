@@ -14,6 +14,18 @@ async function bootstrap() {
   const express = app.getHttpAdapter().getInstance() as Express;
   express.set('query parser', 'extended');
 
+  app.enableCors({
+    origin: true,
+    credentials: true,
+    allowedHeaders: [
+      'Content-Type',
+      'Cookie',
+      'X-Cart-Token',
+      'Idempotency-Key',
+      'X-Correlation-Id',
+    ],
+  });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

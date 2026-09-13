@@ -10,6 +10,11 @@ import { randomUUID } from 'crypto';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { Environment } from '../enums';
 import { getCorrelationId } from '../context/request-context';
+import {
+  CartConflictError,
+  CheckoutConflictError,
+  OrderTransitionConflictError,
+} from '../errors';
 
 interface ErrorResponse {
   success: boolean;
@@ -33,10 +38,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const correlationId = getCorrelationId() ?? randomUUID();
 
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+    const status = this.getStatus(exception);
 
     const errorResponse: ErrorResponse = {
       success: false,
@@ -72,6 +74,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   private getErrorName(status: number): string {
     return HttpStatus[status] ?? 'Error';
+  }
+
+  private getStatus(exception: unknown): number {
+    if (exception instanceof HttpException) return exception.getStatus();
+    if (
+      exception instanceof CartConflictError ||
+      exception instanceof CheckoutConflictError ||
+      exception instanceof OrderTransitionConflictError
+    ) {
+      return HttpStatus.CONFLICT;
+    }
+    return HttpStatus.INTERNAL_SERVER_ERROR;
   }
 
   private extractMessage(exception: unknown): string | string[] {
