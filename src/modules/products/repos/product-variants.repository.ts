@@ -508,7 +508,13 @@ export class ProductVariantsRepository {
         : { onHand: nextOnHand };
 
     const inventoryStateIsCompatible = isSwitchingToUntracked
-      ? undefined
+      ? or(
+          eq(productVariants.inventoryPolicy, InventoryPolicy.UNTRACKED),
+          and(
+            eq(productVariants.inventoryPolicy, InventoryPolicy.TRACKED),
+            eq(productVariants.reserved, 0),
+          ),
+        )
       : isSwitchingToTracked
         ? or(
             eq(productVariants.inventoryPolicy, InventoryPolicy.UNTRACKED),

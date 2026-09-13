@@ -39,6 +39,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { ProductsModule } from './modules/products/products.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { CartsModule } from './modules/carts/carts.module';
+import { OrdersModule } from './modules/orders/orders.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { CartsModule } from './modules/carts/carts.module';
     ProductsModule,
     CategoriesModule,
     CartsModule,
+    OrdersModule,
 
     RouterModule.register([{ path: 'health', module: HealthModule }]),
   ],

@@ -1,4 +1,5 @@
 import { generateUUIDv7 } from '@/common/utils';
+import { createHash } from 'node:crypto';
 import { MAX_ORDER_TOTAL_MINOR_UNITS } from '@/common/commerce/limits';
 import { store } from '@/infrastructure/database/schema/app.schema';
 import {
@@ -8,6 +9,7 @@ import {
 import {
   cartItems,
   carts,
+  orderEvents,
   orderItems,
   orders,
 } from '@/infrastructure/database/schema/commerce.schema';
@@ -20,6 +22,11 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { resolve } from 'node:path';
 import { Pool } from 'pg';
+import { eq } from 'drizzle-orm';
+import { CartState, ProductStatus, StoreStatus } from '@/common/enums';
+import { CheckoutConflictError } from '@/common/errors';
+import { quoteFingerprint } from '@/modules/carts/services/carts.service';
+import { OrdersRepository } from './repos/orders.repository';
 
 if (
   process.env.REQUIRE_TEST_DATABASE === 'true' &&
@@ -36,7 +43,10 @@ const describeWithPostgres = process.env.TEST_DATABASE_URL
 
 describeWithPostgres('Commerce PostgreSQL persistence guarantees', () => {
   let pool: Pool;
+  let secondPool: Pool;
   let db: NodePgDatabase<typeof schema>;
+  let repository: OrdersRepository;
+  let secondRepository: OrdersRepository;
 
   beforeAll(async () => {
     pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
@@ -51,6 +61,9 @@ describeWithPostgres('Commerce PostgreSQL persistence guarantees', () => {
       );
     }
     db = drizzle(pool, { schema });
+    secondPool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
+    repository = new OrdersRepository(db);
+    secondRepository = new OrdersRepository(drizzle(secondPool, { schema }));
     await migrate(db, { migrationsFolder: resolve(process.cwd(), 'drizzle') });
   });
 
@@ -61,7 +74,7 @@ describeWithPostgres('Commerce PostgreSQL persistence guarantees', () => {
   });
 
   afterAll(async () => {
-    await pool.end();
+    await Promise.all([pool.end(), secondPool.end()]);
   });
 
   async function seedStore(suffix: string) {
@@ -143,6 +156,215 @@ describeWithPostgres('Commerce PostgreSQL persistence guarantees', () => {
       placedAt: new Date(),
     };
   }
+
+  async function seedCheckoutCart(quantity = 1) {
+    const storeId = await seedStore(generateUUIDv7());
+    const token = 'checkout-token';
+    const [cart] = await db
+      .insert(carts)
+      .values({
+        storeId,
+        tokenDigest: createHash('sha256').update(token).digest('hex'),
+        expiresAt: new Date(Date.now() + 60_000),
+      })
+      .returning();
+    const { product, variant } = await seedVariant(storeId, generateUUIDv7());
+    await db
+      .update(products)
+      .set({ status: ProductStatus.PUBLISHED, publishedAt: new Date() })
+      .where(eq(products.id, product.id));
+    await db.insert(cartItems).values({
+      storeId,
+      cartId: cart.id,
+      productId: product.id,
+      variantId: variant.id,
+      quantity,
+    });
+    return { cart, product, storeId, token, variant };
+  }
+
+  function checkoutInput(
+    productId: string,
+    variantId: string,
+    quantity = 1,
+    idempotencyKey = 'checkout-key',
+  ) {
+    return {
+      expectedCartVersion: 1,
+      quoteFingerprint: quoteFingerprint('usd', [
+        { productId, variantId, quantity, unitPrice: 1000 },
+      ]),
+      idempotencyKey,
+      contact: {
+        recipientName: 'Ada Lovelace',
+        email: 'ada@example.com',
+        phone: '+201234567890',
+      },
+      deliveryAddress: {
+        addressLine1: '1 Example Street',
+        city: 'Cairo',
+        countryCode: 'EG',
+      },
+    };
+  }
+
+  it('places one immutable Order and reserves tracked inventory', async () => {
+    const { cart, product, token, variant } = await seedCheckoutCart(2);
+
+    await expect(
+      repository.placeOrder(
+        cart.id,
+        token,
+        checkoutInput(product.id, variant.id, 2),
+      ),
+    ).resolves.toMatchObject({
+      sourceCartId: cart.id,
+      status: 'placed',
+      subtotal: 2000,
+      total: 2000,
+      items: [
+        expect.objectContaining({
+          sourceProductId: product.id,
+          sourceVariantId: variant.id,
+          quantity: 2,
+          inventoryPolicy: 'tracked',
+        }),
+      ],
+    });
+
+    await expect(
+      db
+        .select({ state: carts.state })
+        .from(carts)
+        .where(eq(carts.id, cart.id)),
+    ).resolves.toEqual([{ state: 'converted' }]);
+    await expect(
+      db
+        .select({
+          reserved: productVariants.reserved,
+          version: productVariants.version,
+        })
+        .from(productVariants)
+        .where(eq(productVariants.id, variant.id)),
+    ).resolves.toEqual([{ reserved: 2, version: 2 }]);
+    await expect(db.select().from(orderEvents)).resolves.toHaveLength(1);
+  });
+
+  it('replays the original receipt after Store changes and rejects a changed key', async () => {
+    const { cart, product, storeId, token, variant } = await seedCheckoutCart();
+    const input = checkoutInput(product.id, variant.id);
+    const receipt = await repository.placeOrder(cart.id, token, input);
+    await db
+      .update(store)
+      .set({ status: StoreStatus.OWNER_CLOSED })
+      .where(eq(store.id, storeId));
+
+    await expect(repository.placeOrder(cart.id, token, input)).resolves.toEqual(
+      receipt,
+    );
+    await expect(
+      repository.placeOrder(
+        cart.id,
+        token,
+        checkoutInput(product.id, variant.id, 1, 'different-key'),
+      ),
+    ).rejects.toBeInstanceOf(CheckoutConflictError);
+  });
+
+  it('rolls back every write when a later Cart line is not purchasable', async () => {
+    const { cart, storeId, token, variant } = await seedCheckoutCart();
+    const [draftProduct] = await db
+      .insert(products)
+      .values({ storeId, name: 'Draft product', slug: 'draft-product' })
+      .returning();
+    const [draftVariant] = await db
+      .insert(productVariants)
+      .values({
+        storeId,
+        productId: draftProduct.id,
+        title: 'Draft',
+        sku: 'DRAFT-SKU',
+        barcode: 'DRAFT-BAR',
+        price: 500,
+        inventoryPolicy: 'tracked',
+        onHand: 10,
+        reserved: 0,
+      })
+      .returning();
+    await db.insert(cartItems).values({
+      storeId,
+      cartId: cart.id,
+      productId: draftProduct.id,
+      variantId: draftVariant.id,
+      quantity: 1,
+    });
+
+    await expect(
+      repository.placeOrder(
+        cart.id,
+        token,
+        checkoutInput('irrelevant', variant.id),
+      ),
+    ).rejects.toBeInstanceOf(CheckoutConflictError);
+    await expect(db.select().from(orders)).resolves.toHaveLength(0);
+    await expect(
+      db
+        .select({ state: carts.state })
+        .from(carts)
+        .where(eq(carts.id, cart.id)),
+    ).resolves.toEqual([{ state: CartState.ACTIVE }]);
+    await expect(
+      db
+        .select({ reserved: productVariants.reserved })
+        .from(productVariants)
+        .where(eq(productVariants.id, variant.id)),
+    ).resolves.toEqual([{ reserved: 0 }]);
+  });
+
+  it('lets only one concurrent shopper reserve the final tracked unit', async () => {
+    const { cart, product, storeId, token, variant } = await seedCheckoutCart();
+    await db
+      .update(productVariants)
+      .set({ onHand: 1, reserved: 0 })
+      .where(eq(productVariants.id, variant.id));
+    const secondToken = 'second-checkout-token';
+    const [secondCart] = await db
+      .insert(carts)
+      .values({
+        storeId,
+        tokenDigest: createHash('sha256').update(secondToken).digest('hex'),
+        expiresAt: new Date(Date.now() + 60_000),
+      })
+      .returning();
+    await db.insert(cartItems).values({
+      storeId,
+      cartId: secondCart.id,
+      productId: product.id,
+      variantId: variant.id,
+      quantity: 1,
+    });
+    const firstInput = checkoutInput(product.id, variant.id, 1, 'first-key');
+    const secondInput = checkoutInput(product.id, variant.id, 1, 'second-key');
+
+    const results = await Promise.allSettled([
+      repository.placeOrder(cart.id, token, firstInput),
+      secondRepository.placeOrder(secondCart.id, secondToken, secondInput),
+    ]);
+
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(
+      results.filter((result) => result.status === 'rejected'),
+    ).toHaveLength(1);
+    await expect(db.select().from(orders)).resolves.toHaveLength(1);
+    await expect(
+      db
+        .select({ reserved: productVariants.reserved })
+        .from(productVariants)
+        .where(eq(productVariants.id, variant.id)),
+    ).resolves.toEqual([{ reserved: 1 }]);
+  });
 
   it('rejects Cart Item references across Store boundaries', async () => {
     const firstStoreId = await seedStore('first');
