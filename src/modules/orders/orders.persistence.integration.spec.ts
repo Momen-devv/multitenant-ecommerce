@@ -263,6 +263,21 @@ describeWithPostgres('Commerce PostgreSQL persistence guarantees', () => {
       receipt,
     );
     await expect(
+      repository.placeOrder(cart.id, token, {
+        ...input,
+        contact: {
+          phone: input.contact.phone,
+          email: input.contact.email,
+          recipientName: input.contact.recipientName,
+        },
+        deliveryAddress: {
+          countryCode: input.deliveryAddress.countryCode,
+          city: input.deliveryAddress.city,
+          addressLine1: input.deliveryAddress.addressLine1,
+        },
+      }),
+    ).resolves.toEqual(receipt);
+    await expect(
       repository.placeOrder(
         cart.id,
         token,
@@ -364,6 +379,69 @@ describeWithPostgres('Commerce PostgreSQL persistence guarantees', () => {
         .from(productVariants)
         .where(eq(productVariants.id, variant.id)),
     ).resolves.toEqual([{ reserved: 1 }]);
+  });
+
+  it('replays one receipt and event for concurrent same-Cart retries', async () => {
+    const { cart, product, token, variant } = await seedCheckoutCart();
+    const input = checkoutInput(product.id, variant.id);
+
+    const results = await Promise.all([
+      repository.placeOrder(cart.id, token, input),
+      secondRepository.placeOrder(cart.id, token, input),
+    ]);
+
+    expect(results[0]).toEqual(results[1]);
+    await expect(db.select().from(orders)).resolves.toHaveLength(1);
+    await expect(db.select().from(orderEvents)).resolves.toHaveLength(1);
+    await expect(
+      db
+        .select({ reserved: productVariants.reserved })
+        .from(productVariants)
+        .where(eq(productVariants.id, variant.id)),
+    ).resolves.toEqual([{ reserved: 1 }]);
+  });
+
+  it('rolls back reservations and Order writes after a persistence failure', async () => {
+    const { cart, product, token, variant } = await seedCheckoutCart();
+    await pool.query(`
+      CREATE FUNCTION fail_placement_event() RETURNS trigger AS $$
+      BEGIN
+        RAISE EXCEPTION 'simulated placement event failure';
+      END;
+      $$ LANGUAGE plpgsql;
+      CREATE TRIGGER fail_placement_event_trigger
+      BEFORE INSERT ON order_events
+      FOR EACH ROW EXECUTE FUNCTION fail_placement_event();
+    `);
+
+    try {
+      await expect(
+        repository.placeOrder(
+          cart.id,
+          token,
+          checkoutInput(product.id, variant.id),
+        ),
+      ).rejects.toThrow('simulated placement event failure');
+    } finally {
+      await pool.query(
+        'DROP TRIGGER IF EXISTS fail_placement_event_trigger ON order_events; DROP FUNCTION IF EXISTS fail_placement_event();',
+      );
+    }
+
+    await expect(db.select().from(orders)).resolves.toHaveLength(0);
+    await expect(db.select().from(orderEvents)).resolves.toHaveLength(0);
+    await expect(
+      db
+        .select({ state: carts.state })
+        .from(carts)
+        .where(eq(carts.id, cart.id)),
+    ).resolves.toEqual([{ state: CartState.ACTIVE }]);
+    await expect(
+      db
+        .select({ reserved: productVariants.reserved })
+        .from(productVariants)
+        .where(eq(productVariants.id, variant.id)),
+    ).resolves.toEqual([{ reserved: 0 }]);
   });
 
   it('rejects Cart Item references across Store boundaries', async () => {

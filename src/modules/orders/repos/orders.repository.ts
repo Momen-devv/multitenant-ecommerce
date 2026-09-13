@@ -34,9 +34,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, DrizzleQueryError, eq, inArray, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { createHash } from 'node:crypto';
+import { DatabaseError } from 'pg';
 import type {
   CheckoutInput,
   CheckoutReceipt,
@@ -61,6 +62,27 @@ export class OrdersRepository {
     const tokenDigest = createHash('sha256').update(cartToken).digest('hex');
     const requestFingerprint = checkoutRequestFingerprint(input);
 
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await this.placeOrderAttempt(
+          cartId,
+          tokenDigest,
+          input,
+          requestFingerprint,
+        );
+      } catch (error) {
+        if (!isDetectedDeadlock(error) || attempt === 2) throw error;
+      }
+    }
+    throw new Error('Checkout transaction retries were exhausted.');
+  }
+
+  private async placeOrderAttempt(
+    cartId: string,
+    tokenDigest: string,
+    input: CheckoutInput,
+    requestFingerprint: string,
+  ): Promise<CheckoutReceipt> {
     return this.db.transaction(async (tx) => {
       const cart = await this.lockAuthorizedCart(tx, cartId, tokenDigest);
       const [existingOrder] = await tx
@@ -453,9 +475,28 @@ function checkoutRequestFingerprint(input: CheckoutInput): string {
       JSON.stringify({
         expectedCartVersion: input.expectedCartVersion,
         quoteFingerprint: input.quoteFingerprint,
-        contact: input.contact,
-        deliveryAddress: input.deliveryAddress,
+        contact: {
+          recipientName: input.contact.recipientName,
+          email: input.contact.email,
+          phone: input.contact.phone,
+        },
+        deliveryAddress: {
+          addressLine1: input.deliveryAddress.addressLine1,
+          addressLine2: input.deliveryAddress.addressLine2 ?? null,
+          city: input.deliveryAddress.city,
+          region: input.deliveryAddress.region ?? null,
+          postalCode: input.deliveryAddress.postalCode ?? null,
+          countryCode: input.deliveryAddress.countryCode,
+        },
       }),
     )
     .digest('hex');
+}
+
+function isDetectedDeadlock(error: unknown): boolean {
+  return (
+    error instanceof DrizzleQueryError &&
+    error.cause instanceof DatabaseError &&
+    error.cause.code === '40P01'
+  );
 }
