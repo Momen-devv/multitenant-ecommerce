@@ -127,6 +127,27 @@
       "when": 1789273586258,
       "tag": "0017_add-commerce-persistence",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789299134058,
+      "tag": "0018_majestic_saracen",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789299268407,
+      "tag": "0019_orange_owl",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789299633453,
+      "tag": "0020_bored_nico_minoru",
+      "breakpoints": true
     }
   ]
 }

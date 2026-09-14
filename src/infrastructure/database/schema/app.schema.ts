@@ -1,11 +1,13 @@
 import { relations, sql } from 'drizzle-orm';
 import {
   check,
+  boolean,
   index,
   pgEnum,
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
@@ -101,6 +103,74 @@ export const storeLifecycleAudit = pgTable(
   ],
 );
 
+export const userAddresses = pgTable(
+  'user_addresses',
+  {
+    id: uuid('id').$defaultFn(generateUUIDv7).primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    label: varchar('label', { length: 100 }).notNull(),
+    recipientName: varchar('recipient_name', { length: 200 }).notNull(),
+    recipientPhone: varchar('recipient_phone', { length: 50 }).notNull(),
+    addressLine1: varchar('address_line_1', { length: 200 }).notNull(),
+    addressLine2: varchar('address_line_2', { length: 200 }),
+    city: varchar('city', { length: 100 }).notNull(),
+    region: varchar('region', { length: 100 }),
+    postalCode: varchar('postal_code', { length: 32 }),
+    countryCode: varchar('country_code', { length: 2 }).notNull(),
+    isDefault: boolean('is_default').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('user_addresses_user_id_idx').on(table.userId),
+    uniqueIndex('user_addresses_one_default_uidx')
+      .on(table.userId)
+      .where(sql`${table.isDefault}`),
+    check(
+      'user_addresses_label_check',
+      sql`${table.label} = trim(${table.label}) AND char_length(${table.label}) BETWEEN 1 AND 100`,
+    ),
+    check(
+      'user_addresses_recipient_name_check',
+      sql`${table.recipientName} = trim(${table.recipientName}) AND char_length(${table.recipientName}) BETWEEN 1 AND 200`,
+    ),
+    check(
+      'user_addresses_address_line_1_check',
+      sql`${table.addressLine1} = trim(${table.addressLine1}) AND char_length(${table.addressLine1}) BETWEEN 1 AND 200`,
+    ),
+    check(
+      'user_addresses_recipient_phone_check',
+      sql`${table.recipientPhone} = trim(${table.recipientPhone}) AND char_length(${table.recipientPhone}) BETWEEN 3 AND 50`,
+    ),
+    check(
+      'user_addresses_address_line_2_check',
+      sql`${table.addressLine2} IS NULL OR (${table.addressLine2} = trim(${table.addressLine2}) AND char_length(${table.addressLine2}) BETWEEN 1 AND 200)`,
+    ),
+    check(
+      'user_addresses_city_check',
+      sql`${table.city} = trim(${table.city}) AND char_length(${table.city}) BETWEEN 1 AND 100`,
+    ),
+    check(
+      'user_addresses_region_check',
+      sql`${table.region} IS NULL OR (${table.region} = trim(${table.region}) AND char_length(${table.region}) BETWEEN 1 AND 100)`,
+    ),
+    check(
+      'user_addresses_postal_code_check',
+      sql`${table.postalCode} IS NULL OR (${table.postalCode} = trim(${table.postalCode}) AND char_length(${table.postalCode}) BETWEEN 1 AND 32)`,
+    ),
+    check(
+      'user_addresses_country_code_check',
+      sql`${table.countryCode} ~ '^[A-Z]{2}$'`,
+    ),
+  ],
+);
+
 export const storeRelations = relations(store, ({ one }) => ({
   owner: one(user, {
     fields: [store.ownerId],
@@ -125,3 +195,10 @@ export const storeLifecycleAuditRelations = relations(
     }),
   }),
 );
+
+export const userAddressesRelations = relations(userAddresses, ({ one }) => ({
+  user: one(user, {
+    fields: [userAddresses.userId],
+    references: [user.id],
+  }),
+}));

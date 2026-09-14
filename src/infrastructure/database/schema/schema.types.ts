@@ -13,6 +13,7 @@ import {
   productCategories,
   store,
   storeLifecycleAudit,
+  userAddresses,
   subscriptionCheckoutAttempts,
   subscriptions,
   user,
@@ -31,6 +32,9 @@ export type NewStore = typeof store.$inferInsert;
 
 export type StoreLifecycleAudit = typeof storeLifecycleAudit.$inferSelect;
 export type NewStoreLifecycleAudit = typeof storeLifecycleAudit.$inferInsert;
+
+export type UserAddress = typeof userAddresses.$inferSelect;
+export type NewUserAddress = typeof userAddresses.$inferInsert;
 
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
