@@ -41,16 +41,5 @@ export function validate(config: Record<string, unknown>) {
   if (!result.success)
     throw new Error(`Config validation error: ${result.error.message}`);
 
-  const twilioValues = [
-    result.data.TWILIO_ACCOUNT_SID,
-    result.data.TWILIO_AUTH_TOKEN,
-    result.data.TWILIO_FROM,
-  ];
-  if (twilioValues.some(Boolean) && !twilioValues.every(Boolean)) {
-    throw new Error(
-      'Config validation error: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM must be set together',
-    );
-  }
-
   return result.data;
 }

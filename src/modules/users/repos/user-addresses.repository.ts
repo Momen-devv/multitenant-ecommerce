@@ -91,7 +91,10 @@ export class UserAddressesRepository implements IUserAddressesRepository {
   ) {
     const [address] = await this.db
       .update(userAddresses)
-      .set({ ...input, updatedAt: new Date() })
+      .set({
+        ...input,
+        updatedAt: new Date(),
+      })
       .where(
         and(eq(userAddresses.id, addressId), eq(userAddresses.userId, userId)),
       )
@@ -123,7 +126,10 @@ export class UserAddressesRepository implements IUserAddressesRepository {
         if (nextDefault) {
           await tx
             .update(userAddresses)
-            .set({ isDefault: true, updatedAt: new Date() })
+            .set({
+              isDefault: true,
+              updatedAt: new Date(),
+            })
             .where(eq(userAddresses.id, nextDefault.id));
         }
       }
@@ -135,7 +141,7 @@ export class UserAddressesRepository implements IUserAddressesRepository {
     return this.db.transaction(async (tx) => {
       await this.lockUserAddresses(tx, userId);
       const [address] = await tx
-        .select({ id: userAddresses.id })
+        .select({ id: userAddresses.id, isDefault: userAddresses.isDefault })
         .from(userAddresses)
         .where(
           and(
@@ -146,10 +152,22 @@ export class UserAddressesRepository implements IUserAddressesRepository {
         .limit(1);
       if (!address) return undefined;
 
+      if (address.isDefault) {
+        const [current] = await tx
+          .select()
+          .from(userAddresses)
+          .where(eq(userAddresses.id, address.id))
+          .limit(1);
+        return current;
+      }
+
       await this.clearDefault(tx, userId);
       const [updated] = await tx
         .update(userAddresses)
-        .set({ isDefault: true, updatedAt: new Date() })
+        .set({
+          isDefault: true,
+          updatedAt: new Date(),
+        })
         .where(eq(userAddresses.id, address.id))
         .returning();
       return updated;
@@ -162,7 +180,10 @@ export class UserAddressesRepository implements IUserAddressesRepository {
   ) {
     await tx
       .update(userAddresses)
-      .set({ isDefault: false, updatedAt: new Date() })
+      .set({
+        isDefault: false,
+        updatedAt: new Date(),
+      })
       .where(
         and(
           eq(userAddresses.userId, userId),

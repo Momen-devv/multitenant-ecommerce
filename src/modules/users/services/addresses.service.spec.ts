@@ -20,6 +20,7 @@ describe('AddressesService', () => {
 
   beforeEach(async () => {
     jest.resetAllMocks();
+    repository.findAll.mockResolvedValue([]);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AddressesService,
@@ -101,7 +102,9 @@ describe('AddressesService', () => {
     repository.update.mockResolvedValue(undefined);
 
     await expect(
-      service.updateAddress('user-1', 'address-1', { city: 'Giza' }),
+      service.updateAddress('user-1', 'address-1', {
+        city: 'Giza',
+      }),
     ).rejects.toThrow(new NotFoundException('Address not found'));
     expect(repository.update).toHaveBeenCalledWith('user-1', 'address-1', {
       city: 'Giza',
@@ -122,5 +125,18 @@ describe('AddressesService', () => {
     await expect(service.deleteAddress('user-1', 'address-1')).rejects.toThrow(
       new NotFoundException('Address not found'),
     );
+  });
+
+  it('does not require a version to update an owned address', async () => {
+    repository.update.mockResolvedValue(undefined);
+
+    await expect(
+      service.updateAddress('user-1', 'address-1', {
+        city: 'Giza',
+      }),
+    ).rejects.toThrow(new NotFoundException('Address not found'));
+    expect(repository.update).toHaveBeenCalledWith('user-1', 'address-1', {
+      city: 'Giza',
+    });
   });
 });

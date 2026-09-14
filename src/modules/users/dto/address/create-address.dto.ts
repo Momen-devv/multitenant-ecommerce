@@ -23,7 +23,8 @@ export class CreateAddressDto {
   recipientName!: string;
 
   @ApiProperty({
-    description: 'Phone number for this delivery recipient.',
+    description:
+      'Delivery contact phone number. It is separate from account-phone verification.',
     example: '+201234567890',
   })
   @Transform(trimStringValue)

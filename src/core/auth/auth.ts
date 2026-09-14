@@ -60,9 +60,9 @@ const DISABLED_BETTER_AUTH_MANAGEMENT_PATHS = [
 ] as const;
 
 const DISABLED_BETTER_AUTH_PHONE_PATHS = [
+  '/sign-in/phone-number',
   '/phone-number/send-otp',
   '/phone-number/verify',
-  '/sign-in/phone-number',
   '/phone-number/request-password-reset',
   '/phone-number/reset-password',
 ] as const;
@@ -118,7 +118,6 @@ export function createAuth({
     },
 
     disabledPaths: [
-      '/update-user',
       ...DISABLED_BETTER_AUTH_MANAGEMENT_PATHS,
       ...DISABLED_BETTER_AUTH_PHONE_PATHS,
     ],
@@ -253,12 +252,20 @@ export function createAuth({
       }),
       openAPI(),
       phoneNumber({
-        sendOTP: ({ phoneNumber, code }) => {
-          void smsQueue.addSendJob(
+        expiresIn: 300,
+        allowedAttempts: 5,
+        phoneNumberValidator: (phoneNumber: string) =>
+          /^\+[1-9]\d{1,14}$/.test(phoneNumber),
+        sendOTP: ({ phoneNumber, code }) =>
+          smsQueue.addSendJob(
             phoneNumber,
             `Your verification code is ${code}. It expires in 5 minutes.`,
-          );
-        },
+          ),
+        sendPasswordResetOTP: ({ phoneNumber, code }) =>
+          smsQueue.addSendJob(
+            phoneNumber,
+            `Your password reset code is ${code}. It expires in 5 minutes.`,
+          ),
       }),
     ],
     hooks: {},

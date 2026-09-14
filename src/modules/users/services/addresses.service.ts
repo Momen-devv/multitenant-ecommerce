@@ -53,13 +53,17 @@ export class AddressesService {
       addressId,
       dto,
     );
-    if (!address) throw new NotFoundException('Address not found');
+    if (!address) {
+      throw new NotFoundException('Address not found');
+    }
     return address;
   }
 
   async deleteAddress(userId: string, addressId: string) {
     const deleted = await this.addressesRepository.delete(userId, addressId);
-    if (!deleted) throw new NotFoundException('Address not found');
+    if (!deleted) {
+      throw new NotFoundException('Address not found');
+    }
   }
 
   async setDefaultAddress(userId: string, addressId: string) {
@@ -67,7 +71,9 @@ export class AddressesService {
       userId,
       addressId,
     );
-    if (!address) throw new NotFoundException('Address not found');
+    if (!address) {
+      throw new NotFoundException('Address not found');
+    }
     return address;
   }
 }

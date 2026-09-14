@@ -79,16 +79,16 @@ const adminManagementPaths = [
 ];
 
 const phoneNumberPaths = [
+  '/sign-in/phone-number',
   '/phone-number/send-otp',
   '/phone-number/verify',
-  '/sign-in/phone-number',
   '/phone-number/request-password-reset',
   '/phone-number/reset-password',
 ];
 
 describe('Better Auth management HTTP boundary', () => {
   const smsQueue = {
-    addSendJob: jest.fn(),
+    addSendJob: jest.fn().mockResolvedValue(undefined),
   };
 
   const auth = createAuth({
@@ -121,17 +121,28 @@ describe('Better Auth management HTTP boundary', () => {
     expect(auth.options.disabledPaths).toContain(path);
   });
 
+  it('keeps generic profile updates available through the internal API', () => {
+    expect(auth.options.disabledPaths).not.toContain('/update-user');
+  });
+
   it('retains the internal Organization API for Store adapters', () => {
     expect(auth.api.createOrganization).toEqual(expect.any(Function));
     expect(auth.api.updateOrganization).toEqual(expect.any(Function));
   });
 
-  it('enqueues phone-number verification codes as SMS messages', () => {
+  it('waits for phone-number verification SMS queue insertion', async () => {
     const phoneNumberOptions = mockPhoneNumber.mock.calls[0][0] as {
-      sendOTP: (input: { phoneNumber: string; code: string }) => void;
+      expiresIn: number;
+      allowedAttempts: number;
+      phoneNumberValidator: (phoneNumber: string) => boolean;
+      sendOTP: (input: { phoneNumber: string; code: string }) => Promise<void>;
+      sendPasswordResetOTP: (input: {
+        phoneNumber: string;
+        code: string;
+      }) => Promise<void>;
     };
 
-    phoneNumberOptions.sendOTP({
+    const result = phoneNumberOptions.sendOTP({
       phoneNumber: '+201234567890',
       code: '123456',
     });
@@ -139,6 +150,44 @@ describe('Better Auth management HTTP boundary', () => {
     expect(smsQueue.addSendJob).toHaveBeenCalledWith(
       '+201234567890',
       'Your verification code is 123456. It expires in 5 minutes.',
+    );
+    await expect(result).resolves.toBeUndefined();
+    expect(phoneNumberOptions.expiresIn).toBe(300);
+    expect(phoneNumberOptions.allowedAttempts).toBe(5);
+    expect(phoneNumberOptions.phoneNumberValidator('+201234567890')).toBe(true);
+    expect(phoneNumberOptions.phoneNumberValidator(' +201234567890 ')).toBe(
+      false,
+    );
+    expect(phoneNumberOptions.phoneNumberValidator('+20 123 456')).toBe(false);
+  });
+
+  it('waits for password-reset SMS queue insertion', async () => {
+    const phoneNumberOptions = mockPhoneNumber.mock.calls[0][0] as {
+      sendPasswordResetOTP: (input: {
+        phoneNumber: string;
+        code: string;
+      }) => Promise<void>;
+    };
+
+    await expect(
+      phoneNumberOptions.sendPasswordResetOTP({
+        phoneNumber: '+201234567890',
+        code: '123456',
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(smsQueue.addSendJob).toHaveBeenCalledWith(
+      '+201234567890',
+      'Your password reset code is 123456. It expires in 5 minutes.',
+    );
+  });
+
+  it('does not publish a Better Auth HTTP rate-limit rule for OTP sends', () => {
+    expect(auth.options.rateLimit).toMatchObject({
+      storage: 'secondary-storage',
+    });
+    expect(auth.options.rateLimit.customRules).not.toHaveProperty(
+      '/api/auth/phone-number/send-otp',
     );
   });
 });
