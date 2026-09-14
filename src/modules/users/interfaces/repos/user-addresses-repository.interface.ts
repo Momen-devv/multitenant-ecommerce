@@ -18,7 +18,11 @@ export type UpdateUserAddressInput = Partial<
 >;
 
 export interface IUserAddressesRepository {
-  create(userId: string, input: CreateUserAddressInput): Promise<UserAddress>;
+  create(
+    userId: string,
+    input: CreateUserAddressInput,
+    idempotencyKey: string,
+  ): Promise<UserAddress>;
   findAll(userId: string): Promise<UserAddress[]>;
   update(
     userId: string,

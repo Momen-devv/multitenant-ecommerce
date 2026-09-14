@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
@@ -11,6 +12,7 @@ import type {
 } from '../interfaces/repos';
 import {
   MAX_USER_ADDRESSES,
+  UserAddressIdempotencyConflictError,
   UserAddressLimitExceededError,
 } from '../domain/user-address-limits';
 
@@ -21,9 +23,31 @@ export class UserAddressesRepository implements IUserAddressesRepository {
     private readonly db: NodePgDatabase<typeof schema>,
   ) {}
 
-  async create(userId: string, input: CreateUserAddressInput) {
+  async create(
+    userId: string,
+    input: CreateUserAddressInput,
+    idempotencyKey: string,
+  ) {
     return this.db.transaction(async (tx) => {
       await this.lockUserAddresses(tx, userId);
+      const requestFingerprint = this.createRequestFingerprint(input);
+      const [existing] = await tx
+        .select()
+        .from(userAddresses)
+        .where(
+          and(
+            eq(userAddresses.userId, userId),
+            eq(userAddresses.creationIdempotencyKey, idempotencyKey),
+          ),
+        )
+        .limit(1);
+      if (existing) {
+        if (existing.creationRequestFingerprint !== requestFingerprint) {
+          throw new UserAddressIdempotencyConflictError();
+        }
+        return existing;
+      }
+
       const [{ count }] = await tx
         .select({ count: sql<number>`count(*)::int` })
         .from(userAddresses)
@@ -37,7 +61,13 @@ export class UserAddressesRepository implements IUserAddressesRepository {
 
       const [address] = await tx
         .insert(userAddresses)
-        .values({ ...input, userId, isDefault })
+        .values({
+          ...input,
+          userId,
+          isDefault,
+          creationIdempotencyKey: idempotencyKey,
+          creationRequestFingerprint: requestFingerprint,
+        })
         .returning();
       return address;
     });
@@ -148,5 +178,24 @@ export class UserAddressesRepository implements IUserAddressesRepository {
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtext(${userId} || ':addresses'))`,
     );
+  }
+
+  private createRequestFingerprint(input: CreateUserAddressInput): string {
+    return createHash('sha256')
+      .update(
+        JSON.stringify({
+          label: input.label,
+          recipientName: input.recipientName,
+          recipientPhone: input.recipientPhone,
+          addressLine1: input.addressLine1,
+          addressLine2: input.addressLine2 ?? null,
+          city: input.city,
+          region: input.region ?? null,
+          postalCode: input.postalCode ?? null,
+          countryCode: input.countryCode,
+          isDefault: input.isDefault === true,
+        }),
+      )
+      .digest('hex');
   }
 }

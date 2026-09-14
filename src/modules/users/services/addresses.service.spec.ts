@@ -1,6 +1,7 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
+  UserAddressIdempotencyConflictError,
   MAX_USER_ADDRESSES,
   UserAddressLimitExceededError,
 } from '../domain/user-address-limits';
@@ -39,11 +40,17 @@ describe('AddressesService', () => {
     };
     repository.create.mockResolvedValue({ id: 'address-1', ...dto });
 
-    await expect(service.createAddress('user-1', dto)).resolves.toEqual({
+    await expect(
+      service.createAddress('user-1', dto, 'address-create-1'),
+    ).resolves.toEqual({
       id: 'address-1',
       ...dto,
     });
-    expect(repository.create).toHaveBeenCalledWith('user-1', dto);
+    expect(repository.create).toHaveBeenCalledWith(
+      'user-1',
+      dto,
+      'address-create-1',
+    );
   });
 
   it('rejects creating an address when the user already has five', async () => {
@@ -62,6 +69,31 @@ describe('AddressesService', () => {
       }),
     ).rejects.toThrow(
       new ConflictException('A user can have at most 5 saved addresses.'),
+    );
+  });
+
+  it('rejects reusing an idempotency key with a different address request', async () => {
+    repository.create.mockRejectedValue(
+      new UserAddressIdempotencyConflictError(),
+    );
+
+    await expect(
+      service.createAddress(
+        'user-1',
+        {
+          label: 'Home',
+          recipientName: 'Ahmed Ali',
+          recipientPhone: '+201234567890',
+          addressLine1: '12 Tahrir Square',
+          city: 'Cairo',
+          countryCode: 'EG',
+        },
+        'address-create-1',
+      ),
+    ).rejects.toThrow(
+      new ConflictException(
+        'Idempotency-Key was already used with a different address request.',
+      ),
     );
   });
 

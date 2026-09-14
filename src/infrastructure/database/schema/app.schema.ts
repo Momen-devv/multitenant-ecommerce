@@ -120,6 +120,12 @@ export const userAddresses = pgTable(
     postalCode: varchar('postal_code', { length: 32 }),
     countryCode: varchar('country_code', { length: 2 }).notNull(),
     isDefault: boolean('is_default').notNull().default(false),
+    creationIdempotencyKey: varchar('creation_idempotency_key', {
+      length: 255,
+    }),
+    creationRequestFingerprint: varchar('creation_request_fingerprint', {
+      length: 64,
+    }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -132,6 +138,10 @@ export const userAddresses = pgTable(
     uniqueIndex('user_addresses_one_default_uidx')
       .on(table.userId)
       .where(sql`${table.isDefault}`),
+    uniqueIndex('user_addresses_create_idempotency_uidx').on(
+      table.userId,
+      table.creationIdempotencyKey,
+    ),
     check(
       'user_addresses_label_check',
       sql`${table.label} = trim(${table.label}) AND char_length(${table.label}) BETWEEN 1 AND 100`,
@@ -167,6 +177,14 @@ export const userAddresses = pgTable(
     check(
       'user_addresses_country_code_check',
       sql`${table.countryCode} ~ '^[A-Z]{2}$'`,
+    ),
+    check(
+      'user_addresses_create_idempotency_key_check',
+      sql`${table.creationIdempotencyKey} IS NULL OR (${table.creationIdempotencyKey} = trim(${table.creationIdempotencyKey}) AND char_length(${table.creationIdempotencyKey}) BETWEEN 1 AND 255)`,
+    ),
+    check(
+      'user_addresses_create_idempotency_pair_check',
+      sql`(${table.creationIdempotencyKey} IS NULL AND ${table.creationRequestFingerprint} IS NULL) OR (${table.creationIdempotencyKey} IS NOT NULL AND ${table.creationRequestFingerprint} ~ '^[a-f0-9]{64}$')`,
     ),
   ],
 );

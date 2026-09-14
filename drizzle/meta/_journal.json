@@ -148,6 +148,13 @@
       "when": 1789299633453,
       "tag": "0020_bored_nico_minoru",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789350558874,
+      "tag": "0021_superb_vivisector",
+      "breakpoints": true
     }
   ]
 }

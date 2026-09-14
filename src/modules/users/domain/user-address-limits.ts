@@ -6,3 +6,10 @@ export class UserAddressLimitExceededError extends Error {
     this.name = 'UserAddressLimitExceededError';
   }
 }
+
+export class UserAddressIdempotencyConflictError extends Error {
+  constructor() {
+    super('Idempotency-Key was already used with a different address request.');
+    this.name = 'UserAddressIdempotencyConflictError';
+  }
+}

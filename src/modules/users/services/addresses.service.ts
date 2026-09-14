@@ -4,7 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { UserAddressLimitExceededError } from '../domain/user-address-limits';
+import {
+  UserAddressIdempotencyConflictError,
+  UserAddressLimitExceededError,
+} from '../domain/user-address-limits';
 import {
   USER_ADDRESSES_REPOSITORY,
   type IUserAddressesRepository,
@@ -18,11 +21,18 @@ export class AddressesService {
     private readonly addressesRepository: IUserAddressesRepository,
   ) {}
 
-  async createAddress(userId: string, dto: CreateAddressDto) {
+  async createAddress(
+    userId: string,
+    dto: CreateAddressDto,
+    idempotencyKey: string,
+  ) {
     try {
-      return await this.addressesRepository.create(userId, dto);
+      return await this.addressesRepository.create(userId, dto, idempotencyKey);
     } catch (error) {
-      if (error instanceof UserAddressLimitExceededError) {
+      if (
+        error instanceof UserAddressLimitExceededError ||
+        error instanceof UserAddressIdempotencyConflictError
+      ) {
         throw new ConflictException(error.message);
       }
       throw error;

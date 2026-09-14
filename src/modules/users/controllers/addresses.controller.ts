@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -11,7 +13,12 @@ import {
   Post,
   Session,
 } from '@nestjs/common';
-import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiCookieAuth,
+  ApiHeader,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { seconds, Throttle } from '@nestjs/throttler';
 import type { CurrentUser } from '@/core/auth/auth.types';
 import {
@@ -49,7 +56,12 @@ export class AddressesController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: { limit: 10, ttl: seconds(60) } })
-  @ApiOperation({ summary: 'Save a delivery address for the current user' })
+  @ApiOperation({
+    summary: 'Save a delivery address for the current user',
+    description:
+      'Retry a lost response with the same Idempotency-Key and body to return the originally saved address.',
+  })
+  @ApiHeader({ name: 'idempotency-key', required: true })
   @ApiSuccessResponse({
     status: HttpStatus.CREATED,
     description: 'Address created successfully',
@@ -57,11 +69,23 @@ export class AddressesController {
   })
   @ApiErrorResponse(
     HttpStatus.CONFLICT,
-    'A user can have at most 5 saved addresses.',
+    'A user can have at most 5 saved addresses, or the Idempotency-Key was reused with a different request.',
+  )
+  @ApiErrorResponse(
+    HttpStatus.BAD_REQUEST,
+    'idempotency-key header is required.',
   )
   @ResponseMessage('Address created successfully')
-  create(@Session() session: CurrentUser, @Body() dto: CreateAddressDto) {
-    return this.addressesService.createAddress(session.user.id, dto);
+  create(
+    @Session() session: CurrentUser,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() dto: CreateAddressDto,
+  ) {
+    return this.addressesService.createAddress(
+      session.user.id,
+      dto,
+      requiredIdempotencyKey(idempotencyKey),
+    );
   }
 
   @Patch(':addressId')
@@ -112,4 +136,12 @@ export class AddressesController {
   ) {
     return this.addressesService.deleteAddress(session.user.id, addressId);
   }
+}
+
+function requiredIdempotencyKey(value: string | undefined): string {
+  const normalized = value?.trim();
+  if (!normalized || normalized.length > 255) {
+    throw new BadRequestException('idempotency-key header is required.');
+  }
+  return normalized;
 }
