@@ -24,6 +24,7 @@ interface ErrorResponse {
   path: string;
   correlationId: string;
   message: string | string[];
+  code?: string;
   stack?: string;
 }
 
@@ -48,6 +49,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
       path: request.url,
       correlationId,
       message: this.extractMessage(exception),
+      ...(exception instanceof CheckoutConflictError && exception.code
+        ? { code: exception.code }
+        : {}),
       ...(process.env.NODE_ENV === Environment.Development && {
         stack: exception instanceof Error ? exception.stack : undefined,
       }),

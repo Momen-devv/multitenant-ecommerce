@@ -36,6 +36,7 @@ export class StoreRepository implements IStoreRepository {
           name: data.name,
           slug: data.slug,
           description: data.description,
+          defaultCurrency: data.defaultCurrency,
           status: StoreStatus.ACTIVE,
         })
         .returning();

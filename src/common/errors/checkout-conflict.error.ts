@@ -1,5 +1,8 @@
 export class CheckoutConflictError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly code?: string,
+  ) {
     super(message);
     this.name = 'CheckoutConflictError';
   }

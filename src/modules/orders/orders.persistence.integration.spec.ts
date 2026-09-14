@@ -17,6 +17,11 @@ import {
   productVariants,
   products,
 } from '@/infrastructure/database/schema/products.schema';
+import {
+  planPrices,
+  plans,
+  subscriptions,
+} from '@/infrastructure/database/schema/billing.schema';
 import * as schema from '@/infrastructure/database/schema/schema';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -93,7 +98,7 @@ describeWithPostgres('Commerce PostgreSQL persistence guarantees', () => {
 
   beforeEach(async () => {
     await pool.query(
-      'TRUNCATE TABLE order_events, order_items, orders, cart_items, carts, product_variants, products, store, organization, "user" CASCADE',
+      'TRUNCATE TABLE order_events, order_items, orders, cart_items, carts, product_variants, products, subscriptions, plan_prices, plans, store, organization, "user" CASCADE',
     );
   });
 
@@ -969,6 +974,107 @@ describeWithPostgres('Commerce PostgreSQL persistence guarantees', () => {
         .from(productVariants)
         .where(eq(productVariants.id, variant.id)),
     ).resolves.toEqual([{ reserved: 1 }]);
+  });
+
+  it('preserves historical non-USD rows and blocks checkout before writing an Order or reservation', async () => {
+    const { cart, product, storeId, token, variant } = await seedCheckoutCart();
+    await db
+      .update(store)
+      .set({ defaultCurrency: 'eur' })
+      .where(eq(store.id, storeId));
+    const legacyCart = await seedCart(storeId, 'legacy-eur-order');
+    const [legacyOrder] = await db
+      .insert(orders)
+      .values({
+        ...orderValues(storeId, legacyCart.id, 'legacy-eur-order'),
+        currency: 'eur',
+        subtotal: 1234,
+        total: 1234,
+      })
+      .returning();
+    const [legacyPlan] = await db
+      .insert(plans)
+      .values({
+        name: 'Legacy EUR',
+        code: `legacy-eur-${generateUUIDv7()}`,
+        features: {},
+        limits: {},
+      })
+      .returning();
+    const [legacyPrice] = await db
+      .insert(planPrices)
+      .values({
+        planId: legacyPlan.id,
+        amount: 2999,
+        currency: 'eur',
+        interval: 'month',
+      })
+      .returning();
+    const [legacySubscription] = await db
+      .insert(subscriptions)
+      .values({
+        storeId,
+        planPriceId: legacyPrice.id,
+        stripeSubscriptionId: `sub_legacy_${generateUUIDv7()}`,
+        status: 'active',
+      })
+      .returning();
+
+    await expect(
+      repository.placeOrder(
+        cart.id,
+        token,
+        checkoutInputForLines(
+          [
+            {
+              productId: product.id,
+              variantId: variant.id,
+              quantity: 1,
+              unitPrice: 1000,
+            },
+          ],
+          'legacy-eur-checkout',
+        ),
+      ),
+    ).rejects.toMatchObject({
+      code: 'STORE_CURRENCY_INCOMPATIBLE',
+    });
+
+    await expect(
+      db
+        .select({ currency: store.defaultCurrency })
+        .from(store)
+        .where(eq(store.id, storeId)),
+    ).resolves.toEqual([{ currency: 'eur' }]);
+    await expect(
+      db
+        .select({ amount: planPrices.amount, currency: planPrices.currency })
+        .from(planPrices)
+        .where(eq(planPrices.id, legacyPrice.id)),
+    ).resolves.toEqual([{ amount: 2999, currency: 'eur' }]);
+    await expect(
+      db
+        .select({
+          currency: orders.currency,
+          subtotal: orders.subtotal,
+          total: orders.total,
+        })
+        .from(orders)
+        .where(eq(orders.id, legacyOrder.id)),
+    ).resolves.toEqual([{ currency: 'eur', subtotal: 1234, total: 1234 }]);
+    await expect(
+      db
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(eq(subscriptions.id, legacySubscription.id)),
+    ).resolves.toEqual([{ id: legacySubscription.id }]);
+    await expect(db.select().from(orders)).resolves.toHaveLength(1);
+    await expect(
+      db
+        .select({ reserved: productVariants.reserved })
+        .from(productVariants)
+        .where(eq(productVariants.id, variant.id)),
+    ).resolves.toEqual([{ reserved: 0 }]);
   });
 
   it('rolls back reservations and Order writes after a persistence failure', async () => {

@@ -1,14 +1,18 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { BillingInterval } from '@/common/enums/billing-interval.enum';
 import {
   IsEnum,
   IsInt,
-  IsISO4217CurrencyCode,
+  IsOptional,
   IsString,
   Length,
   Min,
+  Max,
+  Equals,
 } from 'class-validator';
+import { MAX_ORDER_TOTAL_MINOR_UNITS } from '@/common/commerce/limits';
+import { USD_CURRENCY } from '@/common/commerce/currency';
 
 export class CreatePlanPriceDto {
   @ApiProperty({
@@ -18,21 +22,22 @@ export class CreatePlanPriceDto {
   })
   @IsInt()
   @Min(1)
+  @Max(MAX_ORDER_TOTAL_MINOR_UNITS)
   amount!: number;
 
-  @ApiProperty({
-    description: 'ISO 4217 currency code',
-    example: 'usd',
-    minLength: 3,
-    maxLength: 3,
+  @ApiPropertyOptional({
+    description: 'Currency for newly created plan prices. Defaults to USD.',
+    enum: [USD_CURRENCY],
+    default: USD_CURRENCY,
   })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
+  @IsOptional()
   @IsString()
   @Length(3, 3)
-  @IsISO4217CurrencyCode()
-  currency!: string;
+  @Equals(USD_CURRENCY, { message: 'currency must be usd' })
+  currency?: typeof USD_CURRENCY;
 
   @ApiProperty({
     description: 'Billing interval for the price',

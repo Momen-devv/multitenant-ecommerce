@@ -22,6 +22,8 @@ import { StoreLifecycleConflictError } from '@/common/errors/store-lifecycle-con
 import { Store } from '@/infrastructure/database/schema/schema.types';
 import { DataSyncQueueService } from '@/infrastructure/queue/data-sync/data-sync-queue.service';
 import { StoreLifecycleService } from './store-lifecycle.service';
+import { USD_CURRENCY } from '@/common/commerce/currency';
+import { StoreStatus } from '@/common/enums';
 
 @Injectable()
 export class StoresService {
@@ -65,6 +67,7 @@ export class StoresService {
         name: dto.name,
         slug,
         description: dto.description,
+        defaultCurrency: dto.currency ?? USD_CURRENCY,
       });
 
       this.logger.log('Store created', StoresService.name, {
@@ -100,7 +103,7 @@ export class StoresService {
     if (!existingStore) {
       throw new NotFoundException('Store not found or you do not have a store');
     }
-    if (existingStore.status !== 'active') {
+    if (existingStore.status !== StoreStatus.ACTIVE) {
       throw new ForbiddenException(
         'Store is not active and cannot be modified',
       );
@@ -154,7 +157,7 @@ export class StoresService {
     if (!existingStore) {
       throw new NotFoundException('Store not found or you do not have a store');
     }
-    if (existingStore.status !== 'active') {
+    if (existingStore.status !== StoreStatus.ACTIVE) {
       throw new ConflictException(
         'The Store is already closed or does not allow Store Closure.',
       );
@@ -180,7 +183,7 @@ export class StoresService {
       throw new NotFoundException('Store not found or you do not have a store');
     }
 
-    if (existingStore.status !== 'active') {
+    if (existingStore.status !== StoreStatus.ACTIVE) {
       throw new ForbiddenException(
         'Store is not active and cannot be modified',
       );

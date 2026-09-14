@@ -32,6 +32,7 @@ import {
 } from '@/infrastructure/database/schema/products.schema';
 import * as schema from '@/infrastructure/database/schema/schema';
 import { quoteFingerprint } from '@/modules/carts/services/carts.service';
+import { getNewCheckoutEligibility } from '@/common/commerce/currency';
 import {
   ConflictException,
   Inject,
@@ -245,6 +246,15 @@ export class OrdersRepository implements OrdersPort {
         .for('update');
       if (!lockedStore || lockedStore.status !== StoreStatus.ACTIVE) {
         throw new CheckoutConflictError('Store is not accepting new Orders.');
+      }
+      const checkoutEligibility = getNewCheckoutEligibility(
+        lockedStore.currency,
+      );
+      if (!checkoutEligibility.eligible) {
+        throw new CheckoutConflictError(
+          'This Store must be migrated to USD before it can accept new checkout.',
+          checkoutEligibility.code,
+        );
       }
 
       const variantIds = [

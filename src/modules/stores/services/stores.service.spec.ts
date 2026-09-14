@@ -190,6 +190,7 @@ describe('StoresService', () => {
       name: 'My Store',
       slug: 'my-store',
       description: undefined,
+      defaultCurrency: 'usd',
     });
   });
 
