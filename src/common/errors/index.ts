@@ -11,6 +11,3 @@ export { CategoryLifecycleConflictError } from './category-lifecycle-conflict.er
 export { CategoryLimitExceededError } from './category-limit-exceeded.error';
 export { CategoryReorderConflictError } from './category-reorder-conflict.error';
 export { CategoryVersionConflictError } from './category-version-conflict.error';
-export { CartConflictError } from './cart-conflict.error';
-export { CheckoutConflictError } from './checkout-conflict.error';
-export { OrderTransitionConflictError } from './order-transition-conflict.error';

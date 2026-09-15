@@ -1,18 +1,9 @@
-import {
-  getNewCheckoutEligibility,
-  isUsdCurrency,
-  USD_CURRENCY,
-} from './currency';
+import { isUsdCurrency, USD_CURRENCY } from './currency';
 
-describe('new checkout currency eligibility', () => {
-  it('accepts only persisted lowercase USD for new checkout', () => {
-    expect(getNewCheckoutEligibility(USD_CURRENCY)).toEqual({
-      eligible: true,
-    });
-    expect(getNewCheckoutEligibility('eur')).toEqual({
-      eligible: false,
-      code: 'STORE_CURRENCY_INCOMPATIBLE',
-    });
+describe('new business-data currency policy', () => {
+  it('accepts only persisted lowercase USD', () => {
+    expect(isUsdCurrency(USD_CURRENCY)).toBe(true);
+    expect(isUsdCurrency('eur')).toBe(false);
     expect(isUsdCurrency('USD')).toBe(false);
   });
 });

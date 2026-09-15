@@ -1,6 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { MAX_ORDER_TOTAL_MINOR_UNITS } from './limits';
+import { MAX_PRICE_MINOR_UNITS } from './limits';
 import { CreatePlanPriceDto } from '@/modules/plans/dto/create-plan-price.dto';
 import { CreateStoreDto } from '@/modules/stores/dto/create-store.dto';
 import { CreateProductVariantDto } from '@/modules/products/dto/request/create-product-variant.dto';
@@ -29,12 +29,7 @@ describe('new business money request validation', () => {
   });
 
   it('rejects invalid and out-of-domain minor-unit values', async () => {
-    const invalidPlanAmounts = [
-      -1,
-      1.5,
-      Infinity,
-      MAX_ORDER_TOTAL_MINOR_UNITS + 1,
-    ];
+    const invalidPlanAmounts = [-1, 1.5, Infinity, MAX_PRICE_MINOR_UNITS + 1];
     for (const amount of invalidPlanAmounts) {
       const errors = await validate(
         plainToInstance(CreatePlanPriceDto, { amount, interval: 'month' }),

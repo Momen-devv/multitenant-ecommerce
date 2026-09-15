@@ -12,7 +12,6 @@ export { ApiSuccessResponse } from './api-success-response.decorator';
 export { ApiErrorResponse } from './api-error-response.decorator';
 export { ActiveStoreId } from './active-store-id.decorator';
 export { ActiveStore } from './active-store.decorator';
-export { OrderStore } from './order-store.decorator';
 export { AtLeastOneField } from './at-least-one-field.decorator';
 export {
   IsBooleanRecord,

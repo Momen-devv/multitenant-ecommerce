@@ -11,7 +11,7 @@ import {
   Max,
   Equals,
 } from 'class-validator';
-import { MAX_ORDER_TOTAL_MINOR_UNITS } from '@/common/commerce/limits';
+import { MAX_PRICE_MINOR_UNITS } from '@/common/commerce/limits';
 import { USD_CURRENCY } from '@/common/commerce/currency';
 
 export class CreatePlanPriceDto {
@@ -22,7 +22,7 @@ export class CreatePlanPriceDto {
   })
   @IsInt()
   @Min(1)
-  @Max(MAX_ORDER_TOTAL_MINOR_UNITS)
+  @Max(MAX_PRICE_MINOR_UNITS)
   amount!: number;
 
   @ApiPropertyOptional({

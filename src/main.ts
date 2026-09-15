@@ -20,7 +20,6 @@ async function bootstrap() {
     allowedHeaders: [
       'Content-Type',
       'Cookie',
-      'X-Cart-Token',
       'Idempotency-Key',
       'X-Correlation-Id',
     ],

@@ -4,4 +4,3 @@ export * from './billing.schema';
 export * from './outbox.schema';
 export * from './products.schema';
 export * from './categories.schema';
-export * from './commerce.schema';

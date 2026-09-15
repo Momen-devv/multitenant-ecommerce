@@ -176,6 +176,20 @@
       "when": 1789375301819,
       "tag": "0024_adorable_moon_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1789382217635,
+      "tag": "0025_sticky_frank_castle",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1789464741538,
+      "tag": "0026_productive_starbolt",
+      "breakpoints": true
     }
   ]
 }

@@ -11,7 +11,6 @@ const statement = {
   ...organizationDefaultStatements,
   store: ['read', 'update', 'delete'],
   product: ['read', 'create', 'update', 'delete'],
-  order: ['read', 'create', 'update', 'fulfill', 'refund'],
   customer: ['read', 'update'],
   report: ['read'],
 } as const;
@@ -27,7 +26,6 @@ export const user = ac.newRole({});
 const allCommercePermissions = {
   store: ['read', 'update', 'delete'],
   product: ['read', 'create', 'update', 'delete'],
-  order: ['read', 'create', 'update', 'fulfill', 'refund'],
   customer: ['read', 'update'],
   report: ['read'],
 } as const;
@@ -41,12 +39,10 @@ export const organizationManager = ac.newRole({
   ...organizationAdminAc.statements,
   store: ['read', 'update'],
   product: ['read', 'create', 'update', 'delete'],
-  order: ['read', 'create', 'update', 'fulfill', 'refund'],
   customer: ['read', 'update'],
   report: ['read'],
 });
 
 export const support = ac.newRole({
-  order: ['read'],
   customer: ['read', 'update'],
 });
