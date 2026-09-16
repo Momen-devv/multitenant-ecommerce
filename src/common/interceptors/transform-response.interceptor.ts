@@ -13,7 +13,6 @@ import { SKIP_RESPONSE_TRANSFORM_KEY } from '@/common/decorators/skip-response-t
 import { getCorrelationId } from '../context/request-context';
 
 export interface SuccessResponse<T> {
-  success: true;
   statusCode: number;
   message: string;
   data: T | null;
@@ -52,7 +51,6 @@ export class TransformResponseInterceptor<T> implements NestInterceptor<
 
     return next.handle().pipe(
       map((data) => ({
-        success: true as const,
         statusCode: response.statusCode,
         message,
         data: data ?? null,

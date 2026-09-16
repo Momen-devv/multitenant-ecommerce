@@ -1,4 +1,3 @@
-import { PlanProvisioningStatus } from '@/common/enums';
 import {
   BadRequestException,
   ConflictException,
@@ -12,7 +11,7 @@ import {
   BILLING_REPOSITORY,
   type IBillingRepository,
 } from '../interfaces/repos';
-import { STRIPE_CLIENT } from '../stripe/stripe.constants';
+import { STRIPE_CLIENT } from '@/infrastructure/payments/stripe/stripe.constants';
 
 export type CreateSubscriptionCheckoutInput = {
   storeId: string;
@@ -62,7 +61,7 @@ export class BillingCheckoutService {
     if (
       !context.planIsActive ||
       !context.priceIsActive ||
-      context.provisioningStatus !== PlanProvisioningStatus.READY ||
+      context.provisioningStatus !== 'ready' ||
       !context.stripePriceId
     ) {
       throw new ConflictException('The plan price is not available');

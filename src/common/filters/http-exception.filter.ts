@@ -12,13 +12,14 @@ import { Environment } from '../enums';
 import { getCorrelationId } from '../context/request-context';
 
 interface ErrorResponse {
-  success: boolean;
   statusCode: number;
   error: string;
   timestamp: string;
   path: string;
   correlationId: string;
   message: string | string[];
+  code?: string;
+  details?: Record<string, unknown>;
   stack?: string;
 }
 
@@ -36,13 +37,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const status = this.getStatus(exception);
 
     const errorResponse: ErrorResponse = {
-      success: false,
       statusCode: status,
       error: this.getErrorName(status),
       timestamp: new Date().toISOString(),
       path: request.url,
       correlationId,
       message: this.extractMessage(exception),
+      ...this.extractCodeAndDetails(exception),
       ...(process.env.NODE_ENV === Environment.Development && {
         stack: exception instanceof Error ? exception.stack : undefined,
       }),
@@ -65,6 +66,28 @@ export class AllExceptionsFilter implements ExceptionFilter {
       .status(status)
       .setHeader('X-Correlation-Id', correlationId)
       .json(errorResponse);
+  }
+
+  private extractCodeAndDetails(exception: unknown): {
+    code?: string;
+    details?: Record<string, unknown>;
+  } {
+    if (!(exception instanceof HttpException)) return {};
+    const response = exception.getResponse();
+    if (typeof response !== 'object' || response === null) return {};
+
+    const result: { code?: string; details?: Record<string, unknown> } = {};
+    if ('code' in response && typeof response.code === 'string') {
+      result.code = response.code;
+    }
+    if (
+      'details' in response &&
+      typeof response.details === 'object' &&
+      response.details
+    ) {
+      result.details = response.details as Record<string, unknown>;
+    }
+    return result;
   }
 
   private getErrorName(status: number): string {

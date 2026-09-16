@@ -30,8 +30,30 @@ const envSchema = z.object({
   AWS_S3_BUCKET_NAME: z.string(),
   AWS_ENDPOINT: z.string(),
 
-  STRIPE_SECRET_KEY: z.string().min(1, 'STRIPE_WEBHOOK_SECRET is required'),
+  STRIPE_SECRET_KEY: z
+    .string()
+    .regex(
+      /^(sk|rk)_test_.+/,
+      'STRIPE_SECRET_KEY must be a test key while Connect is sandbox-only',
+    ),
   STRIPE_WEBHOOK_SECRET: z.string().min(1, 'STRIPE_WEBHOOK_SECRET is required'),
+  STRIPE_CONNECT_WEBHOOK_SECRET: z
+    .string()
+    .min(1, 'STRIPE_CONNECT_WEBHOOK_SECRET is required'),
+  STRIPE_CONNECT_SANDBOX_MODE: z
+    .enum(['true', 'false'])
+    .default('true')
+    .refine(
+      (value) => value === 'true',
+      'STRIPE_CONNECT_SANDBOX_MODE must be true for the sandbox payment flow',
+    )
+    .transform((value) => value === 'true'),
+  STRIPE_CONNECT_ONBOARDING_RETURN_URL: z.url(
+    'STRIPE_CONNECT_ONBOARDING_RETURN_URL must be a valid URL',
+  ),
+  STRIPE_CONNECT_ONBOARDING_REFRESH_URL: z.url(
+    'STRIPE_CONNECT_ONBOARDING_REFRESH_URL must be a valid URL',
+  ),
   STRIPE_TIMEOUT_MS: z.string(),
   STRIPE_MAX_NETWORK_RETRIES: z.string(),
 });
