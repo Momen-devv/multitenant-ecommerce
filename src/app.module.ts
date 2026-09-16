@@ -41,6 +41,7 @@ import { ProductsModule } from './modules/products/products.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
+import { CartsModule } from './modules/carts/carts.module';
 
 @Module({
   imports: [
@@ -95,6 +96,7 @@ import { CheckoutModule } from './modules/checkout/checkout.module';
     CategoriesModule,
     PaymentsModule,
     CheckoutModule,
+    CartsModule,
 
     RouterModule.register([{ path: 'health', module: HealthModule }]),
   ],

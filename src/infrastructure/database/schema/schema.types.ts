@@ -20,6 +20,8 @@ import {
   storePaymentAccounts,
   connectWebhookEvents,
   storeCheckoutSettings,
+  carts,
+  cartItems,
 } from './schema';
 
 export type User = typeof user.$inferSelect;
@@ -88,3 +90,8 @@ export type NewStoreCheckoutSettings =
 
 export type ConnectWebhookEvent = typeof connectWebhookEvents.$inferSelect;
 export type NewConnectWebhookEvent = typeof connectWebhookEvents.$inferInsert;
+
+export type Cart = typeof carts.$inferSelect;
+export type NewCart = typeof carts.$inferInsert;
+export type CartItem = typeof cartItems.$inferSelect;
+export type NewCartItem = typeof cartItems.$inferInsert;
