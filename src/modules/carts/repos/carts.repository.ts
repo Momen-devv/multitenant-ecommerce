@@ -19,6 +19,7 @@ import {
   products,
   productVariants,
 } from '@/infrastructure/database/schema/products.schema';
+import { checkoutAttempts } from '@/infrastructure/database/schema/orders.schema';
 import * as schema from '@/infrastructure/database/schema/schema';
 import type {
   CartDetailResponseDto,
@@ -81,6 +82,7 @@ export class CartsRepository implements ICartsRepository {
         this.throwStaleVersion(current.version);
       }
       if (!current && version !== 0) this.throwStaleVersion(0);
+      if (current) await this.assertCartUnlocked(tx, current.id);
 
       const [existingItem] = current
         ? await tx
@@ -191,6 +193,7 @@ export class CartsRepository implements ICartsRepository {
         return this.syntheticCart(activeStore);
       }
       if (current.version !== version) this.throwStaleVersion(current.version);
+      await this.assertCartUnlocked(tx, current.id);
 
       const [item] = await tx
         .select({ variantId: cartItems.variantId })
@@ -244,6 +247,7 @@ export class CartsRepository implements ICartsRepository {
         return this.syntheticCart(activeStore);
       }
       if (current.version !== version) this.throwStaleVersion(current.version);
+      await this.assertCartUnlocked(tx, current.id);
       await tx.delete(carts).where(eq(carts.id, current.id));
       return this.syntheticCart(activeStore);
     });
@@ -435,6 +439,26 @@ export class CartsRepository implements ICartsRepository {
       .update(carts)
       .set({ version: this.nextVersion(), lastActivityAt: now, updatedAt: now })
       .where(eq(carts.id, cartId));
+  }
+
+  private async assertCartUnlocked(tx: Database, cartId: string) {
+    const [attempt] = await tx
+      .select({ id: checkoutAttempts.id })
+      .from(checkoutAttempts)
+      .where(
+        and(
+          eq(checkoutAttempts.cartId, cartId),
+          sql`${checkoutAttempts.status} IN ('creating', 'pending', 'cancelling')`,
+        ),
+      )
+      .for('update');
+    if (attempt) {
+      throw new CodedHttpError(
+        HttpStatus.CONFLICT,
+        'CART_LOCKED',
+        'This Cart has an active checkout and cannot be changed.',
+      );
+    }
   }
 
   private nextVersion() {

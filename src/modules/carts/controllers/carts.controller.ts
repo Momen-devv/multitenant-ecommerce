@@ -9,8 +9,8 @@ import {
   ParseUUIDPipe,
   Put,
   Session,
-  UseGuards,
 } from '@nestjs/common';
+import { Throttle, seconds } from '@nestjs/throttler';
 import {
   ApiBody,
   ApiCookieAuth,
@@ -25,10 +25,6 @@ import {
   ResponseMessage,
 } from '@/common/decorators';
 import {
-  CommerceThrottle,
-  CommerceUserThrottlerGuard,
-} from '@/common/guards/commerce-user-throttler.guard';
-import {
   CartDetailResponseDto,
   CartListResponseDto,
   CartVersionDto,
@@ -39,7 +35,6 @@ import { CartsService } from '../services/carts.service';
 @ApiTags('Carts')
 @ApiCookieAuth('mte.session_token')
 @Controller()
-@UseGuards(CommerceUserThrottlerGuard)
 @ApiErrorResponse(
   HttpStatus.TOO_MANY_REQUESTS,
   'RATE_LIMITED: request rate limit exceeded',
@@ -52,7 +47,7 @@ export class CartsController {
   constructor(private readonly carts: CartsService) {}
 
   @Get('users/me/carts')
-  @CommerceThrottle('read')
+  @Throttle({ default: { limit: 60, ttl: seconds(60) } })
   @ApiOperation({
     operationId: 'listMyCarts',
     summary: 'List the shopper’s nonempty Store carts',
@@ -85,7 +80,7 @@ export class CartsController {
   }
 
   @Get('stores/:storeId/cart')
-  @CommerceThrottle('read')
+  @Throttle({ default: { limit: 60, ttl: seconds(60) } })
   @ApiOperation({
     operationId: 'getStoreCart',
     summary: 'Read the shopper’s current Cart for one Store',
@@ -118,7 +113,7 @@ export class CartsController {
   }
 
   @Put('stores/:storeId/cart/items/:variantId')
-  @CommerceThrottle('cart-change')
+  @Throttle({ default: { limit: 30, ttl: seconds(60) } })
   @ApiOperation({
     operationId: 'putStoreCartItem',
     summary: 'Set a Cart item’s absolute quantity',
@@ -153,7 +148,7 @@ export class CartsController {
   }
 
   @Delete('stores/:storeId/cart/items/:variantId')
-  @CommerceThrottle('cart-change')
+  @Throttle({ default: { limit: 30, ttl: seconds(60) } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     operationId: 'deleteStoreCartItem',
@@ -189,7 +184,7 @@ export class CartsController {
   }
 
   @Delete('stores/:storeId/cart')
-  @CommerceThrottle('cart-change')
+  @Throttle({ default: { limit: 30, ttl: seconds(60) } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     operationId: 'deleteStoreCart',

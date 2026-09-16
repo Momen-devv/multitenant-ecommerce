@@ -17,8 +17,9 @@ import {
   productVariants,
 } from '@/infrastructure/database/schema/products.schema';
 import { store } from '@/infrastructure/database/schema/app.schema';
+import { checkoutReservations } from '@/infrastructure/database/schema/orders.schema';
 import * as schema from '@/infrastructure/database/schema/schema';
-import { and, asc, eq, lte, ne, or, sql } from 'drizzle-orm';
+import { and, asc, eq, lte, ne, notExists, or, sql } from 'drizzle-orm';
 import { DrizzleQueryError } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DatabaseError } from 'pg';
@@ -540,6 +541,21 @@ export class ProductVariantsRepository {
           eq(productVariants.status, ProductVariantStatus.ACTIVE),
           eq(productVariants.version, expectedVersion),
           ...(inventoryStateIsCompatible ? [inventoryStateIsCompatible] : []),
+          ...(input.inventoryPolicy
+            ? [
+                notExists(
+                  this.db
+                    .select({ id: checkoutReservations.id })
+                    .from(checkoutReservations)
+                    .where(
+                      and(
+                        eq(checkoutReservations.variantId, variantId),
+                        eq(checkoutReservations.disposition, 'held'),
+                      ),
+                    ),
+                ),
+              ]
+            : []),
         ),
       )
       .returning({

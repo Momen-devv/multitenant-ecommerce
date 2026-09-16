@@ -1,4 +1,9 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import {
+  ExecutionContext,
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+} from '@nestjs/common';
 import {
   APP_FILTER,
   APP_GUARD,
@@ -42,6 +47,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
 import { CartsModule } from './modules/carts/carts.module';
+import { OrdersModule } from './modules/orders/orders.module';
 
 @Module({
   imports: [
@@ -54,6 +60,9 @@ import { CartsModule } from './modules/carts/carts.module';
       useFactory: (redisClient: Redis) => ({
         throttlers: [{ name: 'default', ttl: seconds(60), limit: 60 }],
         storage: new ThrottlerStorageRedisService(redisClient),
+        getTracker: (req: Record<string, any>, context: ExecutionContext) => {
+          return req.session?.user?.id ?? req.ip;
+        },
       }),
     }),
     ScheduleModule.forRoot(),
@@ -97,6 +106,7 @@ import { CartsModule } from './modules/carts/carts.module';
     PaymentsModule,
     CheckoutModule,
     CartsModule,
+    OrdersModule,
 
     RouterModule.register([{ path: 'health', module: HealthModule }]),
   ],

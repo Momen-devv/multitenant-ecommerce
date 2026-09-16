@@ -6,3 +6,4 @@ export * from './products.schema';
 export * from './categories.schema';
 export * from './store-payments.schema';
 export * from './carts.schema';
+export * from './orders.schema';
