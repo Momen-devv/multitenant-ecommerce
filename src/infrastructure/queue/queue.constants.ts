@@ -5,6 +5,7 @@ export enum QueueNames {
   DATA_SYNC = 'data-sync',
   PLAN_PROVISIONING = 'plan-provisioning',
   STRIPE_WEBHOOK = 'stripe-webhook',
+  CONNECT_WEBHOOK = 'connect-webhook',
 }
 
 export const JobNames = {
@@ -33,6 +34,10 @@ export const JobNames = {
     PROCESS_EVENT: 'process-event',
     RECOVER_EVENTS: 'recover-events',
   },
+  CONNECT_WEBHOOK: {
+    PROCESS_EVENT: 'process-event',
+    RECOVER_EVENTS: 'recover-events',
+  },
 } as const;
 
 export type EmailJobName = (typeof JobNames.EMAIL)[keyof typeof JobNames.EMAIL];
@@ -45,3 +50,5 @@ export type PlanProvisioningJobName =
   (typeof JobNames.PLAN_PROVISIONING)[keyof typeof JobNames.PLAN_PROVISIONING];
 export type StripeWebhookJobName =
   (typeof JobNames.STRIPE_WEBHOOK)[keyof typeof JobNames.STRIPE_WEBHOOK];
+export type ConnectWebhookJobName =
+  (typeof JobNames.CONNECT_WEBHOOK)[keyof typeof JobNames.CONNECT_WEBHOOK];

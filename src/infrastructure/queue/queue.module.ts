@@ -9,6 +9,7 @@ import { ResourceCleanupQueueModule } from './resource-cleanup/resource-cleanup-
 import { DataSyncModule } from './data-sync/data-sync.module';
 import { PlanProvisioningQueueModule } from './plan-provisioning/plan-provisioning-queue.module';
 import { StripeWebhookQueueModule } from './stripe-webhook/stripe-webhook-queue.module';
+import { ConnectWebhookQueueModule } from './connect-webhook/connect-webhook-queue.module';
 
 @Global()
 @Module({
@@ -37,6 +38,7 @@ import { StripeWebhookQueueModule } from './stripe-webhook/stripe-webhook-queue.
     DataSyncModule,
     PlanProvisioningQueueModule,
     StripeWebhookQueueModule,
+    ConnectWebhookQueueModule,
   ],
   exports: [
     EmailQueueModule,
@@ -45,6 +47,7 @@ import { StripeWebhookQueueModule } from './stripe-webhook/stripe-webhook-queue.
     DataSyncModule,
     PlanProvisioningQueueModule,
     StripeWebhookQueueModule,
+    ConnectWebhookQueueModule,
   ],
 })
 export class QueueModule {}
