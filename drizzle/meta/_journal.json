@@ -197,6 +197,20 @@
       "when": 1789474814500,
       "tag": "0027_complete_roulette",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1789546524576,
+      "tag": "0028_superb_may_parker",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1789548666423,
+      "tag": "0029_soft_meltdown",
+      "breakpoints": true
     }
   ]
 }

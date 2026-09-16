@@ -2,6 +2,8 @@ import { relations, sql } from 'drizzle-orm';
 import {
   check,
   boolean,
+  bigint,
+  integer,
   index,
   pgEnum,
   pgTable,
@@ -103,6 +105,48 @@ export const storeLifecycleAudit = pgTable(
   ],
 );
 
+/**
+ * Owner-configured checkout preferences. Effective checkout availability is
+ * derived at read time from this desired configuration, Store lifecycle, and
+ * the current subscription/payment state.
+ */
+export const storeCheckoutSettings = pgTable(
+  'store_checkout_settings',
+  {
+    storeId: uuid('store_id')
+      .primaryKey()
+      .references(() => store.id, { onDelete: 'restrict' }),
+    // PostgreSQL integer cannot represent every safe JavaScript version.
+    version: bigint('version', { mode: 'number' }).notNull().default(1),
+    shippingFee: integer('shipping_fee').notNull().default(0),
+    deliveryCountries: text('delivery_countries')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    shippingPolicy: text('shipping_policy'),
+    cashOnDeliveryEnabled: boolean('cash_on_delivery_enabled')
+      .notNull()
+      .default(false),
+    onlineEnabled: boolean('online_enabled').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      'store_checkout_settings_version_positive_check',
+      sql`${table.version} > 0`,
+    ),
+    check(
+      'store_checkout_settings_shipping_fee_range_check',
+      sql`${table.shippingFee} BETWEEN 0 AND 1000000`,
+    ),
+  ],
+);
+
 export const userAddresses = pgTable(
   'user_addresses',
   {
@@ -199,6 +243,16 @@ export const storeRelations = relations(store, ({ one }) => ({
     references: [organization.id],
   }),
 }));
+
+export const storeCheckoutSettingsRelations = relations(
+  storeCheckoutSettings,
+  ({ one }) => ({
+    store: one(store, {
+      fields: [storeCheckoutSettings.storeId],
+      references: [store.id],
+    }),
+  }),
+);
 
 export const storeLifecycleAuditRelations = relations(
   storeLifecycleAudit,

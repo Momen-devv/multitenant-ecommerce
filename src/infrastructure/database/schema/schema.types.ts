@@ -19,6 +19,7 @@ import {
   user,
   storePaymentAccounts,
   connectWebhookEvents,
+  storeCheckoutSettings,
 } from './schema';
 
 export type User = typeof user.$inferSelect;
@@ -80,6 +81,10 @@ export type NewSubscription = typeof subscriptions.$inferInsert;
 
 export type StorePaymentAccount = typeof storePaymentAccounts.$inferSelect;
 export type NewStorePaymentAccount = typeof storePaymentAccounts.$inferInsert;
+
+export type StoreCheckoutSettings = typeof storeCheckoutSettings.$inferSelect;
+export type NewStoreCheckoutSettings =
+  typeof storeCheckoutSettings.$inferInsert;
 
 export type ConnectWebhookEvent = typeof connectWebhookEvents.$inferSelect;
 export type NewConnectWebhookEvent = typeof connectWebhookEvents.$inferInsert;

@@ -20,6 +20,7 @@ import {
   StorePaymentConnectionStatus,
   type StorePaymentConnectionResponseDto,
 } from '../dto/store-payment-connection.dto';
+import type { IStorePaymentReadinessReader } from '../interfaces';
 
 // Stripe retains idempotency results for at least 24 hours. Stop automatic
 // retries one hour early so an uncertain request cannot create a second
@@ -27,7 +28,7 @@ import {
 export const CREATION_IDEMPOTENCY_SAFETY_WINDOW_MS = 23 * 60 * 60 * 1000;
 
 @Injectable()
-export class StorePaymentsService {
+export class StorePaymentsService implements IStorePaymentReadinessReader {
   constructor(
     @Inject(DATABASE)
     private readonly db: NodePgDatabase<typeof schema>,
@@ -43,6 +44,11 @@ export class StorePaymentsService {
       this.environment,
     );
     return this.toConnection(row);
+  }
+
+  async isOnlineCheckoutReady(storeId: string): Promise<boolean> {
+    const row = await this.accounts.find(storeId, this.environment);
+    return this.isReady(row);
   }
 
   async createOnboarding(
@@ -337,12 +343,7 @@ export class StorePaymentsService {
       } satisfies StorePaymentConnectionResponseDto;
     }
 
-    const ready =
-      Boolean(row.accountId) &&
-      row.deauthorizedAt === null &&
-      row.chargesEnabled &&
-      row.payoutsEnabled &&
-      row.cardPaymentsActive;
+    const ready = this.isReady(row);
     let status: StorePaymentConnectionStatus;
     if (row.deauthorizedAt) status = StorePaymentConnectionStatus.DEAUTHORIZED;
     else if (row.creationStatus === 'review_required')
@@ -371,6 +372,16 @@ export class StorePaymentsService {
 
   private get environment(): PaymentEnvironment {
     return this.config.connectSandboxMode ? 'sandbox' : 'live';
+  }
+
+  private isReady(row: StorePaymentAccount | undefined): boolean {
+    return Boolean(
+      row?.accountId &&
+      row.deauthorizedAt === null &&
+      row.chargesEnabled &&
+      row.payoutsEnabled &&
+      row.cardPaymentsActive,
+    );
   }
 
   private requireIdempotencyKey(

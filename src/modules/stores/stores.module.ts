@@ -8,6 +8,7 @@ import { StoreLifecycleService } from './services/store-lifecycle.service';
 import { PlatformStoresService } from './services/platform-stores.service';
 import { StorageModule } from '@/infrastructure/storage/storage.module';
 import { ImageProcessingService } from '@/common/services/Image-processing.service';
+import { StoreMembershipGuard } from '@/common/guards/store-membership.guard';
 
 @Module({
   imports: [StorageModule],
@@ -19,7 +20,8 @@ import { ImageProcessingService } from '@/common/services/Image-processing.servi
     { provide: STORE_REPOSITORY, useExisting: StoreRepository },
     StoreLifecycleService,
     ImageProcessingService,
+    StoreMembershipGuard,
   ],
-  exports: [STORE_REPOSITORY],
+  exports: [STORE_REPOSITORY, StoreMembershipGuard],
 })
 export class StoresModule {}

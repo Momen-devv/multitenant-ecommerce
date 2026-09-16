@@ -79,6 +79,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const result: { code?: string; details?: Record<string, unknown> } = {};
     if ('code' in response && typeof response.code === 'string') {
       result.code = response.code;
+    } else if (
+      'message' in response &&
+      Array.isArray(response.message) &&
+      exception.getStatus() === 400
+    ) {
+      // ValidationPipe serializes constraint failures as a message array.
+      // Keep its detailed messages while giving clients one stable code.
+      result.code = 'INVALID_INPUT';
     }
     if (
       'details' in response &&

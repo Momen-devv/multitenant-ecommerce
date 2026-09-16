@@ -8,13 +8,19 @@ import { StorePaymentsService } from './services/store-payments.service';
 import { StorePaymentsController } from './controllers/store-payments.controller';
 import { StorePaymentCreationRecoveryTask } from './tasks/store-payment-creation-recovery.task';
 import { StripeConnectWebhookProcessor } from '@/infrastructure/queue/connect-webhook/connect-webhook.processor';
+import { StoresModule } from '@/modules/stores/stores.module';
+import { STORE_PAYMENT_READINESS_READER } from './interfaces';
 
 @Module({
-  imports: [PaymentInfrastructureModule],
+  imports: [PaymentInfrastructureModule, StoresModule],
   controllers: [StorePaymentsController, StripeConnectWebhookController],
   providers: [
     StorePaymentAccountsRepository,
     StorePaymentsService,
+    {
+      provide: STORE_PAYMENT_READINESS_READER,
+      useExisting: StorePaymentsService,
+    },
     {
       provide: CONNECT_ACCOUNT_EVENT_HANDLER,
       useExisting: StorePaymentsService,
@@ -23,6 +29,6 @@ import { StripeConnectWebhookProcessor } from '@/infrastructure/queue/connect-we
     StripeConnectWebhookProcessor,
     StorePaymentCreationRecoveryTask,
   ],
-  exports: [StorePaymentsService],
+  exports: [StorePaymentsService, STORE_PAYMENT_READINESS_READER],
 })
 export class PaymentsModule {}
