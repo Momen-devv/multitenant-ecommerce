@@ -20,18 +20,32 @@ export type CreateConnectedAccountInput = {
   idempotencyKey: string;
 };
 
-export type CheckoutLineItem = {
-  priceId: string;
-  quantity: number;
-};
+export type CheckoutLineItem =
+  | {
+      priceId: string;
+      priceData?: never;
+      quantity: number;
+    }
+  | {
+      priceId?: never;
+      priceData: {
+        currency: 'usd';
+        unitAmount: number;
+        productName: string;
+        productDescription?: string;
+      };
+      quantity: number;
+    };
 
 export type CreateCheckoutSessionInput = {
   mode: 'payment' | 'subscription';
   customerId?: string;
+  customerEmail?: string;
   lineItems: CheckoutLineItem[];
   successUrl: string;
   cancelUrl: string;
   metadata?: Record<string, string>;
+  paymentIntentMetadata?: Record<string, string>;
   subscriptionMetadata?: Record<string, string>;
   expiresAt?: Date;
 };
@@ -44,6 +58,7 @@ export type CheckoutSession = {
   paymentIntentId: string | null;
   subscriptionId: string | null;
   expiresAt: Date | null;
+  metadata: Record<string, string>;
 };
 
 export type PaymentIntent = {
@@ -52,6 +67,7 @@ export type PaymentIntent = {
   amount: number;
   currency: string;
   chargeId: string | null;
+  metadata: Record<string, string>;
 };
 
 export type PaymentCharge = {

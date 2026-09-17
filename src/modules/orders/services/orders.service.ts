@@ -121,4 +121,8 @@ export class OrdersService {
   attemptDetail(userId: string, attemptId: string) {
     return this.checkout.attemptDetail(userId, attemptId);
   }
+
+  cancelAttempt(userId: string, attemptId: string, key?: string) {
+    return this.checkout.cancelAttempt(userId, attemptId, key);
+  }
 }

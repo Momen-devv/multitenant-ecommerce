@@ -156,7 +156,7 @@ export class StoreCheckoutOptionsResponseDto {
     isArray: true,
     example: ['cash_on_delivery'],
   })
-  paymentMethods!: 'cash_on_delivery'[];
+  paymentMethods!: Array<'cash_on_delivery' | 'online'>;
 
   @ApiProperty({ example: true })
   checkoutAvailable!: boolean;

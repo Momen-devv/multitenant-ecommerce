@@ -8,6 +8,8 @@ export default registerAs('stripe', () => ({
   connectOnboardingReturnUrl: process.env.STRIPE_CONNECT_ONBOARDING_RETURN_URL!,
   connectOnboardingRefreshUrl:
     process.env.STRIPE_CONNECT_ONBOARDING_REFRESH_URL!,
+  checkoutSuccessUrl: process.env.STRIPE_CHECKOUT_SUCCESS_URL!,
+  checkoutCancelUrl: process.env.STRIPE_CHECKOUT_CANCEL_URL!,
   timeoutMs: Number(process.env.STRIPE_TIMEOUT_MS!),
   maxNetworkRetries: Number(process.env.STRIPE_MAX_NETWORK_RETRIES!),
 }));

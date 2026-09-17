@@ -19,6 +19,7 @@ import { user } from './auth.schema';
 import { store } from './app.schema';
 import { carts } from './carts.schema';
 import { inventoryPolicy } from './products.schema';
+import { paymentEnvironmentEnum } from './store-payments.schema';
 
 export const checkoutPaymentMethod = pgEnum('checkout_payment_method', [
   'cash_on_delivery',
@@ -136,6 +137,22 @@ export const checkoutAttempts = pgTable(
     requestHash: varchar('request_hash', { length: 64 }).notNull(),
     paymentUrl: text('payment_url'),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
+    connectedAccountId: varchar('connected_account_id', { length: 255 }),
+    paymentEnvironment: paymentEnvironmentEnum('payment_environment'),
+    checkoutSessionId: varchar('checkout_session_id', { length: 255 }),
+    paymentIntentId: varchar('payment_intent_id', { length: 255 }),
+    providerRequestKey: varchar('provider_request_key', { length: 255 }),
+    providerRequest: jsonb('provider_request').$type<Record<string, unknown>>(),
+    providerDispatchedAt: timestamp('provider_dispatched_at', {
+      withTimezone: true,
+    }),
+    providerAttempts: integer('provider_attempts').notNull().default(0),
+    nextRetryAt: timestamp('next_retry_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    leaseToken: uuid('lease_token'),
+    leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+    lastProviderError: varchar('last_provider_error', { length: 1000 }),
     paymentReviewRequired: boolean('payment_review_required')
       .notNull()
       .default(false),
@@ -155,6 +172,14 @@ export const checkoutAttempts = pgTable(
       t.userId,
       t.idempotencyKey,
     ),
+    uniqueIndex('checkout_attempts_session_uidx')
+      .on(t.paymentEnvironment, t.connectedAccountId, t.checkoutSessionId)
+      .where(sql`${t.checkoutSessionId} IS NOT NULL`),
+    uniqueIndex('checkout_attempts_payment_intent_uidx')
+      .on(t.paymentEnvironment, t.connectedAccountId, t.paymentIntentId)
+      .where(sql`${t.paymentIntentId} IS NOT NULL`),
+    index('checkout_attempts_recovery_due_idx').on(t.status, t.nextRetryAt),
+    index('checkout_attempts_lease_idx').on(t.status, t.leaseExpiresAt),
     index('checkout_attempts_user_created_idx').on(t.userId, t.createdAt, t.id),
   ],
 );

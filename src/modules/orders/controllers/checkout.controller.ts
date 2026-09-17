@@ -9,8 +9,10 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  Res,
   Session,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { Throttle, seconds } from '@nestjs/throttler';
 import {
   ApiBody,
@@ -49,7 +51,7 @@ export class CheckoutController {
     operationId: 'createCheckoutQuote',
     summary: 'Review a five-minute immutable checkout quote',
     description:
-      'Requires a verified email, verified account phone, owned Saved Address, and a serviceable Cart. Only cash on delivery is offered in this slice.',
+      'Requires a verified email, verified account phone, owned Saved Address, and a serviceable Cart. Available methods are configured per Store.',
   })
   @ApiParam({ name: 'storeId', format: 'uuid' })
   @ApiBody({ type: CreateCheckoutQuoteDto })
@@ -76,7 +78,7 @@ export class CheckoutController {
     operationId: 'startCheckout',
     summary: 'Start checkout from an accepted quote',
     description:
-      'Requires Idempotency-Key. A COD checkout atomically places one unpaid Order, reserves inventory, and clears only this Cart. Replays return the original attempt and Order.',
+      'Requires Idempotency-Key. COD atomically places one unpaid Order. Online checkout returns a hosted Stripe URL when ready, or a recoverable creating attempt while provider work is pending.',
   })
   @ApiParam({ name: 'storeId', format: 'uuid' })
   @ApiHeader({
@@ -90,6 +92,11 @@ export class CheckoutController {
     description: 'Checkout started',
     model: StartCheckoutResponseDto,
   })
+  @ApiSuccessResponse({
+    status: HttpStatus.ACCEPTED,
+    description: 'Online checkout creation is being recovered',
+    model: StartCheckoutResponseDto,
+  })
   @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'IDEMPOTENCY_KEY_REQUIRED')
   @ApiErrorResponse(
     HttpStatus.CONFLICT,
@@ -101,8 +108,14 @@ export class CheckoutController {
     @Param('storeId', ParseUUIDPipe) storeId: string,
     @Body() dto: StartCheckoutDto,
     @Headers('idempotency-key') idempotencyKey?: string,
+    @Res({ passthrough: true }) response?: Response,
   ) {
-    return this.orders.start(session.user.id, storeId, dto, idempotencyKey);
+    return this.orders
+      .start(session.user.id, storeId, dto, idempotencyKey)
+      .then((result: { status?: string }) => {
+        if (result.status === 'creating') response?.status(HttpStatus.ACCEPTED);
+        return result;
+      });
   }
 
   @Get('users/me/checkouts')
@@ -137,5 +150,52 @@ export class CheckoutController {
     @Param('attemptId', ParseUUIDPipe) attemptId: string,
   ) {
     return this.orders.attemptDetail(session.user.id, attemptId);
+  }
+
+  @Post('users/me/checkouts/:attemptId/cancel')
+  @Throttle({ default: { limit: 20, ttl: seconds(60) } })
+  @ApiOperation({
+    operationId: 'cancelMyCheckoutAttempt',
+    summary: 'Cancel an unpaid hosted checkout attempt',
+    description:
+      'Cancellation remains pending until Stripe confirms that the Session cannot still complete.',
+  })
+  @ApiParam({ name: 'attemptId', format: 'uuid' })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    schema: { type: 'string', minLength: 1, maxLength: 128 },
+  })
+  @ApiSuccessResponse({
+    status: HttpStatus.ACCEPTED,
+    description: 'Checkout cancellation is being reconciled',
+    model: AttemptResponseDto,
+  })
+  @ApiSuccessResponse({
+    status: HttpStatus.OK,
+    description: 'Checkout was already safely cancelled or expired',
+    model: AttemptResponseDto,
+  })
+  @ApiErrorResponse(
+    HttpStatus.CONFLICT,
+    'PAYMENT_ALREADY_COMPLETED or IDEMPOTENCY_CONFLICT',
+  )
+  @ResponseMessage('Checkout cancellation is being reconciled')
+  cancel(
+    @Session() session: CurrentUser,
+    @Param('attemptId', ParseUUIDPipe) attemptId: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+    @Res({ passthrough: true }) response?: Response,
+  ) {
+    return this.orders
+      .cancelAttempt(session.user.id, attemptId, idempotencyKey)
+      .then((result: { status?: string }) => {
+        if (['cancelled', 'expired'].includes(result.status ?? '')) {
+          response?.status(HttpStatus.OK);
+        } else {
+          response?.status(HttpStatus.ACCEPTED);
+        }
+        return result;
+      });
   }
 }

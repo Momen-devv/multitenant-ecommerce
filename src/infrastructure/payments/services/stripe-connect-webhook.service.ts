@@ -17,6 +17,10 @@ import {
   CONNECT_ACCOUNT_EVENT_HANDLER,
   type ConnectAccountEventHandler,
 } from '../connect-account-event-handler';
+import {
+  CONNECT_PURCHASE_EVENT_HANDLER,
+  type ConnectPurchaseEventHandler,
+} from '../connect-purchase-event-handler';
 
 const ACCOUNT_EVENT_TYPES = new Set([
   'account.updated',
@@ -48,6 +52,8 @@ export class StripeConnectWebhookService {
     private readonly queue: ConnectWebhookQueueService,
     @Inject(CONNECT_ACCOUNT_EVENT_HANDLER)
     private readonly accountEvents: ConnectAccountEventHandler,
+    @Inject(CONNECT_PURCHASE_EVENT_HANDLER)
+    private readonly purchaseEvents: ConnectPurchaseEventHandler,
     private readonly logger: LoggerService,
   ) {}
 
@@ -100,7 +106,10 @@ export class StripeConnectWebhookService {
     if (stored.status === 'completed' || stored.status === 'dead_letter')
       return;
 
-    if (ACCOUNT_EVENT_TYPES.has(event.type)) {
+    if (
+      ACCOUNT_EVENT_TYPES.has(event.type) ||
+      PURCHASE_EVENT_TYPES.has(event.type)
+    ) {
       try {
         await this.queue.enqueueEvent(stored.id);
       } catch (error) {
@@ -116,7 +125,10 @@ export class StripeConnectWebhookService {
   }
 
   async processEvent(eventId: string): Promise<void> {
-    const claimed = await this.events.claim(eventId, [...ACCOUNT_EVENT_TYPES]);
+    const claimed = await this.events.claim(eventId, [
+      ...ACCOUNT_EVENT_TYPES,
+      ...PURCHASE_EVENT_TYPES,
+    ]);
     if (!claimed) return;
     const leaseToken = claimed.leaseToken;
     if (!leaseToken) throw new Error('Connect webhook claim has no lease');
@@ -135,6 +147,13 @@ export class StripeConnectWebhookService {
             this.environment,
           );
         }
+      } else if (PURCHASE_EVENT_TYPES.has(event.type)) {
+        await this.purchaseEvents.processPurchaseEvent({
+          accountId: claimed.accountId,
+          environment: this.environment,
+          eventType: event.type,
+          payload: claimed.payload,
+        });
       }
 
       await this.events.complete(eventId, leaseToken);
@@ -150,7 +169,10 @@ export class StripeConnectWebhookService {
   }
 
   async recoverDueEvents(): Promise<void> {
-    const ids = await this.events.dueIds([...ACCOUNT_EVENT_TYPES]);
+    const ids = await this.events.dueIds([
+      ...ACCOUNT_EVENT_TYPES,
+      ...PURCHASE_EVENT_TYPES,
+    ]);
     await Promise.all(
       ids.map((eventId) =>
         this.queue

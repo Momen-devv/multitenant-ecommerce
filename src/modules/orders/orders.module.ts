@@ -3,12 +3,14 @@ import { CheckoutController } from './controllers/checkout.controller';
 import { UserOrdersController } from './controllers/user-orders.controller';
 import { StoreOrdersController } from './controllers/store-orders.controller';
 import { StoresModule } from '../stores/stores.module';
+import { PaymentInfrastructureModule } from '@/infrastructure/payments/payments.module';
 import { CheckoutRepository } from './repos/checkout.repository';
 import { OrdersRepository } from './repos/orders.repository';
 import { OrdersService } from './services/orders.service';
 import { CHECKOUT_REPOSITORY, ORDERS_REPOSITORY } from './interfaces';
+import { PaymentReconciliationTask } from './tasks/payment-reconciliation.task';
 @Module({
-  imports: [StoresModule],
+  imports: [StoresModule, PaymentInfrastructureModule],
   controllers: [
     CheckoutController,
     UserOrdersController,
@@ -20,7 +22,13 @@ import { CHECKOUT_REPOSITORY, ORDERS_REPOSITORY } from './interfaces';
     OrdersRepository,
     { provide: CHECKOUT_REPOSITORY, useExisting: CheckoutRepository },
     { provide: ORDERS_REPOSITORY, useExisting: OrdersRepository },
+    PaymentReconciliationTask,
   ],
-  exports: [OrdersService, CHECKOUT_REPOSITORY, ORDERS_REPOSITORY],
+  exports: [
+    OrdersService,
+    CheckoutRepository,
+    CHECKOUT_REPOSITORY,
+    ORDERS_REPOSITORY,
+  ],
 })
 export class OrdersModule {}

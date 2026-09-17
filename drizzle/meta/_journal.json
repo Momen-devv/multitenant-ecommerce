@@ -232,6 +232,13 @@
       "when": 1789718400000,
       "tag": "0032_order_fulfillment",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1789891200000,
+      "tag": "0033_online_checkout",
+      "breakpoints": true
     }
   ]
 }

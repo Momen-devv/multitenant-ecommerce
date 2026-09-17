@@ -93,14 +93,16 @@ export class StoreCheckoutSettingsService {
       eligibility.onlinePaymentReady,
     );
 
-    // Ticket 06 deliberately replaces this with the enabled-and-ready online
-    // path once it owns the actual card checkout flow.
-    const paymentMethods: 'cash_on_delivery'[] =
-      configured.cashOnDeliveryEnabled &&
-      configured.deliveryCountries.length > 0 &&
-      eligibility.canAcceptOrders
-        ? ['cash_on_delivery']
-        : [];
+    const eligible =
+      configured.deliveryCountries.length > 0 && eligibility.canAcceptOrders;
+    const paymentMethods: Array<'cash_on_delivery' | 'online'> = [
+      ...(configured.cashOnDeliveryEnabled && eligible
+        ? (['cash_on_delivery'] as const)
+        : []),
+      ...(configured.onlineEnabled && configured.onlineReady && eligible
+        ? (['online'] as const)
+        : []),
+    ];
 
     return {
       currency: USD_CURRENCY,

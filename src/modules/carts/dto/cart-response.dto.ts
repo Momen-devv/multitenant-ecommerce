@@ -7,8 +7,8 @@ export class ActiveCheckoutResponseDto {
   @ApiProperty({ example: 'pending' })
   status!: string;
 
-  @ApiProperty({ format: 'date-time' })
-  expiresAt!: Date;
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  expiresAt!: Date | null;
 }
 
 export class CartItemResponseDto {

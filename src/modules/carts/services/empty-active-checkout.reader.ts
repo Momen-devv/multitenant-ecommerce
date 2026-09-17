@@ -34,7 +34,7 @@ export class EmptyActiveCheckoutReader implements ICartActiveCheckoutReader {
         ),
       )
       .limit(1);
-    return attempt?.expiresAt
+    return attempt
       ? {
           attemptId: attempt.attemptId,
           status: attempt.status,

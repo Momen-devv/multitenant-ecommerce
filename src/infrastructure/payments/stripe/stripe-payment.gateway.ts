@@ -76,13 +76,33 @@ export class StripePaymentGateway implements PaymentGateway {
       {
         mode: input.mode,
         customer: input.customerId,
+        customer_email: input.customerEmail,
         line_items: input.lineItems.map((item) => ({
-          price: item.priceId,
+          ...(item.priceId ? { price: item.priceId } : {}),
+          ...(item.priceData
+            ? {
+                price_data: {
+                  currency: item.priceData.currency,
+                  unit_amount: item.priceData.unitAmount,
+                  product_data: {
+                    name: item.priceData.productName,
+                    description: item.priceData.productDescription,
+                  },
+                },
+              }
+            : {}),
           quantity: item.quantity,
         })),
         success_url: input.successUrl,
         cancel_url: input.cancelUrl,
         metadata: input.metadata,
+        payment_intent_data: input.paymentIntentMetadata
+          ? { metadata: input.paymentIntentMetadata }
+          : undefined,
+        payment_method_types: input.mode === 'payment' ? ['card'] : undefined,
+        automatic_tax:
+          input.mode === 'payment' ? { enabled: false } : undefined,
+        allow_promotion_codes: input.mode === 'payment' ? false : undefined,
         subscription_data: input.subscriptionMetadata
           ? { metadata: input.subscriptionMetadata }
           : undefined,
@@ -134,6 +154,7 @@ export class StripePaymentGateway implements PaymentGateway {
       amount: intent.amount,
       currency: intent.currency,
       chargeId: this.expandableId(intent.latest_charge),
+      metadata: intent.metadata,
     };
   }
 
@@ -199,6 +220,7 @@ export class StripePaymentGateway implements PaymentGateway {
       expiresAt: session.expires_at
         ? new Date(session.expires_at * 1000)
         : null,
+      metadata: session.metadata ?? {},
     };
   }
 
