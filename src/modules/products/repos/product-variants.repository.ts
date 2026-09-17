@@ -17,7 +17,10 @@ import {
   productVariants,
 } from '@/infrastructure/database/schema/products.schema';
 import { store } from '@/infrastructure/database/schema/app.schema';
-import { checkoutReservations } from '@/infrastructure/database/schema/orders.schema';
+import {
+  checkoutReservations,
+  orders,
+} from '@/infrastructure/database/schema/orders.schema';
 import * as schema from '@/infrastructure/database/schema/schema';
 import { and, asc, eq, lte, ne, notExists, or, sql } from 'drizzle-orm';
 import { DrizzleQueryError } from 'drizzle-orm';
@@ -488,102 +491,149 @@ export class ProductVariantsRepository {
     expectedVersion: number,
     input: UpdateVariantInventoryInput,
   ) {
-    const isSwitchingToTracked =
-      input.inventoryPolicy === InventoryPolicy.TRACKED;
-    const isSwitchingToUntracked =
-      input.inventoryPolicy === InventoryPolicy.UNTRACKED;
-    const nextOnHand = input.onHand!;
-
-    const balances = isSwitchingToUntracked
-      ? {
-          inventoryPolicy: InventoryPolicy.UNTRACKED,
-          onHand: null,
-          reserved: null,
-        }
-      : isSwitchingToTracked
-        ? {
-            inventoryPolicy: InventoryPolicy.TRACKED,
-            onHand: nextOnHand,
-            reserved: sql<number>`case when ${productVariants.inventoryPolicy} = ${InventoryPolicy.UNTRACKED} then 0 else ${productVariants.reserved} end`,
-          }
-        : { onHand: nextOnHand };
-
-    const inventoryStateIsCompatible = isSwitchingToUntracked
-      ? or(
-          eq(productVariants.inventoryPolicy, InventoryPolicy.UNTRACKED),
+    return this.db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select({ inventoryPolicy: productVariants.inventoryPolicy })
+        .from(productVariants)
+        .where(
           and(
-            eq(productVariants.inventoryPolicy, InventoryPolicy.TRACKED),
-            eq(productVariants.reserved, 0),
+            eq(productVariants.storeId, storeId),
+            eq(productVariants.productId, productId),
+            eq(productVariants.id, variantId),
           ),
         )
-      : isSwitchingToTracked
+        .for('update');
+      if (!locked) return undefined;
+      if (
+        input.inventoryPolicy &&
+        input.inventoryPolicy !== locked.inventoryPolicy
+      ) {
+        const [held] = await tx
+          .select({ id: checkoutReservations.id })
+          .from(checkoutReservations)
+          .where(
+            and(
+              eq(checkoutReservations.variantId, variantId),
+              eq(checkoutReservations.disposition, 'held'),
+            ),
+          )
+          .limit(1);
+        const [returnableShipment] = await tx
+          .select({ id: checkoutReservations.id })
+          .from(checkoutReservations)
+          .innerJoin(orders, eq(orders.id, checkoutReservations.orderId))
+          .where(
+            and(
+              eq(checkoutReservations.variantId, variantId),
+              eq(checkoutReservations.disposition, 'consumed'),
+              eq(orders.status, 'shipped'),
+            ),
+          )
+          .limit(1);
+        if (held || returnableShipment) {
+          throw new VariantConflictError(
+            'Inventory policy cannot change while stock is reserved or a shipment remains returnable.',
+          );
+        }
+      }
+      const isSwitchingToTracked =
+        input.inventoryPolicy === InventoryPolicy.TRACKED;
+      const isSwitchingToUntracked =
+        input.inventoryPolicy === InventoryPolicy.UNTRACKED;
+      const nextOnHand = input.onHand!;
+
+      const balances = isSwitchingToUntracked
+        ? {
+            inventoryPolicy: InventoryPolicy.UNTRACKED,
+            onHand: null,
+            reserved: null,
+          }
+        : isSwitchingToTracked
+          ? {
+              inventoryPolicy: InventoryPolicy.TRACKED,
+              onHand: nextOnHand,
+              reserved: sql<number>`case when ${productVariants.inventoryPolicy} = ${InventoryPolicy.UNTRACKED} then 0 else ${productVariants.reserved} end`,
+            }
+          : { onHand: nextOnHand };
+
+      const inventoryStateIsCompatible = isSwitchingToUntracked
         ? or(
             eq(productVariants.inventoryPolicy, InventoryPolicy.UNTRACKED),
-            lte(productVariants.reserved, nextOnHand),
+            and(
+              eq(productVariants.inventoryPolicy, InventoryPolicy.TRACKED),
+              eq(productVariants.reserved, 0),
+            ),
           )
-        : and(
-            eq(productVariants.inventoryPolicy, InventoryPolicy.TRACKED),
-            lte(productVariants.reserved, nextOnHand),
-          );
+        : isSwitchingToTracked
+          ? or(
+              eq(productVariants.inventoryPolicy, InventoryPolicy.UNTRACKED),
+              lte(productVariants.reserved, nextOnHand),
+            )
+          : and(
+              eq(productVariants.inventoryPolicy, InventoryPolicy.TRACKED),
+              lte(productVariants.reserved, nextOnHand),
+            );
 
-    const [variant] = await this.db
-      .update(productVariants)
-      .set({
-        ...balances,
-        version: sql`${productVariants.version} + 1`,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(productVariants.storeId, storeId),
-          eq(productVariants.productId, productId),
-          eq(productVariants.id, variantId),
-          eq(productVariants.status, ProductVariantStatus.ACTIVE),
-          eq(productVariants.version, expectedVersion),
-          ...(inventoryStateIsCompatible ? [inventoryStateIsCompatible] : []),
-          ...(input.inventoryPolicy
-            ? [
-                notExists(
-                  this.db
-                    .select({ id: checkoutReservations.id })
-                    .from(checkoutReservations)
-                    .where(
-                      and(
-                        eq(checkoutReservations.variantId, variantId),
-                        eq(checkoutReservations.disposition, 'held'),
+      const [variant] = await tx
+        .update(productVariants)
+        .set({
+          ...balances,
+          version: sql`${productVariants.version} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(productVariants.storeId, storeId),
+            eq(productVariants.productId, productId),
+            eq(productVariants.id, variantId),
+            eq(productVariants.status, ProductVariantStatus.ACTIVE),
+            eq(productVariants.version, expectedVersion),
+            ...(inventoryStateIsCompatible ? [inventoryStateIsCompatible] : []),
+            ...(input.inventoryPolicy &&
+            input.inventoryPolicy !== locked.inventoryPolicy
+              ? [
+                  notExists(
+                    tx
+                      .select({ id: checkoutReservations.id })
+                      .from(checkoutReservations)
+                      .where(
+                        and(
+                          eq(checkoutReservations.variantId, variantId),
+                          eq(checkoutReservations.disposition, 'held'),
+                        ),
                       ),
-                    ),
-                ),
-              ]
-            : []),
-        ),
-      )
-      .returning({
-        id: productVariants.id,
-        title: productVariants.title,
-        sku: productVariants.sku,
-        barcode: productVariants.barcode,
-        price: productVariants.price,
-        compareAtPrice: productVariants.compareAtPrice,
-        weightGrams: productVariants.weightGrams,
-        status: productVariants.status,
-        archivedAt: productVariants.archivedAt,
-        inventoryPolicy: productVariants.inventoryPolicy,
-        onHand: productVariants.onHand,
-        reserved: productVariants.reserved,
-        available: sql<
-          number | null
-        >`case when ${productVariants.inventoryPolicy} = ${InventoryPolicy.TRACKED} then ${productVariants.onHand} - ${productVariants.reserved} else null end`,
-        version: productVariants.version,
-        createdAt: productVariants.createdAt,
-        updatedAt: productVariants.updatedAt,
-        currency: sql<string>`(select ${store.defaultCurrency} from ${store} where ${store.id} = ${productVariants.storeId})`,
-        inStock: sql<boolean>`
+                  ),
+                ]
+              : []),
+          ),
+        )
+        .returning({
+          id: productVariants.id,
+          title: productVariants.title,
+          sku: productVariants.sku,
+          barcode: productVariants.barcode,
+          price: productVariants.price,
+          compareAtPrice: productVariants.compareAtPrice,
+          weightGrams: productVariants.weightGrams,
+          status: productVariants.status,
+          archivedAt: productVariants.archivedAt,
+          inventoryPolicy: productVariants.inventoryPolicy,
+          onHand: productVariants.onHand,
+          reserved: productVariants.reserved,
+          available: sql<
+            number | null
+          >`case when ${productVariants.inventoryPolicy} = ${InventoryPolicy.TRACKED} then ${productVariants.onHand} - ${productVariants.reserved} else null end`,
+          version: productVariants.version,
+          createdAt: productVariants.createdAt,
+          updatedAt: productVariants.updatedAt,
+          currency: sql<string>`(select ${store.defaultCurrency} from ${store} where ${store.id} = ${productVariants.storeId})`,
+          inStock: sql<boolean>`
           ${productVariants.inventoryPolicy} = ${InventoryPolicy.UNTRACKED}
           OR coalesce(${productVariants.onHand}, 0) - coalesce(${productVariants.reserved}, 0) > 0
         `,
-      });
-    return variant;
+        });
+      return variant;
+    });
   }
 
   async archiveVariant(

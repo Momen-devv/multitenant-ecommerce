@@ -13,6 +13,7 @@ const statement = {
   product: ['read', 'create', 'update', 'delete'],
   customer: ['read', 'update'],
   report: ['read'],
+  order: ['read', 'process', 'cancel', 'refund'],
 } as const;
 
 export const ac = createAccessControl(statement);
@@ -28,6 +29,7 @@ const allCommercePermissions = {
   product: ['read', 'create', 'update', 'delete'],
   customer: ['read', 'update'],
   report: ['read'],
+  order: ['read', 'process', 'cancel', 'refund'],
 } as const;
 
 export const organizationOwner = ac.newRole({
@@ -41,8 +43,10 @@ export const organizationManager = ac.newRole({
   product: ['read', 'create', 'update', 'delete'],
   customer: ['read', 'update'],
   report: ['read'],
+  order: ['read', 'process', 'cancel', 'refund'],
 });
 
 export const support = ac.newRole({
   customer: ['read', 'update'],
+  order: ['read'],
 });

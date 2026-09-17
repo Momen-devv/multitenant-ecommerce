@@ -9,6 +9,7 @@ import {
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { and, eq } from 'drizzle-orm';
 import type { CurrentUser } from '@/core/auth/auth.types';
+import { OrganizationRole } from '@/common/enums';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import * as schema from '@/infrastructure/database/schema/schema';
 import { member, store } from '@/infrastructure/database/schema/schema';
@@ -39,6 +40,7 @@ export class StoreMembershipGuard implements CanActivate {
         organizationId: store.organizationId,
         storeId: store.id,
         currency: store.defaultCurrency,
+        membershipRole: member.role,
       })
       .from(store)
       .innerJoin(
@@ -57,7 +59,12 @@ export class StoreMembershipGuard implements CanActivate {
       );
     }
 
-    request.activeStore = result;
+    request.activeStore = {
+      organizationId: result.organizationId,
+      storeId: result.storeId,
+      currency: result.currency,
+      membershipRole: result.membershipRole as OrganizationRole,
+    };
     return true;
   }
 }

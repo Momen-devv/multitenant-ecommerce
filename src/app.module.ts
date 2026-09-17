@@ -1,9 +1,4 @@
-import {
-  ExecutionContext,
-  MiddlewareConsumer,
-  Module,
-  NestModule,
-} from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import {
   APP_FILTER,
   APP_GUARD,
@@ -30,6 +25,8 @@ import { DATABASE } from './common/constants/injection-tokens.constants';
 import { AllExceptionsFilter } from '@/common/filters/http-exception.filter';
 import { TransformResponseInterceptor } from './common/interceptors/transform-response.interceptor';
 import { CorrelationIdMiddleware } from './common/middlewares/correlation-id.middleware';
+import { ActiveUserGuard } from './common/guards/active-user.guard';
+import type { ThrottledRequest } from '@/common/types/request.types';
 
 // Feature modules
 import { UsersModule } from './modules/users/users.module';
@@ -60,14 +57,16 @@ import { OrdersModule } from './modules/orders/orders.module';
       useFactory: (redisClient: Redis) => ({
         throttlers: [{ name: 'default', ttl: seconds(60), limit: 60 }],
         storage: new ThrottlerStorageRedisService(redisClient),
-        getTracker: (req: Record<string, any>, context: ExecutionContext) => {
-          return req.session?.user?.id ?? req.ip;
+        getTracker: (request) => {
+          const { session, ip } = request as ThrottledRequest;
+          return session?.user.id ?? ip;
         },
       }),
     }),
     ScheduleModule.forRoot(),
 
     AuthModule.forRootAsync({
+      disableGlobalAuthGuard: true,
       imports: [InfrastructureModule],
       inject: [
         EmailQueueService,
@@ -126,6 +125,10 @@ import { OrdersModule } from './modules/orders/orders.module';
     {
       provide: APP_GUARD,
       useClass: AuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ActiveUserGuard,
     },
     {
       provide: APP_GUARD,

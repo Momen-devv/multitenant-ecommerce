@@ -185,6 +185,14 @@ export const orders = pgTable(
       .$type<CheckoutSnapshot['shippingAddress']>()
       .notNull(),
     shippingPolicy: text('shipping_policy'),
+    carrier: varchar('carrier', { length: 100 }),
+    trackingNumber: varchar('tracking_number', { length: 200 }),
+    cancellationReason: text('cancellation_reason'),
+    preparedAt: timestamp('prepared_at', { withTimezone: true }),
+    shippedAt: timestamp('shipped_at', { withTimezone: true }),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    returnedAt: timestamp('returned_at', { withTimezone: true }),
     paymentReviewRequired: boolean('payment_review_required')
       .notNull()
       .default(false),
@@ -207,6 +215,14 @@ export const orders = pgTable(
     check(
       'orders_amounts_check',
       sql`${t.subtotal} >= 0 AND ${t.shippingFee} >= 0 AND ${t.total} = ${t.subtotal} + ${t.shippingFee} AND ${t.refundedAmount} >= 0`,
+    ),
+    check(
+      'orders_carrier_tracking_pair_check',
+      sql`(${t.carrier} IS NULL AND ${t.trackingNumber} IS NULL) OR (${t.carrier} IS NOT NULL AND ${t.trackingNumber} IS NOT NULL)`,
+    ),
+    check(
+      'orders_cancellation_reason_check',
+      sql`${t.cancellationReason} IS NULL OR (${t.cancellationReason} = trim(${t.cancellationReason}) AND char_length(${t.cancellationReason}) BETWEEN 1 AND 500)`,
     ),
   ],
 );
@@ -288,12 +304,22 @@ export const orderEvents = pgTable(
     storeId: uuid('store_id').notNull(),
     version: integer('version').notNull(),
     kind: varchar('kind', { length: 64 }).notNull(),
+    previousStatus: orderStatus('previous_status'),
+    nextStatus: orderStatus('next_status'),
+    actorAuthority: varchar('actor_authority', { length: 32 }),
     actorUserId: text('actor_user_id'),
+    reason: text('reason'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
-  (t) => [unique('order_events_order_version_uidx').on(t.orderId, t.version)],
+  (t) => [
+    unique('order_events_order_version_uidx').on(t.orderId, t.version),
+    check(
+      'order_events_reason_check',
+      sql`${t.reason} IS NULL OR (${t.reason} = trim(${t.reason}) AND char_length(${t.reason}) BETWEEN 1 AND 500)`,
+    ),
+  ],
 );
 
 export const commerceCommands = pgTable(

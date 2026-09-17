@@ -41,7 +41,7 @@ import { outboxEvents } from '@/infrastructure/database/schema/outbox.schema';
 import { OutboxEventType } from '@/common/enums/outbox-event-type.enum';
 import type {
   CreateCheckoutQuoteDto,
-  OrderQueryDto,
+  CheckoutQueryDto,
   StartCheckoutDto,
 } from '../dto';
 
@@ -117,7 +117,6 @@ export class CheckoutRepository {
     }
     const requestHash = this.hash({ quoteId: dto.quoteId });
     return this.db.transaction(async (tx) => {
-      await this.assertFreshUser(tx, userId, true);
       const [command] = await tx
         .select()
         .from(commerceCommands)
@@ -288,6 +287,9 @@ export class CheckoutRepository {
         storeId,
         version: 1,
         kind: 'placed',
+        previousStatus: null,
+        nextStatus: 'placed',
+        actorAuthority: 'shopper',
         actorUserId: userId,
       });
       // Ticket 08 owns dispatch; preserving this intent makes placement durable
@@ -323,8 +325,7 @@ export class CheckoutRepository {
     });
   }
 
-  async listAttempts(userId: string, query: OrderQueryDto) {
-    await this.assertFreshUser(this.db, userId);
+  async listAttempts(userId: string, query: CheckoutQueryDto) {
     const limit = query.limit ?? 20;
     const where = [eq(checkoutAttempts.userId, userId)];
     if (query['filter[storeId][eq]'])
@@ -350,7 +351,6 @@ export class CheckoutRepository {
     };
   }
   async attemptDetail(userId: string, attemptId: string) {
-    await this.assertFreshUser(this.db, userId);
     return await this.attemptResponse(this.db, userId, attemptId);
   }
 
@@ -363,7 +363,6 @@ export class CheckoutRepository {
     version: number,
     lock: boolean,
   ): Promise<CheckoutSnapshot> {
-    await this.assertFreshUser(tx, userId, lock);
     const [cart] = await (lock
       ? tx
           .select()
@@ -678,6 +677,11 @@ export class CheckoutRepository {
       .select()
       .from(orderItems)
       .where(eq(orderItems.orderId, order.id));
+    const timeline = await tx
+      .select()
+      .from(orderEvents)
+      .where(eq(orderEvents.orderId, order.id))
+      .orderBy(orderEvents.version);
     return {
       ...this.orderSummary(order),
       accountContact: {
@@ -689,6 +693,24 @@ export class CheckoutRepository {
       shippingPolicy: order.shippingPolicy,
       refundedAmount: order.refundedAmount,
       version: order.version,
+      paymentReviewRequired: order.paymentReviewRequired,
+      allowedActions:
+        !order.paymentReviewRequired &&
+        order.status === 'placed' &&
+        order.paymentMethod !== 'online'
+          ? ['cancel']
+          : [],
+      subtotal: order.subtotal,
+      shippingFee: order.shippingFee,
+      carrier: order.carrier,
+      trackingNumber: order.trackingNumber,
+      cancellationReason: order.cancellationReason,
+      preparedAt: order.preparedAt,
+      shippedAt: order.shippedAt,
+      deliveredAt: order.deliveredAt,
+      cancelledAt: order.cancelledAt,
+      returnedAt: order.returnedAt,
+      timeline,
     };
   }
   private orderSummary(order: typeof orders.$inferSelect) {
@@ -723,29 +745,6 @@ export class CheckoutRepository {
       )
       .limit(1);
     return found?.id ?? '';
-  }
-  private async assertFreshUser(tx: Database, userId: string, lock = false) {
-    const query = tx
-      .select({
-        id: user.id,
-        isActive: user.isActive,
-        banned: user.banned,
-        banExpires: user.banExpires,
-      })
-      .from(user)
-      .where(eq(user.id, userId));
-    const [current] = await (lock ? query.for('update') : query);
-    if (
-      !current ||
-      !current.isActive ||
-      (current.banned &&
-        (!current.banExpires || current.banExpires > new Date()))
-    )
-      throw new CodedHttpError(
-        HttpStatus.FORBIDDEN,
-        'ACCOUNT_UNAVAILABLE',
-        'This account is not available.',
-      );
   }
   private hash(value: unknown) {
     return createHash('sha256').update(JSON.stringify(value)).digest('hex');

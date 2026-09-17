@@ -10,7 +10,6 @@ import {
 } from '@/common/enums';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import { store } from '@/infrastructure/database/schema/app.schema';
-import { user } from '@/infrastructure/database/schema/auth.schema';
 import {
   cartItems,
   carts,
@@ -39,7 +38,6 @@ export class CartsRepository implements ICartsRepository {
 
   async list(userId: string): Promise<CartSummaryResponseDto[]> {
     return this.db.transaction(async (tx) => {
-      await this.assertFreshUser(tx, userId);
       const rows = await tx
         .select({ id: carts.id, storeId: carts.storeId })
         .from(carts)
@@ -57,7 +55,6 @@ export class CartsRepository implements ICartsRepository {
 
   async get(userId: string, storeId: string): Promise<CartDetailResponseDto> {
     return this.db.transaction(async (tx) => {
-      await this.assertFreshUser(tx, userId);
       return this.loadCart(tx, userId, storeId);
     });
   }
@@ -70,7 +67,6 @@ export class CartsRepository implements ICartsRepository {
     version: number,
   ): Promise<CartDetailResponseDto> {
     return this.db.transaction(async (tx) => {
-      await this.assertFreshUser(tx, userId, true);
       await this.requireStore(tx, storeId);
       const [current] = await tx
         .select({ id: carts.id, version: carts.version })
@@ -181,7 +177,6 @@ export class CartsRepository implements ICartsRepository {
     version: number,
   ): Promise<CartDetailResponseDto> {
     return this.db.transaction(async (tx) => {
-      await this.assertFreshUser(tx, userId, true);
       const activeStore = await this.requireStore(tx, storeId);
       const [current] = await tx
         .select({ id: carts.id, version: carts.version })
@@ -235,7 +230,6 @@ export class CartsRepository implements ICartsRepository {
     version: number,
   ): Promise<CartDetailResponseDto> {
     return this.db.transaction(async (tx) => {
-      await this.assertFreshUser(tx, userId, true);
       const activeStore = await this.requireStore(tx, storeId);
       const [current] = await tx
         .select({ id: carts.id, version: carts.version })
@@ -403,33 +397,6 @@ export class CartsRepository implements ICartsRepository {
         HttpStatus.CONFLICT,
         'INSUFFICIENT_STOCK',
         'The requested quantity is not currently available.',
-      );
-    }
-  }
-
-  private async assertFreshUser(
-    tx: Database,
-    userId: string,
-    lock = false,
-  ): Promise<void> {
-    const baseQuery = tx
-      .select({
-        id: user.id,
-        isActive: user.isActive,
-        banned: user.banned,
-        banExpires: user.banExpires,
-      })
-      .from(user)
-      .where(eq(user.id, userId));
-    const [currentUser] = await (lock ? baseQuery.for('update') : baseQuery);
-    const currentlyBanned =
-      currentUser?.banned &&
-      (!currentUser.banExpires || currentUser.banExpires > new Date());
-    if (!currentUser || !currentUser.isActive || currentlyBanned) {
-      throw new CodedHttpError(
-        HttpStatus.FORBIDDEN,
-        'ACCOUNT_UNAVAILABLE',
-        'This account is not available for cart operations.',
       );
     }
   }
