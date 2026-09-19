@@ -27,6 +27,7 @@ import { TransformResponseInterceptor } from './common/interceptors/transform-re
 import { CorrelationIdMiddleware } from './common/middlewares/correlation-id.middleware';
 import { ActiveUserGuard } from './common/guards/active-user.guard';
 import type { ThrottledRequest } from '@/common/types/request.types';
+import { Environment } from '@/common/enums';
 
 // Feature modules
 import { UsersModule } from './modules/users/users.module';
@@ -56,6 +57,7 @@ import { OrdersModule } from './modules/orders/orders.module';
       inject: [CACHE_CLIENT],
       useFactory: (redisClient: Redis) => ({
         throttlers: [{ name: 'default', ttl: seconds(60), limit: 60 }],
+        skipIf: () => process.env.NODE_ENV === Environment.Development,
         storage: new ThrottlerStorageRedisService(redisClient),
         getTracker: (request) => {
           const { session, ip } = request as ThrottledRequest;
