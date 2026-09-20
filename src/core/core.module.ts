@@ -8,6 +8,7 @@ import {
   redisConfig,
   storageConfig,
   stripeConfig,
+  typesafeConfig,
   validate,
 } from '@/core/config';
 import { RestrictInternalFieldsHook } from './auth/hooks/restrict-internal-fields.hook';
@@ -27,6 +28,7 @@ import { CheckActivationHook } from './auth/hooks/check-activation-hook';
         storageConfig,
         betterAuthConfig,
         stripeConfig,
+        typesafeConfig,
       ],
     }),
   ],
