@@ -10,3 +10,4 @@ export { InventoryPolicy } from './inventory-policy.enum';
 export { ProductStatus } from './product-status.enum';
 export { ProductVariantStatus } from './product-variant-status.enum';
 export { CategoryStatus } from './category-status.enum';
+export { PlatformAssistantAction } from './platform-assistant-action.enum';

@@ -4,3 +4,4 @@ export { hashPassword, verifyPassword } from './password-hash.util';
 export { withTimeout } from './with-timeout';
 export { createCatalogSlug } from './catalog-slug';
 export { trimStringOrNull, trimStringValue } from './string-transforms';
+export { parseBanDurationInSeconds } from './ban-duration.util';
