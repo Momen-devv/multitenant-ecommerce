@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotImplementedException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
@@ -20,11 +20,5 @@ export class AssistantRepository implements IAssistantRepository {
       .limit(1);
 
     return user?.id;
-  }
-
-  createCommand(): Promise<never> {
-    throw new NotImplementedException(
-      'Assistant command persistence has not been implemented yet.',
-    );
   }
 }

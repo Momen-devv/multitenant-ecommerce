@@ -20,6 +20,6 @@ import { ImageProcessingService } from '@/common/services/Image-processing.servi
     StoreLifecycleService,
     ImageProcessingService,
   ],
-  exports: [STORE_REPOSITORY],
+  exports: [STORE_REPOSITORY, PlatformStoresService],
 })
 export class StoresModule {}
