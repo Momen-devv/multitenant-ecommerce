@@ -47,6 +47,21 @@ export class EmailQueueService {
     );
   }
 
+  async addInvitationEmailJob(
+    to: string,
+    organizationName: string,
+    inviterName: string,
+    role: string,
+    inviteLink: string,
+    rejectLink: string,
+  ): Promise<void> {
+    await this.emailQueue.add(
+      JobNames.EMAIL.INVITATION,
+      { to, organizationName, inviterName, role, inviteLink, rejectLink },
+      this.jobOptions,
+    );
+  }
+
   async addAccountDeactivatedJob(to: string): Promise<void> {
     await this.emailQueue.add(
       JobNames.EMAIL.ACCOUNT_DEACTIVATED,
