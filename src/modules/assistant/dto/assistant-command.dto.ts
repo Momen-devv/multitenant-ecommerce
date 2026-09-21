@@ -8,6 +8,6 @@ export class AssistantCommandDto {
   })
   @IsString()
   @MinLength(1)
-  @MaxLength(2000)
+  @MaxLength(100)
   command!: string;
 }

@@ -31,6 +31,11 @@ import { StoreInvitationsController } from './controllers/store-invitations.cont
     StoreMembershipService,
     StoreMembershipGuard,
   ],
-  exports: [STORE_REPOSITORY, PlatformStoresService],
+  exports: [
+    STORE_REPOSITORY,
+    PlatformStoresService,
+    StoreMembershipGuard,
+    StoreMembershipService,
+  ],
 })
 export class StoresModule {}

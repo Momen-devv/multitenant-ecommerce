@@ -7,6 +7,7 @@ import { ASSISTANT_REPOSITORY } from './interfaces/repos';
 import { PlatformAssistantService } from './services/platform-assistant.service';
 import { PlatformAssistantActionsService } from './services/platform-assistant-actions.service';
 import { StoreAssistantService } from './services/store-assistant.service';
+import { StoreAssistantActionsService } from './services/store-assistant-actions.service';
 import { UsersModule } from '@/modules/users/users.module';
 import { StoresModule } from '@/modules/stores/stores.module';
 
@@ -18,6 +19,7 @@ import { StoresModule } from '@/modules/stores/stores.module';
     PlatformAssistantService,
     PlatformAssistantActionsService,
     StoreAssistantService,
+    StoreAssistantActionsService,
     AssistantRepository,
     { provide: ASSISTANT_REPOSITORY, useExisting: AssistantRepository },
   ],
