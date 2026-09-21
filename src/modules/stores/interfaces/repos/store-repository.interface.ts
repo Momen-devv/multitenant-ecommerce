@@ -10,6 +10,14 @@ import type { StoreLifecycleActorAuthority } from '../../domain/store-status';
 export type StoreWithOwner = Store & {
   owner: Pick<User, 'id' | 'name' | 'email'>;
 };
+export type StoreMembershipWithUser = {
+  id: string;
+  organizationId: string;
+  userId: string;
+  role: string;
+  createdAt: Date;
+  user: Pick<User, 'id' | 'name' | 'email'>;
+};
 export type TransitionStoreStatusInput = {
   storeId: string;
   actorId: string;
@@ -29,6 +37,12 @@ export interface IStoreRepository {
   findStoreIdByOrganizationId(
     organizationId: string,
   ): Promise<Pick<Store, 'id' | 'status' | 'defaultCurrency'> | undefined>;
+  findByOrganizationId(organizationId: string): Promise<Store | undefined>;
+  findMembersByOrganizationId(
+    organizationId: string,
+    limit?: number,
+    offset?: number,
+  ): Promise<StoreMembershipWithUser[]>;
   findBySlug(slug: string): Promise<Store | undefined>;
   update(id: string, data: Partial<Store>): Promise<Store | undefined>;
   updateActiveStore(id: string, data: Partial<Store>): Promise<Store>;

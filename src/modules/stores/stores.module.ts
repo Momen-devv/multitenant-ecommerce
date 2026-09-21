@@ -8,10 +8,19 @@ import { StoreLifecycleService } from './services/store-lifecycle.service';
 import { PlatformStoresService } from './services/platform-stores.service';
 import { StorageModule } from '@/infrastructure/storage/storage.module';
 import { ImageProcessingService } from '@/common/services/Image-processing.service';
+import { StoreMembershipGuard } from '@/common/guards/store-membership.guard';
+import { StoreMembershipController } from './controllers/store-membership.controller';
+import { StoreMembershipService } from './services/store-membership.service';
+import { StoreInvitationsController } from './controllers/store-invitations.controller';
 
 @Module({
   imports: [StorageModule],
-  controllers: [StoreOwnerController, PlatformStoresController],
+  controllers: [
+    StoreOwnerController,
+    PlatformStoresController,
+    StoreMembershipController,
+    StoreInvitationsController,
+  ],
   providers: [
     StoresService,
     PlatformStoresService,
@@ -19,7 +28,14 @@ import { ImageProcessingService } from '@/common/services/Image-processing.servi
     { provide: STORE_REPOSITORY, useExisting: StoreRepository },
     StoreLifecycleService,
     ImageProcessingService,
+    StoreMembershipService,
+    StoreMembershipGuard,
   ],
-  exports: [STORE_REPOSITORY],
+  exports: [
+    STORE_REPOSITORY,
+    PlatformStoresService,
+    StoreMembershipGuard,
+    StoreMembershipService,
+  ],
 })
 export class StoresModule {}

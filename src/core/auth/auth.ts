@@ -66,6 +66,14 @@ type AuthEmailQueue = {
     token: string,
   ) => Promise<void>;
   addResetPasswordJob: (to: string, url: string) => Promise<void>;
+  addInvitationEmailJob: (
+    to: string,
+    organizationName: string,
+    inviterName: string,
+    role: string,
+    inviteLink: string,
+    rejectLink: string,
+  ) => Promise<void>;
 };
 
 type AuthDependencies = {
@@ -219,6 +227,18 @@ export function createAuth({
         invitationExpiresIn: 60 * 60 * 24 * 7,
         invitationLimit: 100,
         cancelPendingInvitationsOnReInvite: true,
+        sendInvitationEmail: (data) => {
+          const inviteLink = `${configuration.baseURL}/api/v1/stores/invitations/${data.id}/accept`;
+          const rejectLink = `${configuration.baseURL}/api/v1/stores/invitations/${data.id}/reject`;
+          return emailQueue.addInvitationEmailJob(
+            data.email,
+            data.organization.name,
+            data.inviter.user.name,
+            data.role,
+            inviteLink,
+            rejectLink,
+          );
+        },
       }),
       admin({
         ac,

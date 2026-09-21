@@ -8,3 +8,8 @@ export type {
   PlatformStoreResponse,
   StoreWithOwner,
 } from './platform-store-response';
+export {
+  InviteStoreMemberDto,
+  ListStoreMembersDto,
+  UpdateStoreMemberRoleDto,
+} from './store-membership.dto';

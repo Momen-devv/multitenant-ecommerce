@@ -11,6 +11,7 @@ export const JobNames = {
     WELCOME: 'welcome',
     RESET_PASSWORD: 'reset-password',
     VERIFICATION: 'verification',
+    INVITATION: 'invitation',
     ACCOUNT_DEACTIVATED: 'account-deactivated',
     ACCOUNT_REACTIVATION: 'account-reactivation',
   },

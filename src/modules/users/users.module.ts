@@ -35,5 +35,6 @@ import { PlatformImpersonationService } from './services/platform-impersonation.
     PlatformUsersController,
     PlatformImpersonationController,
   ],
+  exports: [PlatformUsersService],
 })
 export class UsersModule {}
