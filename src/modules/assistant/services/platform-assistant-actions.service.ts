@@ -10,16 +10,18 @@ import {
   ASSISTANT_REPOSITORY,
   type IAssistantRepository,
 } from '../interfaces/repos';
-import { parseBanDurationInSeconds } from '@/common/utils';
+import { extractEmail, parseBanDurationInSeconds } from '@/common/utils';
 import { AuthRole } from '@/common/enums';
 import { PlatformUsersService } from '@/modules/users/services/platform-users.service';
 import { PlatformStoresService } from '@/modules/stores/services/platform-stores.service';
+import type { AssistantHeaders } from '../types';
 
-type NodeHeaders = Record<string, string>;
-
-const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 const UUIDV7_PATTERN =
   /\b[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i;
+type ExecutablePlatformAssistantAction = Exclude<
+  PlatformAssistantAction,
+  PlatformAssistantAction.SOME_OTHER_ACTION
+>;
 
 @Injectable()
 export class PlatformAssistantActionsService {
@@ -31,14 +33,14 @@ export class PlatformAssistantActionsService {
   ) {}
 
   async executeAction(
-    action: PlatformAssistantAction,
+    action: ExecutablePlatformAssistantAction,
     command: string,
-    headers: NodeHeaders,
+    headers: AssistantHeaders,
     actorId: string,
   ) {
     switch (action) {
       case PlatformAssistantAction.REVOKE_USER_SESSION: {
-        const email = this.extractEmail(command);
+        const email = extractEmail(command);
         if (!email) return this.missingEmailResponse(action);
 
         const userId = await this.assistantRepository.findUserIdByEmail(email);
@@ -81,7 +83,7 @@ export class PlatformAssistantActionsService {
       }
 
       case PlatformAssistantAction.REVOKE_USER_SESSIONS: {
-        const email = this.extractEmail(command);
+        const email = extractEmail(command);
         if (!email) return this.missingEmailResponse(action);
 
         const userId = await this.assistantRepository.findUserIdByEmail(email);
@@ -102,7 +104,7 @@ export class PlatformAssistantActionsService {
       }
 
       case PlatformAssistantAction.LIST_USER_SESSIONS: {
-        const email = this.extractEmail(command);
+        const email = extractEmail(command);
         if (!email) return this.missingEmailResponse(action);
 
         const userId = await this.assistantRepository.findUserIdByEmail(email);
@@ -122,7 +124,7 @@ export class PlatformAssistantActionsService {
       }
 
       case PlatformAssistantAction.DEACTIVATE_USER: {
-        const email = this.extractEmail(command);
+        const email = extractEmail(command);
         if (!email) return this.missingEmailResponse(action);
 
         const userId = await this.assistantRepository.findUserIdByEmail(email);
@@ -153,7 +155,7 @@ export class PlatformAssistantActionsService {
       }
 
       case PlatformAssistantAction.ACTIVATE_USER: {
-        const email = this.extractEmail(command);
+        const email = extractEmail(command);
         if (!email) return this.missingEmailResponse(action);
 
         const userId = await this.assistantRepository.findUserIdByEmail(email);
@@ -184,7 +186,7 @@ export class PlatformAssistantActionsService {
       }
 
       case PlatformAssistantAction.BAN_USER: {
-        const email = this.extractEmail(command);
+        const email = extractEmail(command);
         if (!email) return this.missingEmailResponse(action);
 
         const userId = await this.assistantRepository.findUserIdByEmail(email);
@@ -204,7 +206,7 @@ export class PlatformAssistantActionsService {
         };
       }
       case PlatformAssistantAction.BAN_USER_WITH_TIME: {
-        const email = this.extractEmail(command);
+        const email = extractEmail(command);
         if (!email) return this.missingEmailResponse(action);
 
         const userId = await this.assistantRepository.findUserIdByEmail(email);
@@ -237,7 +239,7 @@ export class PlatformAssistantActionsService {
         };
       }
       case PlatformAssistantAction.UNBAN_USER: {
-        const email = this.extractEmail(command);
+        const email = extractEmail(command);
         if (!email) return this.missingEmailResponse(action);
 
         const userId = await this.assistantRepository.findUserIdByEmail(email);
@@ -257,7 +259,7 @@ export class PlatformAssistantActionsService {
         };
       }
       case PlatformAssistantAction.MAKE_USER_SUPER_ADMIN: {
-        const email = this.extractEmail(command);
+        const email = extractEmail(command);
         if (!email) return this.missingEmailResponse(action);
 
         const userId = await this.assistantRepository.findUserIdByEmail(email);
@@ -281,7 +283,7 @@ export class PlatformAssistantActionsService {
       }
 
       case PlatformAssistantAction.MAKE_USER_NORMAL_USER: {
-        const email = this.extractEmail(command);
+        const email = extractEmail(command);
         if (!email) return this.missingEmailResponse(action);
 
         const userId = await this.assistantRepository.findUserIdByEmail(email);
@@ -345,19 +347,9 @@ export class PlatformAssistantActionsService {
           message: `Store ${storeId} was reactivated successfully.`,
         };
       }
-
-      case PlatformAssistantAction.SOME_OTHER_ACTION:
       default:
-        return {
-          action,
-          message:
-            'Sorry you cannot do this action, please contact support or try a different command.',
-        };
+        return this.assertUnreachable(action);
     }
-  }
-
-  private extractEmail(command: string): string | undefined {
-    return command.match(EMAIL_PATTERN)?.[0];
   }
 
   private extractSessionId(command: string): string | undefined {
@@ -403,6 +395,11 @@ export class PlatformAssistantActionsService {
           ? error.message
           : 'The store action could not be completed. Please try again.',
     };
+  }
+
+  private assertUnreachable(action: never): never {
+    void action;
+    throw new Error('Unhandled platform assistant action');
   }
 
   private readonly assistantActionReason =

@@ -1,3 +1,5 @@
+import { removeEmails } from './email.util';
+
 const UNIT_SECONDS = {
   second: 1,
   minute: 60,
@@ -9,8 +11,6 @@ const UNIT_SECONDS = {
 } as const;
 
 const MAX_BAN_DURATION_SECONDS = UNIT_SECONDS.year;
-
-const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 
 const NUMBER_WORDS: Record<string, number> = {
   a: 1,
@@ -46,7 +46,7 @@ const parseAmount = (amount?: string): number =>
  * Returns undefined when the command does not contain a supported duration.
  */
 export function parseBanDurationInSeconds(command: string): number | undefined {
-  const commandWithoutEmails = command.replace(EMAIL_PATTERN, ' ');
+  const commandWithoutEmails = removeEmails(command);
 
   if (INVALID_DURATION_PATTERN.test(commandWithoutEmails)) return undefined;
 

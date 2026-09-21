@@ -5,8 +5,7 @@ import { PlatformAssistantAction } from '@/common/enums';
 import { TYPESAFE_CLIENT } from '../providers/typesafe-client.provider';
 import { platformAssistantQuestions } from '../questions/platform-assistant.questions';
 import { PlatformAssistantActionsService } from './platform-assistant-actions.service';
-
-type NodeHeaders = Record<string, string>;
+import type { AssistantHeaders } from '../types';
 
 @Injectable()
 export class PlatformAssistantService {
@@ -18,7 +17,7 @@ export class PlatformAssistantService {
 
   async executeCommand(
     dto: AssistantCommandDto,
-    headers: NodeHeaders,
+    headers: AssistantHeaders,
     actorId: string,
   ) {
     const result = await this.jevClient.systemOne({
