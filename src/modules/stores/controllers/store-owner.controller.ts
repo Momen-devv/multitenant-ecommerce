@@ -24,6 +24,8 @@ import {
   MAX_STORE_LOGO_SIZE,
 } from '@/infrastructure/storage/multer.config';
 import { createImageFileValidator } from '@/infrastructure/storage/file-validation.config';
+import { OrgRoles } from '@thallesp/nestjs-better-auth';
+import { OrganizationRole } from '@/common/enums';
 
 @ApiTags('Stores')
 @ApiCookieAuth()
@@ -57,6 +59,7 @@ export class StoreOwnerController {
   @ResponseMessage('Store retrieved successfully')
   @HttpCode(HttpStatus.OK)
   @Get('me')
+  @OrgRoles([OrganizationRole.OWNER])
   async getStore(@Session() session: CurrentUser) {
     return this.storesService.getStore(session.user.id);
   }
@@ -76,6 +79,7 @@ export class StoreOwnerController {
   )
   @HttpCode(HttpStatus.OK)
   @Patch('me')
+  @OrgRoles([OrganizationRole.OWNER])
   async updateStore(
     @Body() dto: UpdateStoreDto,
     @Session() session: CurrentUser,
@@ -97,6 +101,7 @@ export class StoreOwnerController {
   @UseInterceptors(FileInterceptor('logo', imageUploadOptions))
   @HttpCode(HttpStatus.OK)
   @Post('me/logo')
+  @OrgRoles([OrganizationRole.OWNER])
   async uploadStoreLogo(
     @UploadedFile(createImageFileValidator({ maxSize: MAX_STORE_LOGO_SIZE }))
     logo: Express.Multer.File,
@@ -114,6 +119,7 @@ export class StoreOwnerController {
   @ResponseMessage('Store closed successfully')
   @HttpCode(HttpStatus.OK)
   @Post('me/close')
+  @OrgRoles([OrganizationRole.OWNER])
   async closeStore(
     @Body() dto: CloseStoreDto,
     @Session() session: CurrentUser,

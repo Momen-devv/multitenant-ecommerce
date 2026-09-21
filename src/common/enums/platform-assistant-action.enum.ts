@@ -1,0 +1,15 @@
+export enum PlatformAssistantAction {
+  BAN_USER = 'ban_user',
+  BAN_USER_WITH_TIME = 'ban_user_with_time',
+  UNBAN_USER = 'unban_user',
+  DEACTIVATE_USER = 'deactivate_user',
+  ACTIVATE_USER = 'activate_user',
+  REVOKE_USER_SESSIONS = 'revoke_user_sessions',
+  REVOKE_USER_SESSION = 'revoke_user_session',
+  LIST_USER_SESSIONS = 'list_user_sessions',
+  MAKE_USER_SUPER_ADMIN = 'make_user_super_admin',
+  MAKE_USER_NORMAL_USER = 'make_user_normal_user',
+  SUSPEND_STORE = 'suspend_store',
+  REACTIVATE_STORE = 'reactivate_store',
+  SOME_OTHER_ACTION = 'some_other_action',
+}
