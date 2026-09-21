@@ -31,11 +31,7 @@ export class StoreAssistantController {
   constructor(private readonly storeAssistantService: StoreAssistantService) {}
 
   @Post('commands')
-  @OrgRoles([
-    OrganizationRole.OWNER,
-    OrganizationRole.MANAGER,
-    OrganizationRole.SUPPORT,
-  ])
+  @OrgRoles([OrganizationRole.OWNER])
   @ApiSuccessResponse({
     status: HttpStatus.ACCEPTED,
     description: 'Store AI Assistant command accepted',
