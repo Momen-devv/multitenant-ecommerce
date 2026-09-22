@@ -246,6 +246,13 @@
       "when": 1790064000000,
       "tag": "0034_full_refunds",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790088009470,
+      "tag": "0035_fast_iron_lad",
+      "breakpoints": true
     }
   ]
 }

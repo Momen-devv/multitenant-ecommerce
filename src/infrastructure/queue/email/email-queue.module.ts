@@ -4,10 +4,15 @@ import { QueueNames } from '../queue.constants';
 import { BullModule } from '@nestjs/bullmq';
 import { MailModule } from '@/infrastructure/mail/mail.module';
 import { EmailQueueProcessor } from './email-queue.processor';
+import { OrderEmailDeliveryRepository } from './order-email-delivery.repository';
 
 @Module({
   imports: [BullModule.registerQueue({ name: QueueNames.EMAIL }), MailModule],
-  providers: [EmailQueueService, EmailQueueProcessor],
-  exports: [EmailQueueService],
+  providers: [
+    EmailQueueService,
+    EmailQueueProcessor,
+    OrderEmailDeliveryRepository,
+  ],
+  exports: [EmailQueueService, OrderEmailDeliveryRepository],
 })
 export class EmailQueueModule {}

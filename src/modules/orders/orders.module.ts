@@ -12,8 +12,15 @@ import { PaymentReconciliationTask } from './tasks/payment-reconciliation.task';
 import { RefundOutboxDispatcher } from './tasks/refund-outbox.dispatcher';
 import { OrderPurchaseEventHandler } from './services/connect-purchase-event.handler';
 import { OutboxModule } from '@/infrastructure/outbox/outbox.module';
+import { EmailQueueModule } from '@/infrastructure/queue/email/email-queue.module';
+import { OrderEmailOutboxDispatcher } from './tasks/order-email-outbox.dispatcher';
 @Module({
-  imports: [StoresModule, PaymentInfrastructureModule, OutboxModule],
+  imports: [
+    StoresModule,
+    PaymentInfrastructureModule,
+    OutboxModule,
+    EmailQueueModule,
+  ],
   controllers: [
     CheckoutController,
     UserOrdersController,
@@ -27,6 +34,7 @@ import { OutboxModule } from '@/infrastructure/outbox/outbox.module';
     { provide: ORDERS_REPOSITORY, useExisting: OrdersRepository },
     PaymentReconciliationTask,
     RefundOutboxDispatcher,
+    OrderEmailOutboxDispatcher,
     OrderPurchaseEventHandler,
   ],
   exports: [

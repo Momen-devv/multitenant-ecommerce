@@ -636,8 +636,10 @@ export class OrdersRepository {
             orderId: saved.id,
             version: saved.version,
             to: saved.accountEmail,
+            recipientName: saved.shippingAddress.recipientName,
             total: saved.total,
             currency: saved.currency,
+            reason: saved.cancellationReason,
           },
         });
       });
@@ -915,8 +917,10 @@ export class OrdersRepository {
             orderId: saved.id,
             version: saved.version,
             to: saved.accountEmail,
+            recipientName: saved.shippingAddress.recipientName,
             total: saved.total,
             currency: saved.currency,
+            reason: saved.cancellationReason,
           },
         });
     });
@@ -1237,8 +1241,10 @@ export class OrdersRepository {
             orderId: saved.id,
             version: saved.version,
             to: saved.accountEmail,
+            recipientName: saved.shippingAddress.recipientName,
             total: saved.total,
             currency: saved.currency,
+            reason: saved.cancellationReason,
           },
         });
       await tx.insert(commerceCommands).values({

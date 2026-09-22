@@ -63,6 +63,14 @@ export class EmailQueueService {
     );
   }
 
+  async addOrderEmailJob(deliveryId: string): Promise<void> {
+    await this.emailQueue.add(
+      JobNames.EMAIL.ORDER,
+      { deliveryId },
+      this.jobOptions,
+    );
+  }
+
   // Any other email-related jobs can be added here
 
   async pingCheck(): Promise<boolean> {

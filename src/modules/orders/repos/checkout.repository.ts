@@ -329,8 +329,10 @@ export class CheckoutRepository {
           orderId: order.id,
           version: 1,
           to: snapshot.accountContact.email,
+          recipientName: snapshot.shippingAddress.recipientName,
           total: snapshot.total,
           currency: snapshot.currency,
+          reason: null,
         },
       });
       await tx
@@ -1209,8 +1211,10 @@ export class CheckoutRepository {
           orderId: order.id,
           version: 1,
           to: attempt.snapshot.accountContact.email,
+          recipientName: attempt.snapshot.shippingAddress.recipientName,
           total: attempt.snapshot.total,
           currency: attempt.snapshot.currency,
+          reason: null,
         },
       });
       await tx

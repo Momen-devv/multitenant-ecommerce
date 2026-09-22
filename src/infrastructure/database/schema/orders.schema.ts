@@ -20,6 +20,7 @@ import { store } from './app.schema';
 import { carts } from './carts.schema';
 import { inventoryPolicy } from './products.schema';
 import { paymentEnvironmentEnum } from './store-payments.schema';
+import type { OrderEmailIntent } from '@/modules/orders/domain/order-email-intent';
 
 export const checkoutPaymentMethod = pgEnum('checkout_payment_method', [
   'cash_on_delivery',
@@ -58,6 +59,12 @@ export const refundOperationStatus = pgEnum('refund_operation_status', [
   'succeeded',
   'failed',
   'review_required',
+]);
+export const orderEmailDeliveryStatus = pgEnum('order_email_delivery_status', [
+  'pending',
+  'sending',
+  'sent',
+  'dead_lettered',
 ]);
 
 export type CheckoutSnapshot = {
@@ -354,6 +361,57 @@ export const orderEvents = pgTable(
       'order_events_reason_check',
       sql`${t.reason} IS NULL OR (${t.reason} = trim(${t.reason}) AND char_length(${t.reason}) BETWEEN 1 AND 500)`,
     ),
+  ],
+);
+
+/** Durable send outcome, distinct from outbox publication and BullMQ enqueue. */
+export const orderEmailDeliveries = pgTable(
+  'order_email_deliveries',
+  {
+    id: uuid('id').primaryKey().$defaultFn(generateUUIDv7),
+    outboxEventId: uuid('outbox_event_id').notNull(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'restrict' }),
+    transitionVersion: integer('transition_version').notNull(),
+    type: varchar('type', { length: 32 }).notNull(),
+    recipientEmail: text('recipient_email').notNull(),
+    payload: jsonb('payload').$type<OrderEmailIntent>().notNull(),
+    status: orderEmailDeliveryStatus('status').notNull().default('pending'),
+    providerIdempotencyKey: varchar('provider_idempotency_key', {
+      length: 255,
+    }).notNull(),
+    providerMessageId: varchar('provider_message_id', { length: 255 }),
+    attempts: integer('attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastQueuedAt: timestamp('last_queued_at', { withTimezone: true }),
+    leaseToken: uuid('lease_token'),
+    leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    deadLetteredAt: timestamp('dead_lettered_at', { withTimezone: true }),
+    lastError: varchar('last_error', { length: 1000 }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique('order_email_deliveries_outbox_event_uidx').on(t.outboxEventId),
+    unique('order_email_deliveries_order_transition_type_uidx').on(
+      t.orderId,
+      t.transitionVersion,
+      t.type,
+    ),
+    index('order_email_deliveries_due_idx').on(
+      t.sentAt,
+      t.deadLetteredAt,
+      t.nextAttemptAt,
+    ),
+    index('order_email_deliveries_lease_idx').on(t.leaseExpiresAt),
   ],
 );
 
