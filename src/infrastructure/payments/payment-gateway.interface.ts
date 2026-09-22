@@ -77,6 +77,7 @@ export type PaymentCharge = {
   paymentIntentId: string | null;
   status: string | null;
   refunded: boolean;
+  refundedAmount: number;
 };
 
 export type CreateRefundInput = {

@@ -1067,7 +1067,11 @@ export class CheckoutRepository {
         );
         return;
       }
-      await this.placePaidOnlineOrder(attempt.id, session.paymentIntentId);
+      await this.placePaidOnlineOrder(
+        attempt.id,
+        session.paymentIntentId,
+        intent.chargeId,
+      );
       return;
     }
     if (attempt.status === 'cancelling' && session.status === 'open') {
@@ -1095,6 +1099,7 @@ export class CheckoutRepository {
   private async placePaidOnlineOrder(
     attemptId: string,
     paymentIntentId: string,
+    paymentChargeId: string | null,
   ): Promise<void> {
     await this.db.transaction(async (tx) => {
       const [attempt] = await tx
@@ -1113,6 +1118,7 @@ export class CheckoutRepository {
           .set({
             status: 'succeeded',
             paymentIntentId,
+            paymentChargeId,
             paymentUrl: null,
             leaseToken: null,
             leaseExpiresAt: null,
@@ -1212,6 +1218,7 @@ export class CheckoutRepository {
         .set({
           status: 'succeeded',
           paymentIntentId,
+          paymentChargeId,
           paymentUrl: null,
           leaseToken: null,
           leaseExpiresAt: null,

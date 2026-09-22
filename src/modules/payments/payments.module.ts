@@ -12,7 +12,7 @@ import { StripeConnectWebhookProcessor } from '@/infrastructure/queue/connect-we
 import { StoresModule } from '@/modules/stores/stores.module';
 import { STORE_PAYMENT_READINESS_READER } from './interfaces';
 import { OrdersModule } from '@/modules/orders/orders.module';
-import { CheckoutRepository } from '@/modules/orders/repos/checkout.repository';
+import { OrderPurchaseEventHandler } from '@/modules/orders/services/connect-purchase-event.handler';
 
 @Module({
   imports: [PaymentInfrastructureModule, StoresModule, OrdersModule],
@@ -30,7 +30,7 @@ import { CheckoutRepository } from '@/modules/orders/repos/checkout.repository';
     },
     {
       provide: CONNECT_PURCHASE_EVENT_HANDLER,
-      useExisting: CheckoutRepository,
+      useExisting: OrderPurchaseEventHandler,
     },
     StripeConnectWebhookService,
     StripeConnectWebhookProcessor,

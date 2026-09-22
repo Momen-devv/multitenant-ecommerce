@@ -1,6 +1,6 @@
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import { CodedHttpError } from '@/common/errors';
@@ -10,12 +10,23 @@ import {
   orderEvents,
   checkoutReservations,
   commerceCommands,
+  checkoutAttempts,
+  refundOperations,
 } from '@/infrastructure/database/schema/orders.schema';
 import { productVariants } from '@/infrastructure/database/schema/products.schema';
 import { outboxEvents } from '@/infrastructure/database/schema/outbox.schema';
 import { OutboxEventType } from '@/common/enums/outbox-event-type.enum';
 import { InventoryPolicy } from '@/common/enums';
 import { OrganizationRole } from '@/common/enums';
+import { PAYMENT_GATEWAY } from '@/infrastructure/payments/payment.tokens';
+import type {
+  PaymentGateway,
+  PaymentRefund,
+} from '@/infrastructure/payments/payment-gateway.interface';
+import { stripeConfig } from '@/core/config';
+import type { ConfigType } from '@nestjs/config';
+import type { PaymentEnvironment } from '@/infrastructure/payments/payment-environment';
+import { generateUUIDv7 } from '@/common/utils';
 import { compileApiQuery } from '@/common/api-query';
 import * as schema from '@/infrastructure/database/schema/schema';
 import type {
@@ -36,7 +47,12 @@ type OrderViewer = 'shopper' | 'store_staff' | 'store_support';
 /** Owned shopper Order reads. Checkout writes stay in CheckoutRepository. */
 @Injectable()
 export class OrdersRepository {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway,
+    @Inject(stripeConfig.KEY)
+    private readonly stripe: ConfigType<typeof stripeConfig>,
+  ) {}
 
   async listForUser(userId: string, query: OrderQueryDto) {
     const compiled = compileApiQuery(userOrderQuery, query);
@@ -257,6 +273,697 @@ export class OrdersRepository {
     });
   }
 
+  async retryRefund(
+    actorUserId: string,
+    storeId: string,
+    orderId: string,
+    dto: OrderVersionDto,
+    key?: string,
+  ) {
+    if (!key || !/^[\x20-\x7E]{1,128}$/.test(key))
+      throw new CodedHttpError(
+        HttpStatus.BAD_REQUEST,
+        'IDEMPOTENCY_KEY_REQUIRED',
+        'A printable Idempotency-Key header is required.',
+      );
+    const input = {
+      actorUserId,
+      authority: 'store_staff' as const,
+      storeId,
+      orderId,
+      dto,
+      key,
+      operation: 'refund-retry',
+    };
+    const requestHash = this.requestHash(dto);
+    return this.db.transaction(async (tx) => {
+      const replay = await this.replayCommand(tx, input, requestHash);
+      if (replay) return replay;
+      const [order] = await tx
+        .select()
+        .from(orders)
+        .where(and(eq(orders.id, orderId), eq(orders.storeId, storeId)))
+        .for('update');
+      if (!order) throw this.notFound();
+      const lockedReplay = await this.replayCommand(tx, input, requestHash);
+      if (lockedReplay) return lockedReplay;
+      if (order.version !== dto.version)
+        throw new CodedHttpError(
+          HttpStatus.CONFLICT,
+          'STALE_VERSION',
+          'The Order changed. Read the latest version and retry.',
+          { currentVersion: order.version },
+        );
+      if (order.paymentReviewRequired) throw this.paymentReviewRequired();
+      if (
+        order.paymentMethod !== 'online' ||
+        order.paymentStatus !== 'refund_failed'
+      )
+        throw new CodedHttpError(
+          HttpStatus.CONFLICT,
+          'REFUND_NOT_RETRYABLE',
+          'Only a genuinely failed online refund can be retried.',
+        );
+      const [previous] = await tx
+        .select()
+        .from(refundOperations)
+        .where(eq(refundOperations.orderId, order.id))
+        .orderBy(sql`${refundOperations.generation} DESC`)
+        .limit(1)
+        .for('update');
+      if (!previous || previous.status !== 'failed')
+        throw new CodedHttpError(
+          HttpStatus.CONFLICT,
+          'REFUND_NOT_RETRYABLE',
+          'The previous refund has not reached a retryable failure.',
+        );
+      const [next] = await tx
+        .update(orders)
+        .set({
+          paymentStatus: 'refund_pending',
+          version: order.version + 1,
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, order.id))
+        .returning();
+      if (!next) throw new Error('Refund retry Order update failed.');
+      const [operation] = await tx
+        .insert(refundOperations)
+        .values({
+          orderId: order.id,
+          generation: previous.generation + 1,
+          environment: previous.environment,
+          connectedAccountId: previous.connectedAccountId,
+          paymentIntentId: previous.paymentIntentId,
+          chargeId: previous.chargeId,
+          amount: order.total,
+          currency: order.currency,
+          providerRequestKey: `refund:${order.id}:${previous.generation + 1}`,
+        })
+        .returning();
+      if (!operation) throw new Error('Refund retry was not persisted.');
+      await this.insertPaymentEvent(tx, next, 'refund_retry_queued', null);
+      await this.insertRefundOutbox(tx, operation.id);
+      await tx.insert(commerceCommands).values({
+        actorUserId,
+        operation: input.operation,
+        resourceId: order.id,
+        idempotencyKey: key,
+        requestHash,
+        orderId: order.id,
+      });
+      return this.detailInTransaction(tx, next, 'store_staff');
+    });
+  }
+
+  /** Called by the financial outbox, periodic sweep and Connect receipts. */
+  async recoverDueRefunds(): Promise<void> {
+    const due = await this.db
+      .select({ id: refundOperations.id })
+      .from(refundOperations)
+      .where(
+        and(
+          eq(refundOperations.status, 'pending'),
+          lte(refundOperations.nextRetryAt, new Date()),
+        ),
+      )
+      .limit(100);
+    await Promise.all(due.map((operation) => this.processRefund(operation.id)));
+  }
+
+  async processRefund(operationId: string): Promise<void> {
+    const now = new Date();
+    const leaseToken = generateUUIDv7();
+    const [operation] = await this.db
+      .update(refundOperations)
+      .set({
+        leaseToken,
+        leaseExpiresAt: new Date(now.getTime() + 5 * 60_000),
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(refundOperations.id, operationId),
+          eq(refundOperations.status, 'pending'),
+          or(
+            isNull(refundOperations.leaseToken),
+            lte(refundOperations.leaseExpiresAt, now),
+          ),
+        ),
+      )
+      .returning();
+    if (!operation) return;
+    try {
+      if (operation.providerRefundId) {
+        await this.applyProviderRefund(
+          operation,
+          leaseToken,
+          await this.gateway.retrieveRefund(
+            operation.connectedAccountId,
+            operation.providerRefundId,
+          ),
+        );
+        return;
+      }
+      const chargeState = await this.reconcileRefundedCharge(operation.orderId);
+      if (chargeState !== 'not_refunded') {
+        await this.db
+          .update(refundOperations)
+          .set({
+            status:
+              chargeState === 'fully_refunded'
+                ? 'succeeded'
+                : 'review_required',
+            leaseToken: null,
+            leaseExpiresAt: null,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(refundOperations.id, operation.id),
+              eq(refundOperations.leaseToken, leaseToken),
+            ),
+          );
+        return;
+      }
+      if (
+        operation.providerDispatchedAt &&
+        Date.now() - operation.providerDispatchedAt.getTime() > 23 * 60 * 60_000
+      ) {
+        await this.markRefundForReview(
+          operation.id,
+          leaseToken,
+          'Refund creation exceeded the provider idempotency safety window.',
+        );
+        return;
+      }
+      // Stripe's idempotency key makes this safe even if a prior response was
+      // lost. The amount comes from the immutable Order, never the caller.
+      await this.db
+        .update(refundOperations)
+        .set({
+          providerDispatchedAt: operation.providerDispatchedAt ?? new Date(),
+          providerAttempts: operation.providerAttempts + 1,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(refundOperations.id, operation.id),
+            eq(refundOperations.leaseToken, leaseToken),
+          ),
+        );
+      const refund = await this.gateway.createRefund(
+        operation.connectedAccountId,
+        {
+          paymentIntentId: operation.paymentIntentId ?? undefined,
+          chargeId: operation.chargeId ?? undefined,
+          amount: operation.amount,
+          metadata: {
+            orderId: operation.orderId,
+            refundOperationId: operation.id,
+          },
+        },
+        operation.providerRequestKey,
+      );
+      await this.applyProviderRefund(operation, leaseToken, refund);
+    } catch (error) {
+      await this.recordRefundFailure(operation, leaseToken, error);
+    }
+  }
+
+  /** Connect events are hints only; provider retrieval remains authoritative. */
+  async processPurchaseEvent(input: {
+    accountId: string;
+    environment: PaymentEnvironment;
+    eventType: string;
+    payload: Record<string, unknown>;
+  }): Promise<boolean> {
+    const expected = this.stripe.connectSandboxMode ? 'sandbox' : 'live';
+    if (input.environment !== expected) return false;
+    const object = (
+      input.payload.data as { object?: Record<string, unknown> } | undefined
+    )?.object;
+    const refundId =
+      typeof object?.id === 'string' && input.eventType.startsWith('refund.')
+        ? object.id
+        : undefined;
+    if (refundId) {
+      const [operation] = await this.db
+        .select({ id: refundOperations.id })
+        .from(refundOperations)
+        .where(
+          and(
+            eq(refundOperations.environment, input.environment),
+            eq(refundOperations.connectedAccountId, input.accountId),
+            eq(refundOperations.providerRefundId, refundId),
+          ),
+        )
+        .limit(1);
+      if (operation) {
+        await this.processRefund(operation.id);
+        return true;
+      }
+    }
+    const paymentIntentId =
+      typeof object?.payment_intent === 'string'
+        ? object.payment_intent
+        : input.eventType.startsWith('payment_intent.') &&
+            typeof object?.id === 'string'
+          ? object.id
+          : undefined;
+    const chargeId =
+      typeof object?.charge === 'string'
+        ? object.charge
+        : input.eventType.startsWith('charge.') &&
+            typeof object?.id === 'string'
+          ? object.id
+          : undefined;
+    const [row] = await this.db
+      .select({ id: orders.id })
+      .from(orders)
+      .innerJoin(checkoutAttempts, eq(orders.attemptId, checkoutAttempts.id))
+      .where(
+        and(
+          eq(checkoutAttempts.paymentEnvironment, input.environment),
+          eq(checkoutAttempts.connectedAccountId, input.accountId),
+          or(
+            paymentIntentId
+              ? eq(checkoutAttempts.paymentIntentId, paymentIntentId)
+              : sql`false`,
+            chargeId
+              ? eq(checkoutAttempts.paymentChargeId, chargeId)
+              : sql`false`,
+          ),
+        ),
+      )
+      .limit(1);
+    if (!row) return false;
+    if (input.eventType.startsWith('charge.dispute.')) {
+      await this.markOrderReview(row.id, 'Stripe reported a payment dispute.');
+      return true;
+    }
+    if (
+      input.eventType.startsWith('refund.') ||
+      input.eventType === 'charge.refunded'
+    ) {
+      // An unknown external refund must never trigger a new local refund; the
+      // original charge is retrieved to distinguish full from partial truth.
+      await this.reconcileRefundedCharge(row.id);
+      return true;
+    }
+    return false;
+  }
+
+  private async applyProviderRefund(
+    operation: typeof refundOperations.$inferSelect,
+    leaseToken: string,
+    refund: PaymentRefund,
+  ) {
+    if (
+      refund.amount !== operation.amount ||
+      refund.currency !== operation.currency
+    ) {
+      await this.markRefundForReview(
+        operation.id,
+        leaseToken,
+        'Stripe refund amount or currency does not match the original Order.',
+      );
+      return;
+    }
+    if (refund.status === 'succeeded') {
+      await this.db.transaction(async (tx) => {
+        const [current] = await tx
+          .select()
+          .from(refundOperations)
+          .where(eq(refundOperations.id, operation.id))
+          .for('update');
+        if (!current || current.leaseToken !== leaseToken) return;
+        const [order] = await tx
+          .select()
+          .from(orders)
+          .where(eq(orders.id, current.orderId))
+          .for('update');
+        if (!order) return;
+        const [saved] = await tx
+          .update(orders)
+          .set({
+            paymentStatus: 'refunded',
+            refundedAmount: current.amount,
+            version: order.version + 1,
+            updatedAt: new Date(),
+          })
+          .where(eq(orders.id, order.id))
+          .returning();
+        if (!saved) return;
+        await tx
+          .update(refundOperations)
+          .set({
+            status: 'succeeded',
+            providerRefundId: refund.id,
+            leaseToken: null,
+            leaseExpiresAt: null,
+            lastProviderError: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(refundOperations.id, current.id));
+        await this.insertPaymentEvent(tx, saved, 'refunded', null);
+        await tx.insert(outboxEvents).values({
+          eventType: OutboxEventType.ORDER_EMAIL_INTENT,
+          aggregateId: saved.id,
+          deduplicationKey: `${saved.id}:refunded:${saved.version}`,
+          payload: {
+            type: 'refunded',
+            orderId: saved.id,
+            version: saved.version,
+            to: saved.accountEmail,
+            total: saved.total,
+            currency: saved.currency,
+          },
+        });
+      });
+      return;
+    }
+    if (refund.status === 'failed' || refund.status === 'canceled') {
+      await this.markRefundFailed(
+        operation.id,
+        leaseToken,
+        refund.id,
+        'Stripe rejected the refund.',
+      );
+      return;
+    }
+    await this.db
+      .update(refundOperations)
+      .set({
+        providerRefundId: refund.id,
+        leaseToken: null,
+        leaseExpiresAt: null,
+        nextRetryAt: new Date(Date.now() + 60_000),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(refundOperations.id, operation.id),
+          eq(refundOperations.leaseToken, leaseToken),
+        ),
+      );
+  }
+
+  private async markRefundFailed(
+    id: string,
+    leaseToken: string,
+    refundId: string | null,
+    reason: string,
+  ) {
+    await this.db.transaction(async (tx) => {
+      const [operation] = await tx
+        .select()
+        .from(refundOperations)
+        .where(eq(refundOperations.id, id))
+        .for('update');
+      if (!operation || operation.leaseToken !== leaseToken) return;
+      const [order] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.id, operation.orderId))
+        .for('update');
+      if (!order) return;
+      const [saved] = await tx
+        .update(orders)
+        .set({
+          paymentStatus: 'refund_failed',
+          version: order.version + 1,
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, order.id))
+        .returning();
+      if (!saved) return;
+      await tx
+        .update(refundOperations)
+        .set({
+          status: 'failed',
+          providerRefundId: refundId,
+          leaseToken: null,
+          leaseExpiresAt: null,
+          lastProviderError: reason,
+          updatedAt: new Date(),
+        })
+        .where(eq(refundOperations.id, id));
+      await this.insertPaymentEvent(tx, saved, 'refund_failed', reason);
+    });
+  }
+
+  private async markRefundForReview(
+    id: string,
+    leaseToken: string,
+    reason: string,
+  ) {
+    const [operation] = await this.db
+      .select()
+      .from(refundOperations)
+      .where(eq(refundOperations.id, id))
+      .limit(1);
+    if (!operation) return;
+    await this.db
+      .update(refundOperations)
+      .set({
+        status: 'review_required',
+        leaseToken: null,
+        leaseExpiresAt: null,
+        lastProviderError: reason.slice(0, 1000),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(refundOperations.id, id),
+          eq(refundOperations.leaseToken, leaseToken),
+        ),
+      );
+    await this.markOrderReview(operation.orderId, reason);
+  }
+
+  private async recordRefundFailure(
+    operation: typeof refundOperations.$inferSelect,
+    leaseToken: string,
+    error: unknown,
+  ) {
+    const attempts = operation.providerAttempts + 1;
+    const message = error instanceof Error ? error.message : String(error);
+    if (attempts >= 10) {
+      await this.markRefundForReview(operation.id, leaseToken, message);
+      return;
+    }
+    await this.db
+      .update(refundOperations)
+      .set({
+        providerAttempts: attempts,
+        leaseToken: null,
+        leaseExpiresAt: null,
+        lastProviderError: message.slice(0, 1000),
+        nextRetryAt: new Date(Date.now() + this.refundRetryDelay(attempts)),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(refundOperations.id, operation.id),
+          eq(refundOperations.leaseToken, leaseToken),
+        ),
+      );
+  }
+
+  private async markOrderReview(orderId: string, reason: string) {
+    await this.db.transaction(async (tx) => {
+      const [order] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.id, orderId))
+        .for('update');
+      if (!order || order.paymentReviewRequired) return;
+      const [saved] = await tx
+        .update(orders)
+        .set({
+          paymentReviewRequired: true,
+          version: order.version + 1,
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, order.id))
+        .returning();
+      if (saved)
+        await this.insertPaymentEvent(
+          tx,
+          saved,
+          'payment_review_required',
+          reason,
+        );
+    });
+  }
+
+  /** Returns payment truth from the original direct charge. This deliberately
+   * does not rely on webhook metadata, which external refunds do not carry. */
+  private async reconcileRefundedCharge(
+    orderId: string,
+  ): Promise<'not_refunded' | 'fully_refunded' | 'partial_or_mismatched'> {
+    const [row] = await this.db
+      .select({
+        order: orders,
+        accountId: checkoutAttempts.connectedAccountId,
+        paymentIntentId: checkoutAttempts.paymentIntentId,
+      })
+      .from(orders)
+      .innerJoin(checkoutAttempts, eq(orders.attemptId, checkoutAttempts.id))
+      .where(eq(orders.id, orderId))
+      .limit(1);
+    if (!row?.accountId || !row.paymentIntentId) {
+      await this.markOrderReview(
+        orderId,
+        'Original payment references are unavailable.',
+      );
+      return 'partial_or_mismatched';
+    }
+    const intent = await this.gateway.retrievePaymentIntent(
+      row.accountId,
+      row.paymentIntentId,
+    );
+    if (
+      !intent.chargeId ||
+      intent.amount !== row.order.total ||
+      intent.currency !== row.order.currency
+    ) {
+      await this.markOrderReview(
+        orderId,
+        'Original Stripe payment does not match the Order.',
+      );
+      return 'partial_or_mismatched';
+    }
+    const charge = await this.gateway.retrieveCharge(
+      row.accountId,
+      intent.chargeId,
+    );
+    if (
+      charge.amount !== row.order.total ||
+      charge.currency !== row.order.currency
+    ) {
+      await this.markOrderReview(
+        orderId,
+        'Original Stripe charge does not match the Order.',
+      );
+      return 'partial_or_mismatched';
+    }
+    if (charge.refundedAmount === 0) return 'not_refunded';
+    if (charge.refundedAmount !== row.order.total) {
+      await this.applyExternalPaymentTruth(
+        orderId,
+        charge.refundedAmount,
+        true,
+        'Stripe reported a partial external refund.',
+      );
+      return 'partial_or_mismatched';
+    }
+    await this.applyExternalPaymentTruth(
+      orderId,
+      charge.refundedAmount,
+      row.order.status !== 'cancelled' && row.order.status !== 'returned',
+      'Stripe confirmed a full external refund.',
+    );
+    return 'fully_refunded';
+  }
+
+  private async applyExternalPaymentTruth(
+    orderId: string,
+    refundedAmount: number,
+    review: boolean,
+    reason: string,
+  ) {
+    await this.db.transaction(async (tx) => {
+      const [order] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.id, orderId))
+        .for('update');
+      if (!order) return;
+      const fullyRefunded = refundedAmount === order.total;
+      const unchanged =
+        order.refundedAmount === refundedAmount &&
+        order.paymentReviewRequired === review &&
+        (!fullyRefunded || order.paymentStatus === 'refunded');
+      if (unchanged) return;
+      const [saved] = await tx
+        .update(orders)
+        .set({
+          refundedAmount,
+          ...(fullyRefunded ? { paymentStatus: 'refunded' as const } : {}),
+          paymentReviewRequired: review,
+          version: order.version + 1,
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, order.id))
+        .returning();
+      if (!saved) return;
+      await this.insertPaymentEvent(
+        tx,
+        saved,
+        fullyRefunded ? 'refunded_external' : 'payment_review_required',
+        reason,
+      );
+      if (fullyRefunded)
+        await tx.insert(outboxEvents).values({
+          eventType: OutboxEventType.ORDER_EMAIL_INTENT,
+          aggregateId: saved.id,
+          deduplicationKey: `${saved.id}:refunded:${saved.version}`,
+          payload: {
+            type: 'refunded',
+            orderId: saved.id,
+            version: saved.version,
+            to: saved.accountEmail,
+            total: saved.total,
+            currency: saved.currency,
+          },
+        });
+    });
+  }
+
+  private async insertPaymentEvent(
+    tx: Database,
+    order: typeof orders.$inferSelect,
+    kind: string,
+    reason: string | null,
+  ) {
+    await tx.insert(orderEvents).values({
+      orderId: order.id,
+      storeId: order.storeId,
+      version: order.version,
+      kind,
+      previousStatus: order.status,
+      nextStatus: order.status,
+      actorAuthority: 'provider',
+      actorUserId: null,
+      reason,
+    });
+  }
+
+  private async insertRefundOutbox(tx: Database, refundOperationId: string) {
+    await tx.insert(outboxEvents).values({
+      eventType: OutboxEventType.ORDER_REFUND_REQUESTED,
+      aggregateId: refundOperationId,
+      deduplicationKey: `refund:${refundOperationId}`,
+      payload: { refundOperationId },
+    });
+  }
+
+  private refundRetryDelay(attempts: number) {
+    return [60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000][
+      Math.min(attempts - 1, 3)
+    ];
+  }
+
+  private paymentReviewRequired() {
+    return new CodedHttpError(
+      HttpStatus.CONFLICT,
+      'PAYMENT_REVIEW_REQUIRED',
+      'This Order requires payment review before fulfillment can continue.',
+    );
+  }
+
   private summary(order: typeof orders.$inferSelect) {
     return {
       id: order.id,
@@ -400,16 +1107,38 @@ export class OrdersRepository {
           'PAYMENT_NOT_CONFIRMED',
           'Online payment must be confirmed before this action.',
         );
-      if (
+      const requiresRefund =
         (input.next === 'cancelled' || input.next === 'returned') &&
         order.paymentMethod === 'online' &&
-        order.paymentStatus === 'paid'
-      )
-        throw new CodedHttpError(
-          HttpStatus.CONFLICT,
-          'REFUND_WORKFLOW_UNAVAILABLE',
-          'This paid Order requires the refund workflow, which is not available yet.',
-        );
+        order.paymentStatus === 'paid';
+      let refundSource:
+        | Pick<
+            typeof checkoutAttempts.$inferSelect,
+            'connectedAccountId' | 'paymentEnvironment' | 'paymentIntentId'
+          >
+        | undefined;
+      if (requiresRefund) {
+        const [attempt] = await tx
+          .select({
+            connectedAccountId: checkoutAttempts.connectedAccountId,
+            paymentEnvironment: checkoutAttempts.paymentEnvironment,
+            paymentIntentId: checkoutAttempts.paymentIntentId,
+          })
+          .from(checkoutAttempts)
+          .where(eq(checkoutAttempts.id, order.attemptId))
+          .for('update');
+        if (
+          !attempt?.connectedAccountId ||
+          !attempt.paymentEnvironment ||
+          !attempt.paymentIntentId
+        )
+          throw new CodedHttpError(
+            HttpStatus.CONFLICT,
+            'PAYMENT_REVIEW_REQUIRED',
+            'The original payment reference requires review before refunding.',
+          );
+        refundSource = attempt;
+      }
       if (
         input.next === 'delivered' &&
         order.paymentMethod === 'cash_on_delivery' &&
@@ -442,6 +1171,9 @@ export class OrdersRepository {
         .update(orders)
         .set({
           status: next,
+          ...(requiresRefund
+            ? { paymentStatus: 'refund_pending' as const }
+            : {}),
           version: order.version + 1,
           updatedAt: now,
           ...(next === 'delivered' && order.paymentMethod === 'cash_on_delivery'
@@ -478,6 +1210,23 @@ export class OrdersRepository {
         actorUserId: input.actorUserId,
         reason: reason ?? null,
       });
+      if (refundSource) {
+        const [refund] = await tx
+          .insert(refundOperations)
+          .values({
+            orderId: saved.id,
+            generation: 1,
+            environment: refundSource.paymentEnvironment as PaymentEnvironment,
+            connectedAccountId: refundSource.connectedAccountId as string,
+            paymentIntentId: refundSource.paymentIntentId as string,
+            amount: saved.total,
+            currency: saved.currency,
+            providerRequestKey: `refund:${saved.id}:1`,
+          })
+          .returning();
+        if (!refund) throw new Error('Refund operation was not persisted.');
+        await this.insertRefundOutbox(tx, refund.id);
+      }
       if (input.email)
         await tx.insert(outboxEvents).values({
           eventType: OutboxEventType.ORDER_EMAIL_INTENT,
@@ -667,21 +1416,18 @@ export class OrdersRepository {
   ) {
     if (order.paymentReviewRequired) return [];
     if (actor === 'shopper') {
-      return order.status === 'placed' && order.paymentMethod !== 'online'
+      return order.status === 'placed' &&
+        (order.paymentMethod === 'cash_on_delivery' ||
+          order.paymentStatus === 'paid')
         ? ['cancel']
         : [];
     }
     if (actor === 'store_support') return [];
     if (order.paymentMethod === 'online' && order.paymentStatus !== 'paid')
       return [];
-    const refundBlocked =
-      order.paymentMethod === 'online' && order.paymentStatus === 'paid';
-    if (order.status === 'placed')
-      return refundBlocked ? ['prepare'] : ['prepare', 'cancel'];
-    if (order.status === 'preparing')
-      return refundBlocked ? ['ship'] : ['ship', 'cancel'];
-    if (order.status === 'shipped')
-      return refundBlocked ? ['deliver'] : ['deliver', 'return-to-store'];
+    if (order.status === 'placed') return ['prepare', 'cancel'];
+    if (order.status === 'preparing') return ['ship', 'cancel'];
+    if (order.status === 'shipped') return ['deliver', 'return-to-store'];
     return [];
   }
 

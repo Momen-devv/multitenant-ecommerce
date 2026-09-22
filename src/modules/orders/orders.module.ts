@@ -9,8 +9,11 @@ import { OrdersRepository } from './repos/orders.repository';
 import { OrdersService } from './services/orders.service';
 import { CHECKOUT_REPOSITORY, ORDERS_REPOSITORY } from './interfaces';
 import { PaymentReconciliationTask } from './tasks/payment-reconciliation.task';
+import { RefundOutboxDispatcher } from './tasks/refund-outbox.dispatcher';
+import { OrderPurchaseEventHandler } from './services/connect-purchase-event.handler';
+import { OutboxModule } from '@/infrastructure/outbox/outbox.module';
 @Module({
-  imports: [StoresModule, PaymentInfrastructureModule],
+  imports: [StoresModule, PaymentInfrastructureModule, OutboxModule],
   controllers: [
     CheckoutController,
     UserOrdersController,
@@ -23,12 +26,15 @@ import { PaymentReconciliationTask } from './tasks/payment-reconciliation.task';
     { provide: CHECKOUT_REPOSITORY, useExisting: CheckoutRepository },
     { provide: ORDERS_REPOSITORY, useExisting: OrdersRepository },
     PaymentReconciliationTask,
+    RefundOutboxDispatcher,
+    OrderPurchaseEventHandler,
   ],
   exports: [
     OrdersService,
     CheckoutRepository,
     CHECKOUT_REPOSITORY,
     ORDERS_REPOSITORY,
+    OrderPurchaseEventHandler,
   ],
 })
 export class OrdersModule {}

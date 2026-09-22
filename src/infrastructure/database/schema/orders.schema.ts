@@ -53,6 +53,12 @@ export const reservationDisposition = pgEnum(
   'checkout_reservation_disposition',
   ['held', 'released', 'consumed', 'returned'],
 );
+export const refundOperationStatus = pgEnum('refund_operation_status', [
+  'pending',
+  'succeeded',
+  'failed',
+  'review_required',
+]);
 
 export type CheckoutSnapshot = {
   cartId: string;
@@ -141,6 +147,7 @@ export const checkoutAttempts = pgTable(
     paymentEnvironment: paymentEnvironmentEnum('payment_environment'),
     checkoutSessionId: varchar('checkout_session_id', { length: 255 }),
     paymentIntentId: varchar('payment_intent_id', { length: 255 }),
+    paymentChargeId: varchar('payment_charge_id', { length: 255 }),
     providerRequestKey: varchar('provider_request_key', { length: 255 }),
     providerRequest: jsonb('provider_request').$type<Record<string, unknown>>(),
     providerDispatchedAt: timestamp('provider_dispatched_at', {
@@ -178,6 +185,9 @@ export const checkoutAttempts = pgTable(
     uniqueIndex('checkout_attempts_payment_intent_uidx')
       .on(t.paymentEnvironment, t.connectedAccountId, t.paymentIntentId)
       .where(sql`${t.paymentIntentId} IS NOT NULL`),
+    uniqueIndex('checkout_attempts_payment_charge_uidx')
+      .on(t.paymentEnvironment, t.connectedAccountId, t.paymentChargeId)
+      .where(sql`${t.paymentChargeId} IS NOT NULL`),
     index('checkout_attempts_recovery_due_idx').on(t.status, t.nextRetryAt),
     index('checkout_attempts_lease_idx').on(t.status, t.leaseExpiresAt),
     index('checkout_attempts_user_created_idx').on(t.userId, t.createdAt, t.id),
@@ -372,6 +382,63 @@ export const commerceCommands = pgTable(
       t.operation,
       t.resourceId,
       t.idempotencyKey,
+    ),
+  ],
+);
+
+/** A numbered, provider-scoped refund request. A pending generation is never
+ * replaced: recovery must reconcile its exact provider key before retrying. */
+export const refundOperations = pgTable(
+  'refund_operations',
+  {
+    id: uuid('id').primaryKey().$defaultFn(generateUUIDv7),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'restrict' }),
+    generation: integer('generation').notNull(),
+    environment: paymentEnvironmentEnum('payment_environment').notNull(),
+    connectedAccountId: varchar('connected_account_id', {
+      length: 255,
+    }).notNull(),
+    paymentIntentId: varchar('payment_intent_id', { length: 255 }),
+    chargeId: varchar('charge_id', { length: 255 }),
+    amount: integer('amount').notNull(),
+    currency: varchar('currency', { length: 3 }).notNull(),
+    status: refundOperationStatus('status').notNull().default('pending'),
+    providerRefundId: varchar('provider_refund_id', { length: 255 }),
+    providerRequestKey: varchar('provider_request_key', {
+      length: 255,
+    }).notNull(),
+    providerDispatchedAt: timestamp('provider_dispatched_at', {
+      withTimezone: true,
+    }),
+    providerAttempts: integer('provider_attempts').notNull().default(0),
+    nextRetryAt: timestamp('next_retry_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    leaseToken: uuid('lease_token'),
+    leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+    lastProviderError: varchar('last_provider_error', { length: 1000 }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique('refund_operations_order_generation_uidx').on(
+      t.orderId,
+      t.generation,
+    ),
+    uniqueIndex('refund_operations_provider_ref_uidx')
+      .on(t.environment, t.connectedAccountId, t.providerRefundId)
+      .where(sql`${t.providerRefundId} IS NOT NULL`),
+    index('refund_operations_recovery_due_idx').on(t.status, t.nextRetryAt),
+    index('refund_operations_lease_idx').on(t.status, t.leaseExpiresAt),
+    check(
+      'refund_operations_amount_check',
+      sql`${t.amount} > 0 AND ${t.providerRequestKey} <> ''`,
     ),
   ],
 );

@@ -174,6 +174,7 @@ export class StripePaymentGateway implements PaymentGateway {
       paymentIntentId: this.expandableId(charge.payment_intent),
       status: charge.status,
       refunded: charge.refunded,
+      refundedAmount: charge.amount_refunded,
     };
   }
 

@@ -296,7 +296,7 @@ export class StoreOrdersController {
   @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'IDEMPOTENCY_KEY_REQUIRED')
   @ApiErrorResponse(
     HttpStatus.CONFLICT,
-    'INVALID_ORDER_TRANSITION, STALE_VERSION, PAYMENT_REVIEW_REQUIRED, PAYMENT_NOT_CONFIRMED, REFUND_WORKFLOW_UNAVAILABLE, or IDEMPOTENCY_CONFLICT',
+    'INVALID_ORDER_TRANSITION, STALE_VERSION, PAYMENT_REVIEW_REQUIRED, PAYMENT_NOT_CONFIRMED, or IDEMPOTENCY_CONFLICT',
   )
   @ResponseMessage('Order cancelled')
   cancel(
@@ -352,7 +352,7 @@ export class StoreOrdersController {
   )
   @ApiErrorResponse(
     HttpStatus.CONFLICT,
-    'INVALID_ORDER_TRANSITION, STALE_VERSION, PAYMENT_REVIEW_REQUIRED, PAYMENT_NOT_CONFIRMED, REFUND_WORKFLOW_UNAVAILABLE, INVENTORY_STATE_CONFLICT, or IDEMPOTENCY_CONFLICT',
+    'INVALID_ORDER_TRANSITION, STALE_VERSION, PAYMENT_REVIEW_REQUIRED, PAYMENT_NOT_CONFIRMED, INVENTORY_STATE_CONFLICT, or IDEMPOTENCY_CONFLICT',
   )
   @ResponseMessage('Order returned to Store')
   returnToStore(
@@ -363,6 +363,53 @@ export class StoreOrdersController {
     @Headers('idempotency-key') key?: string,
   ) {
     return this.orders.returnToStore(
+      session.user.id,
+      store.storeId,
+      orderId,
+      dto,
+      key,
+    );
+  }
+
+  @Post(':orderId/refund/retry')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @OrgRoles([OrganizationRole.OWNER, OrganizationRole.MANAGER])
+  @Throttle({ default: { limit: 5, ttl: seconds(60) } })
+  @ApiOperation({
+    operationId: 'retryStoreOrderRefund',
+    summary: 'Queue recovery of a failed full refund',
+    description:
+      'Only failed full refunds are retryable. Pending or review-required payment operations never create another refund.',
+  })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    schema: { type: 'string', minLength: 1, maxLength: 128 },
+  })
+  @ApiParam({ name: 'orderId', format: 'uuid' })
+  @ApiBody({
+    type: OrderVersionDto,
+    examples: { failed: { value: { version: 3 } } },
+  })
+  @ApiSuccessResponse({
+    description: 'Refund recovery queued',
+    model: OrderResponseDto,
+    example: ORDER_RESPONSE_EXAMPLE,
+  })
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'IDEMPOTENCY_KEY_REQUIRED')
+  @ApiErrorResponse(
+    HttpStatus.CONFLICT,
+    'STALE_VERSION, REFUND_NOT_RETRYABLE, PAYMENT_REVIEW_REQUIRED, or IDEMPOTENCY_CONFLICT',
+  )
+  @ResponseMessage('Refund recovery queued')
+  retryRefund(
+    @Session() session: CurrentUser,
+    @ActiveStore() store: ActiveStoreContext,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @Body() dto: OrderVersionDto,
+    @Headers('idempotency-key') key?: string,
+  ) {
+    return this.orders.retryRefund(
       session.user.id,
       store.storeId,
       orderId,

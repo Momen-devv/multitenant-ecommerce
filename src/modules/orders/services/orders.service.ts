@@ -113,6 +113,15 @@ export class OrdersService {
   ) {
     return this.orders.returnToStore(userId, storeId, orderId, dto, key);
   }
+  retryRefund(
+    userId: string,
+    storeId: string,
+    orderId: string,
+    dto: OrderVersionDto,
+    key?: string,
+  ) {
+    return this.orders.retryRefund(userId, storeId, orderId, dto, key);
+  }
 
   listAttempts(userId: string, query: CheckoutQueryDto) {
     return this.checkout.listAttempts(userId, query);
