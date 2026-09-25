@@ -50,5 +50,6 @@ import { USER_ADDRESSES_REPOSITORY } from './interfaces/repos';
     PhoneController,
     AddressesController,
   ],
+  exports: [PlatformUsersService],
 })
 export class UsersModule {}

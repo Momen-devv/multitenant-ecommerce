@@ -95,6 +95,7 @@ describe('Better Auth management HTTP boundary', () => {
     emailQueue: {
       addVerificationEmailJob: jest.fn(),
       addResetPasswordJob: jest.fn(),
+      addInvitationEmailJob: jest.fn(),
     },
     smsQueue,
     redis: {

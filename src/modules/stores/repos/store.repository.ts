@@ -10,7 +10,10 @@ import { DrizzleQueryError } from 'drizzle-orm';
 import { DatabaseError } from 'pg';
 import { SlugConflictError } from '@/common/errors/slug-conflict.error';
 import { StoreLifecycleConflictError } from '@/common/errors/store-lifecycle-conflict.error';
-import { organization } from '@/infrastructure/database/schema/auth.schema';
+import {
+  member,
+  organization,
+} from '@/infrastructure/database/schema/auth.schema';
 import { storeLifecycleAudit } from '@/infrastructure/database/schema/app.schema';
 import { StoreStatus } from '@/common/enums';
 import type { StoreLifecycleActorAuthority } from '../domain/store-status';
@@ -99,6 +102,29 @@ export class StoreRepository implements IStoreRepository {
     return this.db.query.store.findFirst({
       columns: { id: true, status: true, defaultCurrency: true },
       where: eq(store.organizationId, organizationId),
+    });
+  }
+
+  async findByOrganizationId(organizationId: string) {
+    return this.db.query.store.findFirst({
+      where: eq(store.organizationId, organizationId),
+    });
+  }
+
+  async findMembersByOrganizationId(
+    organizationId: string,
+    limit = 25,
+    offset = 0,
+  ) {
+    return this.db.query.member.findMany({
+      where: eq(member.organizationId, organizationId),
+      limit,
+      offset,
+      with: {
+        user: {
+          columns: { id: true, name: true, email: true },
+        },
+      },
     });
   }
 
