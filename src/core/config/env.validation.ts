@@ -32,7 +32,7 @@ const envSchema = z.object({
   AWS_S3_BUCKET_NAME: z.string(),
   AWS_ENDPOINT: z.string(),
 
-  STRIPE_SECRET_KEY: z.string(),
+  STRIPE_SECRET_KEY: z.string().min(1, 'STRIPE_SECRET_KEY is required'),
 
   STRIPE_WEBHOOK_SECRET: z.string().min(1, 'STRIPE_WEBHOOK_SECRET is required'),
   STRIPE_CONNECT_WEBHOOK_SECRET: z
