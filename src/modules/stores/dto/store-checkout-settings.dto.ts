@@ -152,11 +152,10 @@ export class StoreCheckoutOptionsResponseDto {
   shippingPolicy!: string | null;
 
   @ApiProperty({
-    enum: ['cash_on_delivery'],
+    enum: ['cash_on_delivery', 'online'],
     isArray: true,
     example: ['cash_on_delivery'],
   })
-  paymentMethods!: Array<'cash_on_delivery' | 'online'>;
 
   @ApiProperty({ example: true })
   checkoutAvailable!: boolean;
