@@ -15,7 +15,11 @@ export const JobNames = {
     VERIFICATION: 'verification',
     ACCOUNT_DEACTIVATED: 'account-deactivated',
     ACCOUNT_REACTIVATION: 'account-reactivation',
-    ORDER: 'order',
+    ORDER_PLACED: 'order-placed',
+    ORDER_SHIPPED: 'order-shipped',
+    ORDER_DELIVERED: 'order-delivered',
+    ORDER_CANCELLED: 'order-cancelled',
+    ORDER_REFUNDED: 'order-refunded',
   },
   SMS: {
     SEND: 'send',
