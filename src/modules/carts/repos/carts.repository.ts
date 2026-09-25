@@ -421,7 +421,7 @@ export class CartsRepository implements ICartsRepository {
       id: cart.id,
       storeId,
       version: cart.version,
-      currency: this.currency(activeStore.defaultCurrency),
+      currency: 'usd',
       items,
       subtotal: items.reduce((total, item) => total + item.lineTotal, 0),
       activeCheckout: null,
@@ -559,7 +559,7 @@ export class CartsRepository implements ICartsRepository {
       id: null,
       storeId: activeStore.id,
       version: 0,
-      currency: this.currency(activeStore.defaultCurrency),
+      currency: 'usd',
       items: [],
       subtotal: 0,
       activeCheckout: null,
@@ -621,11 +621,6 @@ export class CartsRepository implements ICartsRepository {
       activeCheckout: null,
       lastActivityAt: detail.lastActivityAt!,
     };
-  }
-
-  private currency(value: string): 'usd' {
-    // Existing Store validation permits only USD for commerce data.
-    return value.toLowerCase() === 'usd' ? 'usd' : 'usd';
   }
 
   private throwStaleVersion(currentVersion: number): never {

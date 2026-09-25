@@ -36,7 +36,10 @@ const RequiresDeliveryCountry = (): PropertyDecorator =>
     name: 'requiresDeliveryCountry',
     validator: {
       validate: (value: unknown, args) => {
-        const input = args?.object as UpdateStoreCheckoutSettingsDto;
+        const input = args?.object as
+          | UpdateStoreCheckoutSettingsDto
+          | undefined;
+        if (!input) return false;
         return (
           !(input.cashOnDeliveryEnabled || input.onlineEnabled) ||
           (Array.isArray(value) && value.length > 0)
@@ -156,6 +159,7 @@ export class StoreCheckoutOptionsResponseDto {
     isArray: true,
     example: ['cash_on_delivery'],
   })
+  paymentMethods!: Array<'cash_on_delivery' | 'online'>;
 
   @ApiProperty({ example: true })
   checkoutAvailable!: boolean;
