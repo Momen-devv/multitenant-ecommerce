@@ -60,14 +60,18 @@ describe('AddressesService', () => {
     );
 
     await expect(
-      service.createAddress('user-1', {
-        label: 'Home',
-        recipientName: 'Ahmed Ali',
-        recipientPhone: '+201234567890',
-        addressLine1: '12 Tahrir Square',
-        city: 'Cairo',
-        countryCode: 'EG',
-      }),
+      service.createAddress(
+        'user-1',
+        {
+          label: 'Home',
+          recipientName: 'Ahmed Ali',
+          recipientPhone: '+201234567890',
+          addressLine1: '12 Tahrir Square',
+          city: 'Cairo',
+          countryCode: 'EG',
+        },
+        'address-create-limit',
+      )
     ).rejects.toThrow(
       new ConflictException('A user can have at most 5 saved addresses.'),
     );
