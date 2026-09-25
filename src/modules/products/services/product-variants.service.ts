@@ -23,6 +23,7 @@ import {
   type CreateSimpleVariantInput,
 } from '../repos/product-variants.repository';
 import { generateVariantIdentifiers } from '../domain/variant-catalog';
+import { isUsdCurrency } from '@/common/commerce/currency';
 
 @Injectable()
 export class ProductVariantsService {
@@ -35,6 +36,7 @@ export class ProductVariantsService {
     dto: CreateProductVariantDto,
     store: ActiveStoreContext,
   ) {
+    this.assertUsdPriceWrites(store.currency);
     const inventoryPolicy = this.validateCreateVariant(dto);
     const { sku, barcode } = generateVariantIdentifiers();
     const input: CreateSimpleVariantInput = {
@@ -139,6 +141,9 @@ export class ProductVariantsService {
     store: ActiveStoreContext,
   ) {
     const { expectedVersion, ...input } = dto;
+    if (input.price !== undefined || input.compareAtPrice !== undefined) {
+      this.assertUsdPriceWrites(store.currency);
+    }
     const current = await this.productVariantsRepository.findOne(
       store.storeId,
       productId,
@@ -251,6 +256,14 @@ export class ProductVariantsService {
     }
 
     return inventoryPolicy;
+  }
+
+  private assertUsdPriceWrites(currency: string): void {
+    if (!isUsdCurrency(currency)) {
+      throw new ConflictException(
+        'New Product prices require a Store migrated to USD.',
+      );
+    }
   }
 
   private validateCompareAtPrice(

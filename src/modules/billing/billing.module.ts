@@ -8,10 +8,10 @@ import { BillingCatalogService } from './services/billing-catalog.service';
 import { BillingCheckoutService } from './services/billing-checkout.service';
 import { BillingPortalService } from './services/billing-portal.service';
 import { StripeWebhookService } from './services/stripe-webhook.service';
-import { StripeModule } from './stripe/stripe.module';
+import { PaymentInfrastructureModule } from '@/infrastructure/payments/payments.module';
 
 @Module({
-  imports: [StripeModule, StripeWebhookQueueModule],
+  imports: [PaymentInfrastructureModule, StripeWebhookQueueModule],
   controllers: [StripeWebhookController],
   providers: [
     BillingCatalogService,

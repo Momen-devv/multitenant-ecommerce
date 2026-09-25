@@ -3,7 +3,6 @@ import { AuthService } from '@thallesp/nestjs-better-auth';
 import { fromNodeHeaders } from 'better-auth/node';
 import { isAPIError } from 'better-auth/api';
 import type { Auth } from '@/core/auth/auth';
-import type { OrganizationRole } from '@/common/enums';
 import type { StoreMembershipContext } from '@/common/guards/store-membership.guard';
 import type {
   InviteStoreMemberDto,
@@ -17,7 +16,7 @@ type NodeHeaders = Record<string, string>;
 export class StoreMembershipService {
   constructor(private readonly authService: AuthService<Auth>) {}
 
-  async getAccess(context: StoreMembershipContext) {
+  getAccess(context: StoreMembershipContext) {
     return context;
   }
 
@@ -137,7 +136,7 @@ export class StoreMembershipService {
       this.authService.api.updateMemberRole({
         body: {
           memberId,
-          role: dto.role as OrganizationRole,
+          role: dto.role,
           organizationId: context.organizationId,
         },
         headers: fromNodeHeaders(headers),

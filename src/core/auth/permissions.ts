@@ -11,9 +11,9 @@ const statement = {
   ...organizationDefaultStatements,
   store: ['read', 'update', 'delete'],
   product: ['read', 'create', 'update', 'delete'],
-  order: ['read', 'create', 'update', 'fulfill', 'refund'],
   customer: ['read', 'update'],
   report: ['read'],
+  order: ['read', 'process', 'cancel', 'refund'],
 } as const;
 
 export const ac = createAccessControl(statement);
@@ -27,9 +27,9 @@ export const user = ac.newRole({});
 const allCommercePermissions = {
   store: ['read', 'update', 'delete'],
   product: ['read', 'create', 'update', 'delete'],
-  order: ['read', 'create', 'update', 'fulfill', 'refund'],
   customer: ['read', 'update'],
   report: ['read'],
+  order: ['read', 'process', 'cancel', 'refund'],
 } as const;
 
 export const organizationOwner = ac.newRole({
@@ -41,12 +41,12 @@ export const organizationManager = ac.newRole({
   ...organizationAdminAc.statements,
   store: ['read', 'update'],
   product: ['read', 'create', 'update', 'delete'],
-  order: ['read', 'create', 'update', 'fulfill', 'refund'],
   customer: ['read', 'update'],
   report: ['read'],
+  order: ['read', 'process', 'cancel', 'refund'],
 });
 
 export const support = ac.newRole({
-  order: ['read'],
   customer: ['read', 'update'],
+  order: ['read'],
 });

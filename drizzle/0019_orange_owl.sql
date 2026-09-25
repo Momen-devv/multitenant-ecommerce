@@ -1,0 +1,2 @@
+ALTER TABLE "user_addresses" ADD COLUMN "recipient_phone" varchar(50);--> statement-breakpoint
+ALTER TABLE "user_addresses" ADD CONSTRAINT "user_addresses_recipient_phone_check" CHECK ("user_addresses"."recipient_phone" IS NULL OR ("user_addresses"."recipient_phone" = trim("user_addresses"."recipient_phone") AND char_length("user_addresses"."recipient_phone") BETWEEN 3 AND 50));

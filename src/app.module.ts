@@ -17,6 +17,7 @@ import { InfrastructureModule } from '@/infrastructure/infrastructure.module';
 import { CacheModule } from '@/infrastructure/cache/cache.module';
 import { CACHE_CLIENT } from '@/infrastructure/cache/cache.constants';
 import { EmailQueueService } from '@/infrastructure/queue/email/email-queue.service';
+import { SmsQueueService } from '@/infrastructure/queue/sms/sms-queue.service';
 import { createAuth } from '@/core/auth/auth';
 import { DATABASE } from './common/constants/injection-tokens.constants';
 
@@ -24,6 +25,9 @@ import { DATABASE } from './common/constants/injection-tokens.constants';
 import { AllExceptionsFilter } from '@/common/filters/http-exception.filter';
 import { TransformResponseInterceptor } from './common/interceptors/transform-response.interceptor';
 import { CorrelationIdMiddleware } from './common/middlewares/correlation-id.middleware';
+import { ActiveUserGuard } from './common/guards/active-user.guard';
+import type { ThrottledRequest } from '@/common/types/request.types';
+import { Environment } from '@/common/enums';
 
 // Feature modules
 import { UsersModule } from './modules/users/users.module';
@@ -38,6 +42,10 @@ import { BillingModule } from './modules/billing/billing.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { ProductsModule } from './modules/products/products.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { CheckoutModule } from './modules/checkout/checkout.module';
+import { CartsModule } from './modules/carts/carts.module';
+import { OrdersModule } from './modules/orders/orders.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
 
 @Module({
@@ -50,22 +58,36 @@ import { AssistantModule } from './modules/assistant/assistant.module';
       inject: [CACHE_CLIENT],
       useFactory: (redisClient: Redis) => ({
         throttlers: [{ name: 'default', ttl: seconds(60), limit: 60 }],
+        skipIf: () => process.env.NODE_ENV === Environment.Development,
         storage: new ThrottlerStorageRedisService(redisClient),
+        getTracker: (request) => {
+          const { session, ip } = request as ThrottledRequest;
+          return session?.user.id ?? ip;
+        },
       }),
     }),
     ScheduleModule.forRoot(),
 
     AuthModule.forRootAsync({
+      disableGlobalAuthGuard: true,
       imports: [InfrastructureModule],
-      inject: [EmailQueueService, CACHE_CLIENT, DATABASE, betterAuthConfig.KEY],
+      inject: [
+        EmailQueueService,
+        SmsQueueService,
+        CACHE_CLIENT,
+        DATABASE,
+        betterAuthConfig.KEY,
+      ],
       useFactory: (
         emailQueue: EmailQueueService,
+        smsQueue: SmsQueueService,
         redis: Redis,
         database: NodePgDatabase<typeof Schema>,
         configuration: ConfigType<typeof betterAuthConfig>,
       ) => ({
         auth: createAuth({
           emailQueue,
+          smsQueue,
           redis,
           database,
           configuration,
@@ -83,6 +105,10 @@ import { AssistantModule } from './modules/assistant/assistant.module';
     SubscriptionsModule,
     ProductsModule,
     CategoriesModule,
+    PaymentsModule,
+    CheckoutModule,
+    CartsModule,
+    OrdersModule,
     AssistantModule,
 
     RouterModule.register([{ path: 'health', module: HealthModule }]),
@@ -103,6 +129,10 @@ import { AssistantModule } from './modules/assistant/assistant.module';
     {
       provide: APP_GUARD,
       useClass: AuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ActiveUserGuard,
     },
     {
       provide: APP_GUARD,

@@ -14,6 +14,12 @@ import { PlatformUsersController } from './controllers/platform-users.controller
 import { PlatformImpersonationController } from './controllers/platform-impersonation.controller';
 import { PlatformUsersService } from './services/platform-users.service';
 import { PlatformImpersonationService } from './services/platform-impersonation.service';
+import { PhoneController } from './controllers/phone.controller';
+import { PhoneService } from './services/phone.service';
+import { AddressesController } from './controllers/addresses.controller';
+import { AddressesService } from './services/addresses.service';
+import { UserAddressesRepository } from './repos/user-addresses.repository';
+import { USER_ADDRESSES_REPOSITORY } from './interfaces/repos';
 @Module({
   imports: [StorageModule],
   providers: [
@@ -28,12 +34,21 @@ import { PlatformImpersonationService } from './services/platform-impersonation.
     SecureTokenService,
     PlatformUsersService,
     PlatformImpersonationService,
+    PhoneService,
+    AddressesService,
+    UserAddressesRepository,
+    {
+      provide: USER_ADDRESSES_REPOSITORY,
+      useExisting: UserAddressesRepository,
+    },
   ],
   controllers: [
     UsersController,
     AccountController,
     PlatformUsersController,
     PlatformImpersonationController,
+    PhoneController,
+    AddressesController,
   ],
   exports: [PlatformUsersService],
 })

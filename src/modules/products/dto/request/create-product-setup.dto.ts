@@ -11,6 +11,7 @@ import {
   IsString,
   Length,
   Min,
+  Max,
   ValidateNested,
 } from 'class-validator';
 import { InventoryPolicy } from '@/common/enums';
@@ -20,6 +21,7 @@ import {
   MAX_PRODUCT_OPTIONS,
   MAX_PRODUCT_OPTION_VALUES,
 } from '../../domain/product-catalog-limits';
+import { MAX_UNIT_PRICE_MINOR_UNITS } from '@/common/commerce/limits';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -94,12 +96,14 @@ export class CreateProductSetupVariantDto {
   @ApiProperty({ description: 'Positive minor currency units', minimum: 1 })
   @IsInt()
   @Min(1)
+  @Max(MAX_UNIT_PRICE_MINOR_UNITS)
   price!: number;
 
   @ApiPropertyOptional({ minimum: 1, nullable: true })
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(MAX_UNIT_PRICE_MINOR_UNITS)
   compareAtPrice?: number | null;
 
   @ApiPropertyOptional({ minimum: 0, nullable: true })

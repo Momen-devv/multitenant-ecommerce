@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Patch,
   Headers,
   Post,
@@ -37,6 +38,17 @@ import { ApiErrorResponse } from '@/common/decorators/api-error-response.decorat
 @Controller('users/profile')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Get the current user profile and phone status' })
+  @ApiSuccessResponse({ description: 'Profile retrieved successfully' })
+  @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Authentication is required.')
+  @ResponseMessage('Profile retrieved successfully')
+  getProfile(@Session() session: CurrentUser) {
+    return {
+      sessionUser: session.user,
+    };
+  }
 
   @ApiOperation({
     summary: 'Update the current user profile',

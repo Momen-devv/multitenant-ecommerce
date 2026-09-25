@@ -14,6 +14,8 @@ import {
 
 export const outboxEventTypeEnum = pgEnum('outbox_event_type', [
   OutboxEventType.PLAN_PROVISIONING_REQUESTED,
+  OutboxEventType.ORDER_EMAIL_INTENT,
+  OutboxEventType.ORDER_REFUND_REQUESTED,
 ]);
 
 export const outboxEvents = pgTable(

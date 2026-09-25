@@ -120,6 +120,146 @@
       "when": 1789258639310,
       "tag": "0016_restore-outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789273586258,
+      "tag": "0017_add-commerce-persistence",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789299134058,
+      "tag": "0018_majestic_saracen",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789299268407,
+      "tag": "0019_orange_owl",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789299633453,
+      "tag": "0020_bored_nico_minoru",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789350558874,
+      "tag": "0021_superb_vivisector",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789368675516,
+      "tag": "0022_freezing_dragon_lord",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789372197395,
+      "tag": "0023_sour_otto_octavius",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789375301819,
+      "tag": "0024_adorable_moon_knight",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1789382217635,
+      "tag": "0025_sticky_frank_castle",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1789464741538,
+      "tag": "0026_productive_starbolt",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1789474814500,
+      "tag": "0027_complete_roulette",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1789546524576,
+      "tag": "0028_superb_may_parker",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1789548666423,
+      "tag": "0029_soft_meltdown",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1789551442185,
+      "tag": "0030_absurd_guardsmen",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789632000000,
+      "tag": "0031_add_checkout_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789718400000,
+      "tag": "0032_order_fulfillment",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1789891200000,
+      "tag": "0033_online_checkout",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790064000000,
+      "tag": "0034_full_refunds",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790088009470,
+      "tag": "0035_fast_iron_lad",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1790182800000,
+      "tag": "0036_repair_order_lifecycle_columns",
+      "breakpoints": true
     }
   ]
 }

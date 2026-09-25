@@ -1,0 +1,5 @@
+ALTER TABLE "user_addresses" ADD COLUMN "creation_idempotency_key" varchar(255);--> statement-breakpoint
+ALTER TABLE "user_addresses" ADD COLUMN "creation_request_fingerprint" varchar(64);--> statement-breakpoint
+CREATE UNIQUE INDEX "user_addresses_create_idempotency_uidx" ON "user_addresses" USING btree ("user_id","creation_idempotency_key");--> statement-breakpoint
+ALTER TABLE "user_addresses" ADD CONSTRAINT "user_addresses_create_idempotency_key_check" CHECK ("user_addresses"."creation_idempotency_key" IS NULL OR ("user_addresses"."creation_idempotency_key" = trim("user_addresses"."creation_idempotency_key") AND char_length("user_addresses"."creation_idempotency_key") BETWEEN 1 AND 255));--> statement-breakpoint
+ALTER TABLE "user_addresses" ADD CONSTRAINT "user_addresses_create_idempotency_pair_check" CHECK (("user_addresses"."creation_idempotency_key" IS NULL AND "user_addresses"."creation_request_fingerprint" IS NULL) OR ("user_addresses"."creation_idempotency_key" IS NOT NULL AND "user_addresses"."creation_request_fingerprint" ~ '^[a-f0-9]{64}$'));
