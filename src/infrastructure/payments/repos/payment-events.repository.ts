@@ -132,6 +132,46 @@ export class PaymentEventsRepository {
     return rows.map((row) => row.id);
   }
 
+  /** Metadata-only operator view; raw provider payloads stay out of CLI logs. */
+  async inspectForOperator(eventId: string) {
+    const [event] = await this.db
+      .select({
+        id: connectWebhookEvents.id,
+        environment: connectWebhookEvents.environment,
+        accountId: connectWebhookEvents.accountId,
+        stripeEventId: connectWebhookEvents.stripeEventId,
+        eventType: connectWebhookEvents.eventType,
+        status: connectWebhookEvents.status,
+        attempts: connectWebhookEvents.attempts,
+        lastError: connectWebhookEvents.lastError,
+        nextRetryAt: connectWebhookEvents.nextRetryAt,
+        leaseExpiresAt: connectWebhookEvents.leaseExpiresAt,
+        receivedAt: connectWebhookEvents.receivedAt,
+        processedAt: connectWebhookEvents.processedAt,
+        updatedAt: connectWebhookEvents.updatedAt,
+      })
+      .from(connectWebhookEvents)
+      .where(eq(connectWebhookEvents.id, eventId));
+    return event ?? null;
+  }
+
+  /**
+   * A replay may only enqueue work that the normal claim path can own. In
+   * particular, dead-lettered receipts keep their exhausted retry budget.
+   */
+  async canReplayForOperator(eventId: string, now = new Date()) {
+    const event = await this.inspectForOperator(eventId);
+    if (!event) return false;
+    return (
+      event.attempts < CONNECT_EVENT_MAX_ATTEMPTS &&
+      (event.status === 'pending' ||
+        (event.status === 'failed' && event.nextRetryAt <= now) ||
+        (event.status === 'processing' &&
+          event.leaseExpiresAt !== null &&
+          event.leaseExpiresAt <= now))
+    );
+  }
+
   async completeUnclaimed(eventId: string) {
     await this.db
       .update(connectWebhookEvents)

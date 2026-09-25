@@ -188,6 +188,17 @@ export class StripeConnectWebhookService {
     );
   }
 
+  async inspectEventForOperator(eventId: string) {
+    return this.events.inspectForOperator(eventId);
+  }
+
+  /** Enqueues a specific eligible receipt for the ordinary leased processor. */
+  async replayEventForOperator(eventId: string): Promise<boolean> {
+    if (!(await this.events.canReplayForOperator(eventId))) return false;
+    await this.queue.enqueueEvent(eventId);
+    return true;
+  }
+
   private getAccountId(event: Stripe.Event): string | undefined {
     if (typeof event.account === 'string') return event.account;
     if (event.type === 'account.updated') {

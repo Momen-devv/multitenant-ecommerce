@@ -491,6 +491,28 @@ export class OrdersRepository {
     }
   }
 
+  /** Operator-only read of a durable refund operation and its Order state. */
+  async inspectRefundForOperator(operationId: string) {
+    const [operation] = await this.db
+      .select()
+      .from(refundOperations)
+      .where(eq(refundOperations.id, operationId));
+    if (!operation) return null;
+    const [order] = await this.db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, operation.orderId));
+    return { operation, order: order ?? null };
+  }
+
+  /** Reuses the leased refund handler and never changes its retry budget. */
+  async replayRefundForOperator(operationId: string) {
+    const existing = await this.inspectRefundForOperator(operationId);
+    if (!existing) return null;
+    await this.processRefund(operationId);
+    return this.inspectRefundForOperator(operationId);
+  }
+
   /** Connect events are hints only; provider retrieval remains authoritative. */
   async processPurchaseEvent(input: {
     accountId: string;
