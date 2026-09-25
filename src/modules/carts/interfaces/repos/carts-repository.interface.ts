@@ -21,4 +21,8 @@ export interface ICartsRepository {
     storeId: string,
     version: number,
   ): Promise<CartDetailResponseDto>;
+  cleanupInactiveResources(
+    cartCutoff: Date,
+    batchSize?: number,
+  ): Promise<{ cartsDeleted: number; quotesDeleted: number }>;
 }

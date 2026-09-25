@@ -573,6 +573,35 @@ export class CheckoutRepository {
     return await this.attemptResponse(this.db, userId, attemptId);
   }
 
+  /** Operator-only read: does not rely on a retained User record. */
+  async inspectAttemptForOperator(attemptId: string) {
+    const [attempt] = await this.db
+      .select()
+      .from(checkoutAttempts)
+      .where(eq(checkoutAttempts.id, attemptId));
+    if (!attempt) return null;
+    const [order] = await this.db
+      .select()
+      .from(orders)
+      .where(eq(orders.attemptId, attempt.id));
+    const reservations = await this.db
+      .select()
+      .from(checkoutReservations)
+      .where(eq(checkoutReservations.attemptId, attempt.id));
+    return { attempt, order: order ?? null, reservations };
+  }
+
+  /**
+   * Runs one attempt through the same leased reconciliation path as the
+   * scheduler. It neither reopens terminal attempts nor resets retry counts.
+   */
+  async replayAttemptForOperator(attemptId: string) {
+    const existing = await this.inspectAttemptForOperator(attemptId);
+    if (!existing) return null;
+    await this.processOnlineAttempt(attemptId, true);
+    return this.inspectAttemptForOperator(attemptId);
+  }
+
   async cancelAttempt(
     userId: string,
     attemptId: string,
@@ -580,6 +609,7 @@ export class CheckoutRepository {
   ) {
     this.requireIdempotencyKey(key);
     const requestHash = this.hash({});
+    let releaseWithoutProviderSession = false;
     await this.db.transaction(async (tx) => {
       const [command] = await tx
         .select()
@@ -630,6 +660,12 @@ export class CheckoutRepository {
           { orderId: order.id },
         );
       if (['creating', 'pending'].includes(attempt.status)) {
+        // Missing frozen URLs are safe to cancel only when no provider request
+        // was dispatched. A lost Stripe response may otherwise hide a Session.
+        releaseWithoutProviderSession =
+          !attempt.checkoutSessionId &&
+          !attempt.providerDispatchedAt &&
+          !this.checkoutReturnUrls(attempt.providerRequest);
         await tx
           .update(checkoutAttempts)
           .set({
@@ -648,7 +684,9 @@ export class CheckoutRepository {
         attemptId,
       });
     });
-    await this.processOnlineAttempt(attemptId, true);
+    if (releaseWithoutProviderSession)
+      await this.releaseUnpaidAttempt(attemptId, 'cancelled');
+    else await this.processOnlineAttempt(attemptId, true);
     return this.attemptResponse(this.db, userId, attemptId);
   }
 
@@ -720,7 +758,9 @@ export class CheckoutRepository {
         await tx
           .update(carts)
           .set({
-            version: sql`${carts.version} + 1`,
+            // Cart revisions are globally allocated so a stale revision can
+            // never become valid after a Cart is deleted and recreated.
+            version: sql<number>`nextval('cart_version_sequence')`,
             lastActivityAt: new Date(),
             updatedAt: new Date(),
           })
@@ -909,6 +949,15 @@ export class CheckoutRepository {
       );
       return;
     }
+    const returnUrls = this.checkoutReturnUrls(attempt.providerRequest);
+    if (!returnUrls) {
+      await this.markAttemptForReview(
+        attempt.id,
+        leaseToken,
+        'Checkout return URLs were missing when this attempt was created. Cancel it and create a new checkout.',
+      );
+      return;
+    }
     if (
       attempt.providerDispatchedAt &&
       Date.now() - attempt.providerDispatchedAt.getTime() >
@@ -978,8 +1027,10 @@ export class CheckoutRepository {
               ]
             : []),
         ],
-        successUrl: this.stripe.checkoutSuccessUrl,
-        cancelUrl: this.stripe.checkoutCancelUrl,
+        // Stripe idempotency requires retries to use the exact parameters
+        // captured when the attempt was created. Never re-read mutable config.
+        successUrl: returnUrls.successUrl,
+        cancelUrl: returnUrls.cancelUrl,
         metadata,
         paymentIntentMetadata: metadata,
         expiresAt,
@@ -1715,6 +1766,19 @@ export class CheckoutRepository {
   }
   private hash(value: unknown) {
     return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  }
+
+  private checkoutReturnUrls(request: Record<string, unknown> | null) {
+    const successUrl = request?.successUrl;
+    const cancelUrl = request?.cancelUrl;
+    if (
+      typeof successUrl !== 'string' ||
+      !successUrl ||
+      typeof cancelUrl !== 'string' ||
+      !cancelUrl
+    )
+      return null;
+    return { successUrl, cancelUrl };
   }
 
   private requireIdempotencyKey(

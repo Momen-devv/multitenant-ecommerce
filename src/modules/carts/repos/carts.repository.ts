@@ -1,5 +1,15 @@
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { and, asc, count, eq, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  eq,
+  inArray,
+  isNull,
+  lte,
+  notExists,
+  sql,
+} from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { CodedHttpError } from '@/common/errors';
 import {
@@ -18,7 +28,10 @@ import {
   products,
   productVariants,
 } from '@/infrastructure/database/schema/products.schema';
-import { checkoutAttempts } from '@/infrastructure/database/schema/orders.schema';
+import {
+  checkoutAttempts,
+  checkoutQuotes,
+} from '@/infrastructure/database/schema/orders.schema';
 import * as schema from '@/infrastructure/database/schema/schema';
 import type {
   CartDetailResponseDto,
@@ -245,6 +258,112 @@ export class CartsRepository implements ICartsRepository {
       await tx.delete(carts).where(eq(carts.id, current.id));
       return this.syntheticCart(activeStore);
     });
+  }
+
+  /**
+   * Deletes only disposable selection data. Attempts, reservations, Orders and
+   * commands keep their own snapshots/references, so this must never widen to
+   * financial tables. Candidates are re-locked one at a time because a shopper
+   * may start checkout between the bounded candidate scan and the deletion.
+   */
+  async cleanupInactiveResources(
+    cartCutoff: Date,
+    batchSize = 100,
+  ): Promise<{ cartsDeleted: number; quotesDeleted: number }> {
+    const now = new Date();
+    const activeStatuses = ['creating', 'pending', 'cancelling'] as const;
+    const cartCandidates = await this.db
+      .select({ id: carts.id })
+      .from(carts)
+      .where(
+        and(
+          lte(carts.lastActivityAt, cartCutoff),
+          notExists(
+            this.db
+              .select({ id: checkoutAttempts.id })
+              .from(checkoutAttempts)
+              .where(
+                and(
+                  eq(checkoutAttempts.cartId, carts.id),
+                  inArray(checkoutAttempts.status, activeStatuses),
+                ),
+              ),
+          ),
+        ),
+      )
+      .orderBy(asc(carts.lastActivityAt), asc(carts.id))
+      .limit(batchSize);
+
+    let cartsDeleted = 0;
+    for (const candidate of cartCandidates) {
+      const deleted = await this.db.transaction(async (tx) => {
+        const [cart] = await tx
+          .select({ id: carts.id })
+          .from(carts)
+          .where(
+            and(
+              eq(carts.id, candidate.id),
+              lte(carts.lastActivityAt, cartCutoff),
+            ),
+          )
+          .for('update');
+        if (!cart) return false;
+
+        const [activeAttempt] = await tx
+          .select({ id: checkoutAttempts.id })
+          .from(checkoutAttempts)
+          .where(
+            and(
+              eq(checkoutAttempts.cartId, cart.id),
+              inArray(checkoutAttempts.status, activeStatuses),
+            ),
+          )
+          .for('update');
+        if (activeAttempt) return false;
+
+        const result = await tx.delete(carts).where(eq(carts.id, cart.id));
+        return (result.rowCount ?? 0) === 1;
+      });
+      if (deleted) cartsDeleted += 1;
+    }
+
+    const quoteCandidates = await this.db
+      .select({ id: checkoutQuotes.id })
+      .from(checkoutQuotes)
+      .where(
+        and(
+          isNull(checkoutQuotes.consumedAt),
+          lte(checkoutQuotes.expiresAt, now),
+        ),
+      )
+      .orderBy(asc(checkoutQuotes.expiresAt), asc(checkoutQuotes.id))
+      .limit(batchSize);
+
+    let quotesDeleted = 0;
+    for (const candidate of quoteCandidates) {
+      const deleted = await this.db.transaction(async (tx) => {
+        const [quote] = await tx
+          .select({ id: checkoutQuotes.id })
+          .from(checkoutQuotes)
+          .where(
+            and(
+              eq(checkoutQuotes.id, candidate.id),
+              isNull(checkoutQuotes.consumedAt),
+              lte(checkoutQuotes.expiresAt, now),
+            ),
+          )
+          .for('update');
+        if (!quote) return false;
+
+        const result = await tx
+          .delete(checkoutQuotes)
+          .where(eq(checkoutQuotes.id, quote.id));
+        return (result.rowCount ?? 0) === 1;
+      });
+      if (deleted) quotesDeleted += 1;
+    }
+
+    return { cartsDeleted, quotesDeleted };
   }
 
   private async loadCart(
