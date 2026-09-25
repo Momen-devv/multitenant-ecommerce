@@ -46,6 +46,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
 import { CartsModule } from './modules/carts/carts.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { AssistantModule } from './modules/assistant/assistant.module';
 
 @Module({
   imports: [
@@ -108,6 +109,7 @@ import { OrdersModule } from './modules/orders/orders.module';
     CheckoutModule,
     CartsModule,
     OrdersModule,
+    AssistantModule,
 
     RouterModule.register([{ path: 'health', module: HealthModule }]),
   ],

@@ -19,6 +19,7 @@ import {
   accountDeactivatedTemplate,
   accountReactivationTemplate,
   renderOrderEmail,
+  invitationEmailTemplate,
 } from '@/infrastructure/mail/templates';
 import { verificationEmailTemplate } from '@/infrastructure/mail/templates';
 
@@ -26,7 +27,12 @@ type EmailJobData = {
   to?: string;
   subject?: string;
   name?: string;
+  organizationName?: string;
+  inviterName?: string;
+  role?: string;
   url?: string;
+  inviteLink?: string;
+  rejectLink?: string;
   token?: string;
   deliveryId?: string;
 };
@@ -74,6 +80,20 @@ export class EmailQueueProcessor extends WorkerHost {
           job.data.to!,
           'Verify your email',
           verificationEmailTemplate(job.data.url!),
+        );
+        break;
+
+      case JobNames.EMAIL.INVITATION:
+        await this.mailService.sendEmail(
+          job.data.to!,
+          'You have been invited',
+          invitationEmailTemplate(
+            job.data.organizationName!,
+            job.data.inviterName!,
+            job.data.role!,
+            job.data.inviteLink!,
+            job.data.rejectLink!,
+          ),
         );
         break;
 

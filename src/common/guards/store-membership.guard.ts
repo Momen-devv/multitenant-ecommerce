@@ -15,9 +15,17 @@ import * as schema from '@/infrastructure/database/schema/schema';
 import { member, store } from '@/infrastructure/database/schema/schema';
 import type { ActiveStoreContext } from './active-store.guard';
 
+export type StoreMembershipContext = {
+  organizationId: string;
+  storeId: string;
+  currency: string;
+  status: string;
+};
+
 export type StoreMembershipRequest = {
   session?: CurrentUser;
   activeStore?: ActiveStoreContext;
+  storeMembership?: StoreMembershipContext;
 };
 
 @Injectable()
@@ -40,6 +48,7 @@ export class StoreMembershipGuard implements CanActivate {
         organizationId: store.organizationId,
         storeId: store.id,
         currency: store.defaultCurrency,
+        status: store.status,
         membershipRole: member.role,
       })
       .from(store)
@@ -64,6 +73,12 @@ export class StoreMembershipGuard implements CanActivate {
       storeId: result.storeId,
       currency: result.currency,
       membershipRole: result.membershipRole as OrganizationRole,
+    };
+    request.storeMembership = {
+      organizationId: result.organizationId,
+      storeId: result.storeId,
+      currency: result.currency,
+      status: result.status,
     };
     return true;
   }

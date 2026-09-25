@@ -38,6 +38,44 @@ export class PlatformStoresService {
     return this.toPlatformResponse(store);
   }
 
+  async listMembers(storeId: string) {
+    const store = await this.storeRepository.findByIdWithOwner(storeId);
+    if (!store) {
+      throw new NotFoundException('Store not found');
+    }
+
+    return this.storeRepository.findMembersByOrganizationId(
+      store.organizationId,
+      100,
+      0,
+    );
+  }
+
+  async getMembershipSummary(storeId: string) {
+    const store = await this.storeRepository.findByIdWithOwner(storeId);
+    if (!store) {
+      throw new NotFoundException('Store not found');
+    }
+
+    const members = await this.storeRepository.findMembersByOrganizationId(
+      store.organizationId,
+      100,
+      0,
+    );
+    const byRole = members.reduce<Record<string, number>>((counts, member) => {
+      counts[member.role] = (counts[member.role] ?? 0) + 1;
+      return counts;
+    }, {});
+
+    return {
+      storeId: store.id,
+      organizationId: store.organizationId,
+      status: store.status,
+      totalMembers: members.length,
+      byRole,
+    };
+  }
+
   async suspendStore(
     storeId: string,
     actorId: string,

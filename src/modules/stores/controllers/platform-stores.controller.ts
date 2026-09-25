@@ -50,6 +50,36 @@ export class PlatformStoresController {
     return this.platformStoresService.getStore(storeId);
   }
 
+  @ApiOperation({ summary: 'List Store members for platform oversight' })
+  @ApiSuccessResponse({ description: 'Store members retrieved successfully' })
+  @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Store not found')
+  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Platform super-admin role required')
+  @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
+  @ResponseMessage('Store members retrieved successfully')
+  @HttpCode(HttpStatus.OK)
+  @Get(':storeId/members')
+  async listMembers(@Param('storeId', new ParseUUIDPipe()) storeId: string) {
+    return this.platformStoresService.listMembers(storeId);
+  }
+
+  @ApiOperation({
+    summary: 'Get Store membership summary for platform oversight',
+  })
+  @ApiSuccessResponse({
+    description: 'Store membership summary retrieved successfully',
+  })
+  @ApiErrorResponse(HttpStatus.NOT_FOUND, 'Store not found')
+  @ApiErrorResponse(HttpStatus.FORBIDDEN, 'Platform super-admin role required')
+  @ApiErrorResponse(HttpStatus.UNAUTHORIZED, 'Unauthorized')
+  @ResponseMessage('Store membership summary retrieved successfully')
+  @HttpCode(HttpStatus.OK)
+  @Get(':storeId/membership-summary')
+  async getMembershipSummary(
+    @Param('storeId', new ParseUUIDPipe()) storeId: string,
+  ) {
+    return this.platformStoresService.getMembershipSummary(storeId);
+  }
+
   @ApiOperation({ summary: 'Suspend a Store through platform oversight' })
   @ApiSuccessResponse({ description: 'Store suspended successfully' })
   @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Invalid suspension reason')

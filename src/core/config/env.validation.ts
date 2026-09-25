@@ -11,6 +11,8 @@ const envSchema = z.object({
   DATABASE_URL: z.url('DATABASE_URL must be a valid URL'),
   REDIS_URL: z.url('REDIS_URL must be a valid URL'),
   RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
+  TYPESAFE_API_KEY: z.string().min(1, 'TYPESAFE_API_KEY is required'),
+  TYPESAFE_DEFAULT_MODEL: z.string().min(1).default('jev-latest'),
   MAIL_FROM: z.email().describe('MAIL_FROM must be a valid email address'),
   TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
   TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
