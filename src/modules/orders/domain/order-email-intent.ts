@@ -1,12 +1,16 @@
-export const ORDER_EMAIL_TYPES = [
-  'placed',
-  'shipped',
-  'delivered',
-  'cancelled',
-  'refunded',
-] as const;
+export enum OrderEmailType {
+  Placed = 'placed',
+  Shipped = 'shipped',
+  Delivered = 'delivered',
+  Cancelled = 'cancelled',
+  Refunded = 'refunded',
+}
 
-export type OrderEmailType = (typeof ORDER_EMAIL_TYPES)[number];
+export function parseOrderEmailType(value: string): OrderEmailType | null {
+  return Object.values(OrderEmailType).includes(value as OrderEmailType)
+    ? (value as OrderEmailType)
+    : null;
+}
 
 /** Immutable description of the transition that caused a shopper email. */
 export type OrderEmailIntent = {
@@ -32,7 +36,7 @@ export function parseOrderEmailIntent(value: unknown): OrderEmailIntent | null {
     typeof input.total === 'number' &&
     typeof input.currency === 'string' &&
     typeof input.type === 'string' &&
-    (ORDER_EMAIL_TYPES as readonly string[]).includes(input.type)
+    parseOrderEmailType(input.type) !== null
   ) {
     return {
       type: input.type as OrderEmailType,

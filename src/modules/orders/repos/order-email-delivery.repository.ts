@@ -1,7 +1,7 @@
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import { generateUUIDv7 } from '@/common/utils';
 import { orderEmailDeliveries } from '@/infrastructure/database/schema/orders.schema';
-import type { OrderEmailIntent } from '@/modules/orders/domain/order-email-intent';
+import type { OrderEmailIntent } from '../domain/order-email-intent';
 import * as schema from '@/infrastructure/database/schema/schema';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, isNull, lte, or } from 'drizzle-orm';
@@ -50,11 +50,11 @@ export class OrderEmailDeliveryRepository {
       );
   }
 
-  async findDueForEnqueue(limit: number): Promise<string[]> {
+  async findDueForEnqueue(limit: number) {
     const now = new Date();
     const staleQueueAt = new Date(now.getTime() - 5 * 60_000);
     const rows = await this.db
-      .select({ id: orderEmailDeliveries.id })
+      .select({ id: orderEmailDeliveries.id, type: orderEmailDeliveries.type })
       .from(orderEmailDeliveries)
       .where(
         and(
@@ -68,10 +68,61 @@ export class OrderEmailDeliveryRepository {
         ),
       )
       .limit(limit);
-    return rows.map((row) => row.id);
+    return rows;
   }
 
-  async claimForSend(deliveryId: string) {
+  async inspectForOperator(deliveryId: string) {
+    const [delivery] = await this.db
+      .select({
+        id: orderEmailDeliveries.id,
+        outboxEventId: orderEmailDeliveries.outboxEventId,
+        orderId: orderEmailDeliveries.orderId,
+        transitionVersion: orderEmailDeliveries.transitionVersion,
+        type: orderEmailDeliveries.type,
+        recipientEmail: orderEmailDeliveries.recipientEmail,
+        status: orderEmailDeliveries.status,
+        providerMessageId: orderEmailDeliveries.providerMessageId,
+        attempts: orderEmailDeliveries.attempts,
+        nextAttemptAt: orderEmailDeliveries.nextAttemptAt,
+        leaseExpiresAt: orderEmailDeliveries.leaseExpiresAt,
+        sentAt: orderEmailDeliveries.sentAt,
+        deadLetteredAt: orderEmailDeliveries.deadLetteredAt,
+        lastError: orderEmailDeliveries.lastError,
+        updatedAt: orderEmailDeliveries.updatedAt,
+      })
+      .from(orderEmailDeliveries)
+      .where(eq(orderEmailDeliveries.id, deliveryId));
+    return delivery ?? null;
+  }
+
+  /**
+   * Makes a nonterminal delivery due now without altering its attempts or
+   * ownership. Sent and dead-lettered deliveries are deliberately immutable.
+   */
+  async makeDueForOperatorReplay(deliveryId: string): Promise<boolean> {
+    const now = new Date();
+    const [updated] = await this.db
+      .update(orderEmailDeliveries)
+      .set({ nextAttemptAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(orderEmailDeliveries.id, deliveryId),
+          isNull(orderEmailDeliveries.sentAt),
+          isNull(orderEmailDeliveries.deadLetteredAt),
+          or(
+            eq(orderEmailDeliveries.status, 'pending'),
+            and(
+              eq(orderEmailDeliveries.status, 'sending'),
+              lte(orderEmailDeliveries.leaseExpiresAt, now),
+            ),
+          ),
+        ),
+      )
+      .returning({ id: orderEmailDeliveries.id });
+    return Boolean(updated);
+  }
+
+  async claimForSend(deliveryId: string, type: OrderEmailIntent['type']) {
     return this.db.transaction(async (tx) => {
       const now = new Date();
       const [delivery] = await tx
@@ -80,6 +131,7 @@ export class OrderEmailDeliveryRepository {
         .where(
           and(
             eq(orderEmailDeliveries.id, deliveryId),
+            eq(orderEmailDeliveries.type, type),
             isNull(orderEmailDeliveries.sentAt),
             isNull(orderEmailDeliveries.deadLetteredAt),
             lte(orderEmailDeliveries.nextAttemptAt, now),

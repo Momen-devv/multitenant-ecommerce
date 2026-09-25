@@ -3,9 +3,10 @@ import { Interval } from '@nestjs/schedule';
 import { OutboxEventType } from '@/common/enums';
 import { parseOrderEmailIntent } from '../domain/order-email-intent';
 import { OutboxRepository } from '@/infrastructure/outbox/outbox.repository';
+import { OrderEmailDeliveryRepository } from '../repos/order-email-delivery.repository';
 import { EmailQueueService } from '@/infrastructure/queue/email/email-queue.service';
-import { OrderEmailDeliveryRepository } from '@/infrastructure/queue/email/order-email-delivery.repository';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
+import { enqueueOrderEmail } from './enqueue-order-email';
 
 /** Turns committed Order email intents into recoverable queue work. */
 @Injectable()
@@ -26,15 +27,15 @@ export class OrderEmailOutboxDispatcher {
     );
     await Promise.all(events.map((event) => this.dispatchOutboxEvent(event)));
 
-    const dueDeliveryIds = await this.deliveries.findDueForEnqueue(50);
+    const dueDeliveries = await this.deliveries.findDueForEnqueue(50);
     await Promise.all(
-      dueDeliveryIds.map(async (deliveryId) => {
+      dueDeliveries.map(async (delivery) => {
         try {
-          await this.emailQueue.addOrderEmailJob(deliveryId);
-          await this.deliveries.markEnqueued(deliveryId);
+          await enqueueOrderEmail(this.emailQueue, delivery.id, delivery.type);
+          await this.deliveries.markEnqueued(delivery.id);
         } catch (error) {
           this.logger.error(
-            `Failed to re-enqueue order email ${deliveryId}`,
+            `Failed to re-enqueue order email ${delivery.id}`,
             error instanceof Error ? error.stack : String(error),
             OrderEmailOutboxDispatcher.name,
           );
@@ -54,7 +55,7 @@ export class OrderEmailOutboxDispatcher {
         outboxEventId: event.id,
         intent,
       });
-      await this.emailQueue.addOrderEmailJob(delivery.id);
+      await enqueueOrderEmail(this.emailQueue, delivery.id, intent.type);
       await this.deliveries.markEnqueued(delivery.id);
       await this.outbox.markPublished(event.id);
     } catch (error) {

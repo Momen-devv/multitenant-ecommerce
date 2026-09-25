@@ -12,8 +12,8 @@ import { PaymentReconciliationTask } from './tasks/payment-reconciliation.task';
 import { RefundOutboxDispatcher } from './tasks/refund-outbox.dispatcher';
 import { OrderPurchaseEventHandler } from './services/connect-purchase-event.handler';
 import { OutboxModule } from '@/infrastructure/outbox/outbox.module';
-import { EmailQueueModule } from '@/infrastructure/queue/email/email-queue.module';
 import { OrderEmailOutboxDispatcher } from './tasks/order-email-outbox.dispatcher';
+import { EmailQueueModule } from '@/infrastructure/queue/email/email-queue.module';
 @Module({
   imports: [
     StoresModule,

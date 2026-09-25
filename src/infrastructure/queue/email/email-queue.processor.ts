@@ -1,5 +1,10 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
+import { Inject } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
+import { appConfig } from '@/core/config';
+import { OrderEmailDeliveryRepository } from '@/modules/orders/repos/order-email-delivery.repository';
+import { OrderEmailType } from '@/modules/orders/domain/order-email-intent';
 import {
   JobNames,
   QueueNames,
@@ -7,17 +12,13 @@ import {
 } from '@/infrastructure/queue/queue.constants';
 import { MailService } from '@/common/abstracts';
 import { LoggerService } from '../../logger/logger.service';
-import { appConfig } from '@/core/config';
-import type { ConfigType } from '@nestjs/config';
-import { Inject } from '@nestjs/common';
-import { orderEmailTemplate } from '@/infrastructure/mail/templates';
-import { OrderEmailDeliveryRepository } from './order-email-delivery.repository';
 
 import {
   welcomeTemplate,
   resetPasswordTemplate,
   accountDeactivatedTemplate,
   accountReactivationTemplate,
+  renderOrderEmail,
 } from '@/infrastructure/mail/templates';
 import { verificationEmailTemplate } from '@/infrastructure/mail/templates';
 
@@ -29,6 +30,14 @@ type EmailJobData = {
   token?: string;
   deliveryId?: string;
 };
+
+const orderEmailTypeByJob = {
+  [JobNames.EMAIL.ORDER_PLACED]: OrderEmailType.Placed,
+  [JobNames.EMAIL.ORDER_SHIPPED]: OrderEmailType.Shipped,
+  [JobNames.EMAIL.ORDER_DELIVERED]: OrderEmailType.Delivered,
+  [JobNames.EMAIL.ORDER_CANCELLED]: OrderEmailType.Cancelled,
+  [JobNames.EMAIL.ORDER_REFUNDED]: OrderEmailType.Refunded,
+} satisfies Record<Extract<EmailJobName, `order-${string}`>, OrderEmailType>;
 
 @Processor(QueueNames.EMAIL)
 export class EmailQueueProcessor extends WorkerHost {
@@ -84,10 +93,15 @@ export class EmailQueueProcessor extends WorkerHost {
         );
         break;
 
-      case JobNames.EMAIL.ORDER:
-        if (!job.data.deliveryId)
-          throw new Error('Order email job is missing its delivery ID.');
-        await this.sendOrderEmail(job.data.deliveryId);
+      case JobNames.EMAIL.ORDER_PLACED:
+      case JobNames.EMAIL.ORDER_SHIPPED:
+      case JobNames.EMAIL.ORDER_DELIVERED:
+      case JobNames.EMAIL.ORDER_CANCELLED:
+      case JobNames.EMAIL.ORDER_REFUNDED:
+        await this.sendOrderEmail(
+          this.requireDeliveryId(job.data),
+          orderEmailTypeByJob[job.name],
+        );
         break;
 
       // Any other email-related jobs can be handled here
@@ -102,19 +116,29 @@ export class EmailQueueProcessor extends WorkerHost {
     }
   }
 
-  private async sendOrderEmail(deliveryId: string): Promise<void> {
-    const claimed = await this.deliveries.claimForSend(deliveryId);
+  private requireDeliveryId(data: EmailJobData): string {
+    if (!data.deliveryId)
+      throw new Error('Order email job is missing its delivery ID.');
+    return data.deliveryId;
+  }
+
+  private async sendOrderEmail(
+    deliveryId: string,
+    type: OrderEmailType,
+  ): Promise<void> {
+    const claimed = await this.deliveries.claimForSend(deliveryId, type);
     if (!claimed) return;
 
     try {
+      if (claimed.delivery.payload.type !== type)
+        throw new Error(
+          'Order email delivery type does not match its payload.',
+        );
       const orderDetailUrl = new URL(
         `/api/v1/users/me/orders/${encodeURIComponent(claimed.delivery.payload.orderId)}`,
         this.app.baseUrl,
       ).toString();
-      const email = orderEmailTemplate(
-        claimed.delivery.payload,
-        orderDetailUrl,
-      );
+      const email = renderOrderEmail(claimed.delivery.payload, orderDetailUrl);
       const sent = await this.mailService.sendEmail(
         claimed.delivery.recipientEmail,
         email.subject,
