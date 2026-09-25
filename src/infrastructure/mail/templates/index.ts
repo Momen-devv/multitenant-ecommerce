@@ -1,6 +1,11 @@
 export { welcomeTemplate } from './welcomeTemplate';
 export { resetPasswordTemplate } from './resetPasswordTemplate';
 export { verificationEmailTemplate } from './verificationEmailTemplate';
-export { orderEmailTemplate } from './orderEmailTemplate';
 export { accountDeactivatedTemplate } from './accountDeactivatedTemplate';
 export { accountReactivationTemplate } from './accountReactivationTemplate';
+export { orderPlacedTemplate } from './orderPlacedTemplate';
+export { orderShippedTemplate } from './orderShippedTemplate';
+export { orderDeliveredTemplate } from './orderDeliveredTemplate';
+export { orderCancelledTemplate } from './orderCancelledTemplate';
+export { orderRefundedTemplate } from './orderRefundedTemplate';
+export { renderOrderEmail } from './orderEmailMessage';
