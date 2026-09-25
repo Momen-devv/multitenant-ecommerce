@@ -1,11 +1,14 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsString,
   IsOptional,
   MinLength,
   MaxLength,
   Matches,
+  Equals,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { USD_CURRENCY } from '@/common/commerce/currency';
 
 export class CreateStoreDto {
   @ApiProperty({
@@ -40,4 +43,18 @@ export class CreateStoreDto {
   @IsOptional()
   @MaxLength(500)
   description?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Currency for new Store business data. Omit to use the USD-only default.',
+    enum: [USD_CURRENCY],
+    default: USD_CURRENCY,
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsString()
+  @Equals(USD_CURRENCY, { message: 'currency must be usd' })
+  currency?: typeof USD_CURRENCY;
 }

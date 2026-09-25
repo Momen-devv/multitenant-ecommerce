@@ -9,7 +9,9 @@ export class CloseStoreDto {
     minLength: 10,
     maxLength: 500,
   })
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @MinLength(10)
   @MaxLength(500)

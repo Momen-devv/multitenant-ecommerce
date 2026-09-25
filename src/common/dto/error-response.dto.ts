@@ -1,8 +1,11 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ErrorResponseDto {
-  @ApiProperty({ example: false })
-  success!: false;
+  @ApiPropertyOptional({ example: 'PAYMENT_PROVIDER_UNAVAILABLE' })
+  code?: string;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  details?: Record<string, unknown>;
 
   @ApiProperty({ example: 400 })
   statusCode!: number;

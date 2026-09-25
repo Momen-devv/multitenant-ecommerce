@@ -9,7 +9,7 @@ import {
   BILLING_REPOSITORY,
   type IBillingRepository,
 } from '../interfaces/repos';
-import { STRIPE_CLIENT } from '../stripe/stripe.constants';
+import { STRIPE_CLIENT } from '@/infrastructure/payments/stripe/stripe.constants';
 
 export type CreateBillingPortalInput = {
   storeId: string;

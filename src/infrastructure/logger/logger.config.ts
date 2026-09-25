@@ -25,38 +25,46 @@ export const loggerConfig: LoggerOptions = {
       handleRejections: true,
     }),
 
-    new DailyRotateFile({
-      dirname: `${LOG_DIR}/application`,
-      filename: 'application-%DATE%.log',
-      datePattern: 'YYYY-MM-DD-HH',
-      zippedArchive: true,
-      maxSize: '20m',
-      maxFiles: '14d',
-    }),
+    ...(IS_PRODUCTION
+      ? [
+          new DailyRotateFile({
+            dirname: `${LOG_DIR}/application`,
+            filename: 'application-%DATE%.log',
+            datePattern: 'YYYY-MM-DD-HH',
+            zippedArchive: true,
+            maxSize: '20m',
+            maxFiles: '14d',
+          }),
+        ]
+      : []),
   ],
 
   // Exception and rejection logging
-  exceptionHandlers: [
-    new DailyRotateFile({
-      dirname: `${LOG_DIR}/exceptions`,
-      filename: 'exceptions-%DATE%.log',
-      datePattern: 'YYYY-MM-DD-HH',
-      zippedArchive: true,
-      maxSize: '20m',
-      maxFiles: '30d',
-    }),
-  ],
+  exceptionHandlers: IS_PRODUCTION
+    ? [
+        new DailyRotateFile({
+          dirname: `${LOG_DIR}/exceptions`,
+          filename: 'exceptions-%DATE%.log',
+          datePattern: 'YYYY-MM-DD-HH',
+          zippedArchive: true,
+          maxSize: '20m',
+          maxFiles: '30d',
+        }),
+      ]
+    : [],
 
-  rejectionHandlers: [
-    new DailyRotateFile({
-      dirname: `${LOG_DIR}/rejections`,
-      filename: 'rejections-%DATE%.log',
-      datePattern: 'YYYY-MM-DD-HH',
-      zippedArchive: true,
-      maxSize: '20m',
-      maxFiles: '30d',
-    }),
-  ],
+  rejectionHandlers: IS_PRODUCTION
+    ? [
+        new DailyRotateFile({
+          dirname: `${LOG_DIR}/rejections`,
+          filename: 'rejections-%DATE%.log',
+          datePattern: 'YYYY-MM-DD-HH',
+          zippedArchive: true,
+          maxSize: '20m',
+          maxFiles: '30d',
+        }),
+      ]
+    : [],
 
   //   exitOnError: true,
 };

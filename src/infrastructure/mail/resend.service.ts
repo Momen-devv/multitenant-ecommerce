@@ -18,13 +18,21 @@ export class ResendMailService extends MailService {
     this.resend = new Resend(this.configuration.resendApiKey);
   }
 
-  async sendEmail(to: string, subject: string, html: string) {
-    const { data, error } = await this.resend.emails.send({
-      from: this.configuration.mailFrom,
-      to,
-      subject,
-      html,
-    });
+  async sendEmail(
+    to: string,
+    subject: string,
+    html: string,
+    options?: { idempotencyKey?: string },
+  ) {
+    const { data, error } = await this.resend.emails.send(
+      {
+        from: this.configuration.mailFrom,
+        to,
+        subject,
+        html,
+      },
+      options,
+    );
 
     if (error) {
       this.logger.error(
@@ -36,5 +44,6 @@ export class ResendMailService extends MailService {
     }
 
     this.logger.log(`Email sent successfully to ${to}. Message ID: ${data.id}`);
+    return { providerMessageId: data.id };
   }
 }

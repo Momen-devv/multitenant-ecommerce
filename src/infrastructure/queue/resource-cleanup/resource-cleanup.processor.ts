@@ -29,7 +29,9 @@ export class ResourceCleanupQueueProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<ResourceCleanupJobData, any, ResourceCleanupJobName>) {
+  async process(
+    job: Job<ResourceCleanupJobData, unknown, ResourceCleanupJobName>,
+  ) {
     switch (job.name) {
       case JobNames.RESOURCE_CLEANUP.DELETE_ORPHANED_FILE:
         await this.storageService.deleteFile(job.data.fileKey);
@@ -54,7 +56,9 @@ export class ResourceCleanupQueueProcessor extends WorkerHost {
   }
 
   @OnWorkerEvent('completed')
-  onCompleted(job: Job<ResourceCleanupJobData, any, ResourceCleanupJobName>) {
+  onCompleted(
+    job: Job<ResourceCleanupJobData, unknown, ResourceCleanupJobName>,
+  ) {
     this.logger.log(
       `Resource cleanup job completed. Job ID: ${job.id} Name: ${job.name} for ${job.data.fileKey}`,
     );
@@ -62,7 +66,7 @@ export class ResourceCleanupQueueProcessor extends WorkerHost {
 
   @OnWorkerEvent('failed')
   onFailed(
-    job: Job<ResourceCleanupJobData, any, ResourceCleanupJobName>,
+    job: Job<ResourceCleanupJobData, unknown, ResourceCleanupJobName>,
     error: Error,
   ) {
     this.logger.error(

@@ -9,7 +9,7 @@ import {
   BILLING_REPOSITORY,
   type IBillingRepository,
 } from '../interfaces/repos';
-import { STRIPE_CLIENT } from '../stripe/stripe.constants';
+import { STRIPE_CLIENT } from '@/infrastructure/payments/stripe/stripe.constants';
 import { StripeWebhookQueueService } from '@/infrastructure/queue/stripe-webhook/stripe-webhook-queue.service';
 
 const SUBSCRIPTION_EVENT_TYPES = new Set([

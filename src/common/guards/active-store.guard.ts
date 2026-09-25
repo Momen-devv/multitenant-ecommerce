@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import type { CurrentUser } from '@/core/auth/auth.types';
 import { StoreStatus } from '@/common/enums';
+import { OrganizationRole } from '@/common/enums';
 import {
   STORE_REPOSITORY,
   type IStoreRepository,
@@ -17,6 +18,7 @@ export type ActiveStoreContext = {
   organizationId: string;
   storeId: string;
   currency: string;
+  membershipRole?: OrganizationRole;
 };
 
 export type ActiveStoreRequest = {

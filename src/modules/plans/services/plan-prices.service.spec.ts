@@ -1,6 +1,31 @@
 import { PlanPricesService } from './plan-prices.service';
 
 describe('PlanPricesService', () => {
+  it('defaults an added plan price to USD', async () => {
+    const plansRepository = {
+      createOrFindPendingPrice: jest.fn().mockResolvedValue({
+        status: 'plan_not_found',
+      }),
+    };
+    const service = new PlanPricesService(
+      plansRepository as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      service.addPlanPrice('plan-id', {
+        amount: 1500,
+        interval: 'month',
+      } as never),
+    ).rejects.toThrow('Plan plan-id was not found');
+
+    expect(plansRepository.createOrFindPendingPrice).toHaveBeenCalledWith(
+      'plan-id',
+      { amount: 1500, interval: 'month', currency: 'usd' },
+    );
+  });
+
   it('provisions and activates a ready pending price', async () => {
     const plansRepository = {
       createOrFindPendingPrice: jest.fn().mockResolvedValue({

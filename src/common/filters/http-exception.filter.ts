@@ -12,13 +12,14 @@ import { Environment } from '../enums';
 import { getCorrelationId } from '../context/request-context';
 
 interface ErrorResponse {
-  success: boolean;
   statusCode: number;
   error: string;
   timestamp: string;
   path: string;
   correlationId: string;
   message: string | string[];
+  code?: string;
+  details?: Record<string, unknown>;
   stack?: string;
 }
 
@@ -33,19 +34,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const correlationId = getCorrelationId() ?? randomUUID();
 
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+    const status = this.getStatus(exception);
 
     const errorResponse: ErrorResponse = {
-      success: false,
       statusCode: status,
       error: this.getErrorName(status),
       timestamp: new Date().toISOString(),
       path: request.url,
       correlationId,
       message: this.extractMessage(exception),
+      ...this.extractCodeAndDetails(exception),
       ...(process.env.NODE_ENV === Environment.Development && {
         stack: exception instanceof Error ? exception.stack : undefined,
       }),
@@ -70,8 +68,43 @@ export class AllExceptionsFilter implements ExceptionFilter {
       .json(errorResponse);
   }
 
+  private extractCodeAndDetails(exception: unknown): {
+    code?: string;
+    details?: Record<string, unknown>;
+  } {
+    if (!(exception instanceof HttpException)) return {};
+    const response = exception.getResponse();
+    if (typeof response !== 'object' || response === null) return {};
+
+    const result: { code?: string; details?: Record<string, unknown> } = {};
+    if ('code' in response && typeof response.code === 'string') {
+      result.code = response.code;
+    } else if (
+      'message' in response &&
+      Array.isArray(response.message) &&
+      exception.getStatus() === 400
+    ) {
+      // ValidationPipe serializes constraint failures as a message array.
+      // Keep its detailed messages while giving clients one stable code.
+      result.code = 'INVALID_INPUT';
+    }
+    if (
+      'details' in response &&
+      typeof response.details === 'object' &&
+      response.details
+    ) {
+      result.details = response.details as Record<string, unknown>;
+    }
+    return result;
+  }
+
   private getErrorName(status: number): string {
     return HttpStatus[status] ?? 'Error';
+  }
+
+  private getStatus(exception: unknown): number {
+    if (exception instanceof HttpException) return exception.getStatus();
+    return HttpStatus.INTERNAL_SERVER_ERROR;
   }
 
   private extractMessage(exception: unknown): string | string[] {

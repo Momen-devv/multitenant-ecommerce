@@ -13,6 +13,7 @@ import {
 import { CreatePlanPriceDto } from '../dto';
 import { BillingCatalogService } from '@/modules/billing/services/billing-catalog.service';
 import { BillingInterval } from '@/common/enums';
+import { USD_CURRENCY } from '@/common/commerce/currency';
 
 @Injectable()
 export class PlanPricesService {
@@ -27,7 +28,7 @@ export class PlanPricesService {
   async addPlanPrice(id: string, dto: CreatePlanPriceDto) {
     const result = await this.planPricesRepository.createOrFindPendingPrice(
       id,
-      dto,
+      { ...dto, currency: dto.currency ?? USD_CURRENCY },
     );
     switch (result.status) {
       case 'plan_not_found':

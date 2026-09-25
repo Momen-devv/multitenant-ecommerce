@@ -1,3 +1,8 @@
 export abstract class MailService {
-  abstract sendEmail(to: string, subject: string, html: string): Promise<void>;
+  abstract sendEmail(
+    to: string,
+    subject: string,
+    html: string,
+    options?: { idempotencyKey?: string },
+  ): Promise<{ providerMessageId?: string }>;
 }

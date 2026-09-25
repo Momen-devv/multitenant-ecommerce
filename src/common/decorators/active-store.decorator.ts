@@ -14,7 +14,7 @@ export const ActiveStore = createParamDecorator(
 
     if (!request.activeStore) {
       throw new InternalServerErrorException(
-        'ActiveStore requires ActiveStoreGuard.',
+        'ActiveStore requires a guard that resolves the Store context.',
       );
     }
 

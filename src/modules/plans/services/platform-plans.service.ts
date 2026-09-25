@@ -15,6 +15,7 @@ import { PlanProvisioningStatus } from '@/common/enums/plan-provisioning-status.
 import { PlanProvisioningQueueService } from '@/infrastructure/queue/plan-provisioning/plan-provisioning-queue.service';
 import { BillingCatalogService } from '@/modules/billing/services/billing-catalog.service';
 import type { ApiListQueryInput } from '@/common/api-query';
+import { USD_CURRENCY } from '@/common/commerce/currency';
 
 @Injectable()
 export class PlatformPlansService {
@@ -35,7 +36,10 @@ export class PlatformPlansService {
           features: dto.features,
           limits: dto.limits,
         },
-        prices: dto.prices,
+        prices: dto.prices.map((price) => ({
+          ...price,
+          currency: price.currency ?? USD_CURRENCY,
+        })),
       });
       if (!plan)
         throw new Error('Failed to load the newly created pending plan');

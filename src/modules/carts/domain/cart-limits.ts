@@ -1,0 +1,4 @@
+export const MAX_NONEMPTY_CARTS_PER_USER = 20;
+export const MAX_DISTINCT_ITEMS_PER_CART = 50;
+export const MIN_CART_ITEM_QUANTITY = 1;
+export const MAX_CART_ITEM_QUANTITY = 99;

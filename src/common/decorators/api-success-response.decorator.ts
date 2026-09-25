@@ -6,8 +6,9 @@ export function ApiSuccessResponse<TModel extends Type<unknown>>(options: {
   status?: HttpStatus;
   description: string;
   model?: TModel;
+  example?: unknown;
 }) {
-  const { status = HttpStatus.OK, description, model } = options;
+  const { status = HttpStatus.OK, description, model, example } = options;
 
   return applyDecorators(
     ApiExtraModels(SuccessResponseDto, ...(model ? [model] : [])),
@@ -20,8 +21,11 @@ export function ApiSuccessResponse<TModel extends Type<unknown>>(options: {
           {
             properties: {
               data: model
-                ? { $ref: getSchemaPath(model) }
-                : { type: 'object', nullable: true, example: null },
+                ? {
+                    $ref: getSchemaPath(model),
+                    ...(example ? { example } : {}),
+                  }
+                : { type: 'object', nullable: true, example: example ?? null },
             },
           },
         ],

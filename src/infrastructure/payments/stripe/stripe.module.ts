@@ -10,6 +10,7 @@ const stripeClientProvider: Provider = {
 
   useFactory: (configuration: ConfigType<typeof stripeConfig>) =>
     new Stripe(configuration.secretKey, {
+      apiVersion: '2026-07-29.dahlia',
       timeout: configuration.timeoutMs,
       maxNetworkRetries: configuration.maxNetworkRetries,
     }),

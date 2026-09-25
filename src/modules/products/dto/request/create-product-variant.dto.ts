@@ -7,9 +7,11 @@ import {
   IsOptional,
   IsUUID,
   Min,
+  Max,
 } from 'class-validator';
 import { InventoryPolicy, ProductVariantStatus } from '@/common/enums';
 import { MAX_PRODUCT_OPTIONS } from '../../domain/product-catalog-limits';
+import { MAX_UNIT_PRICE_MINOR_UNITS } from '@/common/commerce/limits';
 
 export class CreateProductVariantDto {
   @ApiPropertyOptional({
@@ -27,6 +29,7 @@ export class CreateProductVariantDto {
   @ApiProperty({ description: 'Positive minor currency units', minimum: 1 })
   @IsInt()
   @Min(1)
+  @Max(MAX_UNIT_PRICE_MINOR_UNITS)
   price!: number;
 
   @ApiPropertyOptional({
@@ -37,6 +40,7 @@ export class CreateProductVariantDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(MAX_UNIT_PRICE_MINOR_UNITS)
   compareAtPrice?: number | null;
 
   @ApiPropertyOptional({ minimum: 0, nullable: true })

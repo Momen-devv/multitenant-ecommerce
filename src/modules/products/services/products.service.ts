@@ -34,6 +34,7 @@ import {
   type ISubscriptionsRepository,
 } from '@/modules/subscriptions/interfaces/repos';
 import { resolvePlanLimit } from '@/modules/subscriptions/domain/plan-limit';
+import { isUsdCurrency } from '@/common/commerce/currency';
 
 @Injectable()
 export class ProductsService {
@@ -77,6 +78,7 @@ export class ProductsService {
     dto: CreateProductSetupDto,
     store: ActiveStoreContext,
   ) {
+    this.assertUsdPriceWrites(store.currency);
     const productLimit = await this.getProductLimit(store.storeId);
     const input = this.toCreateProductSetupInput(dto);
 
@@ -276,6 +278,14 @@ export class ProductsService {
     }
 
     return slug;
+  }
+
+  private assertUsdPriceWrites(currency: string): void {
+    if (!isUsdCurrency(currency)) {
+      throw new ConflictException(
+        'New Product prices require a Store migrated to USD.',
+      );
+    }
   }
 
   private rethrowCategoryAssignmentError(error: unknown): never {

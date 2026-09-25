@@ -13,9 +13,15 @@ import {
   productCategories,
   store,
   storeLifecycleAudit,
+  userAddresses,
   subscriptionCheckoutAttempts,
   subscriptions,
   user,
+  storePaymentAccounts,
+  connectWebhookEvents,
+  storeCheckoutSettings,
+  carts,
+  cartItems,
 } from './schema';
 
 export type User = typeof user.$inferSelect;
@@ -26,6 +32,9 @@ export type NewStore = typeof store.$inferInsert;
 
 export type StoreLifecycleAudit = typeof storeLifecycleAudit.$inferSelect;
 export type NewStoreLifecycleAudit = typeof storeLifecycleAudit.$inferInsert;
+
+export type UserAddress = typeof userAddresses.$inferSelect;
+export type NewUserAddress = typeof userAddresses.$inferInsert;
 
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
@@ -71,3 +80,18 @@ export type NewSubscriptionCheckoutAttempt =
 
 export type Subscription = typeof subscriptions.$inferSelect;
 export type NewSubscription = typeof subscriptions.$inferInsert;
+
+export type StorePaymentAccount = typeof storePaymentAccounts.$inferSelect;
+export type NewStorePaymentAccount = typeof storePaymentAccounts.$inferInsert;
+
+export type StoreCheckoutSettings = typeof storeCheckoutSettings.$inferSelect;
+export type NewStoreCheckoutSettings =
+  typeof storeCheckoutSettings.$inferInsert;
+
+export type ConnectWebhookEvent = typeof connectWebhookEvents.$inferSelect;
+export type NewConnectWebhookEvent = typeof connectWebhookEvents.$inferInsert;
+
+export type Cart = typeof carts.$inferSelect;
+export type NewCart = typeof carts.$inferInsert;
+export type CartItem = typeof cartItems.$inferSelect;
+export type NewCartItem = typeof cartItems.$inferInsert;

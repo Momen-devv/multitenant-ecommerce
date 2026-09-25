@@ -78,6 +78,46 @@ export class EmailQueueService {
     );
   }
 
+  async addOrderPlacedJob(deliveryId: string): Promise<void> {
+    await this.emailQueue.add(
+      JobNames.EMAIL.ORDER_PLACED,
+      { deliveryId },
+      this.jobOptions,
+    );
+  }
+
+  async addOrderShippedJob(deliveryId: string): Promise<void> {
+    await this.emailQueue.add(
+      JobNames.EMAIL.ORDER_SHIPPED,
+      { deliveryId },
+      this.jobOptions,
+    );
+  }
+
+  async addOrderDeliveredJob(deliveryId: string): Promise<void> {
+    await this.emailQueue.add(
+      JobNames.EMAIL.ORDER_DELIVERED,
+      { deliveryId },
+      this.jobOptions,
+    );
+  }
+
+  async addOrderCancelledJob(deliveryId: string): Promise<void> {
+    await this.emailQueue.add(
+      JobNames.EMAIL.ORDER_CANCELLED,
+      { deliveryId },
+      this.jobOptions,
+    );
+  }
+
+  async addOrderRefundedJob(deliveryId: string): Promise<void> {
+    await this.emailQueue.add(
+      JobNames.EMAIL.ORDER_REFUNDED,
+      { deliveryId },
+      this.jobOptions,
+    );
+  }
+
   // Any other email-related jobs can be added here
 
   async pingCheck(): Promise<boolean> {

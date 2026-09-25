@@ -14,6 +14,9 @@ const envSchema = z.object({
   TYPESAFE_API_KEY: z.string().min(1, 'TYPESAFE_API_KEY is required'),
   TYPESAFE_DEFAULT_MODEL: z.string().min(1).default('jev-latest'),
   MAIL_FROM: z.email().describe('MAIL_FROM must be a valid email address'),
+  TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
+  TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
+  TWILIO_FROM: z.string().min(1).optional(),
   BETTER_AUTH_SECRET: z.string().min(1, 'BETTER_AUTH_SECRET is required'),
   BETTER_AUTH_URL: z.string().min(1, 'BETTER_AUTH_URL must be a valid URL'),
   GOOGLE_CLIENT_ID: z.string().min(1, 'GOOGLE_CLIENT_ID is required'),
@@ -29,8 +32,31 @@ const envSchema = z.object({
   AWS_S3_BUCKET_NAME: z.string(),
   AWS_ENDPOINT: z.string(),
 
-  STRIPE_SECRET_KEY: z.string().min(1, 'STRIPE_WEBHOOK_SECRET is required'),
+  STRIPE_SECRET_KEY: z.string().min(1, 'STRIPE_SECRET_KEY is required'),
+
   STRIPE_WEBHOOK_SECRET: z.string().min(1, 'STRIPE_WEBHOOK_SECRET is required'),
+  STRIPE_CONNECT_WEBHOOK_SECRET: z
+    .string()
+    .min(1, 'STRIPE_CONNECT_WEBHOOK_SECRET is required'),
+  STRIPE_CONNECT_SANDBOX_MODE: z
+    .enum(['true', 'false'])
+    .default('true')
+    .refine(
+      (value) => value === 'true',
+      'STRIPE_CONNECT_SANDBOX_MODE must be true for the sandbox payment flow',
+    ),
+  STRIPE_CONNECT_ONBOARDING_RETURN_URL: z.url(
+    'STRIPE_CONNECT_ONBOARDING_RETURN_URL must be a valid URL',
+  ),
+  STRIPE_CONNECT_ONBOARDING_REFRESH_URL: z.url(
+    'STRIPE_CONNECT_ONBOARDING_REFRESH_URL must be a valid URL',
+  ),
+  STRIPE_CHECKOUT_SUCCESS_URL: z.url(
+    'STRIPE_CHECKOUT_SUCCESS_URL must be a valid URL',
+  ),
+  STRIPE_CHECKOUT_CANCEL_URL: z.url(
+    'STRIPE_CHECKOUT_CANCEL_URL must be a valid URL',
+  ),
   STRIPE_TIMEOUT_MS: z.string(),
   STRIPE_MAX_NETWORK_RETRIES: z.string(),
 });
@@ -39,5 +65,6 @@ export function validate(config: Record<string, unknown>) {
   const result = envSchema.safeParse(config);
   if (!result.success)
     throw new Error(`Config validation error: ${result.error.message}`);
+
   return result.data;
 }
