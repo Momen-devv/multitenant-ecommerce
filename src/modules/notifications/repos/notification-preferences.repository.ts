@@ -102,9 +102,10 @@ export class NotificationPreferencesRepository {
     recipient: NotificationRecipient,
     storeId: string | null,
     eventType: NotificationEventType,
+    db: Pick<NodePgDatabase<typeof schema>, 'select'> = this.db,
   ) {
     const rows = recipient.userId
-      ? await this.db
+      ? await db
           .select()
           .from(preferences)
           .where(

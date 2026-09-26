@@ -1,10 +1,12 @@
+import { resolveNotificationEmail } from '@/modules/notifications/domain/notification-policy';
+import { writeOperationalNotificationIntent } from '@/modules/notifications/domain/operational-notification-intent';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import { generateUUIDv7 } from '@/common/utils';
 import { orderEmailDeliveries } from '@/infrastructure/database/schema/orders.schema';
 import type { OrderEmailIntent } from '../domain/order-email-intent';
 import * as schema from '@/infrastructure/database/schema/schema';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, isNull, lte, or } from 'drizzle-orm';
+import { and, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 type Database = NodePgDatabase<typeof schema>;
@@ -60,6 +62,10 @@ export class OrderEmailDeliveryRepository {
         and(
           isNull(orderEmailDeliveries.sentAt),
           isNull(orderEmailDeliveries.deadLetteredAt),
+          or(
+            eq(orderEmailDeliveries.status, 'pending'),
+            eq(orderEmailDeliveries.status, 'sending'),
+          ),
           lte(orderEmailDeliveries.nextAttemptAt, now),
           or(
             isNull(orderEmailDeliveries.lastQueuedAt),
@@ -111,6 +117,10 @@ export class OrderEmailDeliveryRepository {
           isNull(orderEmailDeliveries.deadLetteredAt),
           or(
             eq(orderEmailDeliveries.status, 'pending'),
+            eq(orderEmailDeliveries.status, 'sending'),
+          ),
+          or(
+            eq(orderEmailDeliveries.status, 'pending'),
             and(
               eq(orderEmailDeliveries.status, 'sending'),
               lte(orderEmailDeliveries.leaseExpiresAt, now),
@@ -134,6 +144,10 @@ export class OrderEmailDeliveryRepository {
             eq(orderEmailDeliveries.type, type),
             isNull(orderEmailDeliveries.sentAt),
             isNull(orderEmailDeliveries.deadLetteredAt),
+            or(
+              eq(orderEmailDeliveries.status, 'pending'),
+              eq(orderEmailDeliveries.status, 'sending'),
+            ),
             lte(orderEmailDeliveries.nextAttemptAt, now),
             or(
               isNull(orderEmailDeliveries.leaseExpiresAt),
@@ -143,6 +157,60 @@ export class OrderEmailDeliveryRepository {
         )
         .for('update');
       if (!delivery) return null;
+      const [order] = await tx
+        .select()
+        .from(schema.orders)
+        .where(eq(schema.orders.id, delivery.orderId));
+      const [account] = order?.userId
+        ? await tx
+            .select()
+            .from(schema.user)
+            .where(
+              and(
+                eq(schema.user.id, order.userId),
+                eq(schema.user.isActive, true),
+                sql`(${schema.user.banned} is not true or ${schema.user.banExpires} <= now())`,
+              ),
+            )
+        : [];
+      const preferences = order?.userId
+        ? await tx
+            .select()
+            .from(schema.notificationPreferences)
+            .where(
+              and(
+                eq(schema.notificationPreferences.userId, order.userId),
+                eq(schema.notificationPreferences.eventType, `order.${type}`),
+                eq(schema.notificationPreferences.audience, 'customer'),
+              ),
+            )
+        : [];
+      const enabled = resolveNotificationEmail(`order.${type}`, 'customer', {
+        global: preferences.find((row) => row.storeId === null)?.emailEnabled,
+        store: preferences.find((row) => row.storeId === order?.storeId)
+          ?.emailEnabled,
+      });
+      if (
+        !account ||
+        !enabled ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(delivery.recipientEmail)
+      ) {
+        await tx
+          .update(orderEmailDeliveries)
+          .set({
+            status: 'suppressed',
+            suppressionReason: !account
+              ? 'Recipient inactive or deleted'
+              : !enabled
+                ? 'Email preference disabled'
+                : 'Invalid destination',
+            leaseToken: null,
+            leaseExpiresAt: null,
+            updatedAt: now,
+          })
+          .where(eq(orderEmailDeliveries.id, delivery.id));
+        return null;
+      }
 
       const leaseToken = generateUUIDv7();
       const [claimed] = await tx
@@ -188,41 +256,51 @@ export class OrderEmailDeliveryRepository {
     deliveryId: string,
     leaseToken: string,
     error: string,
+    permanent = false,
   ): Promise<void> {
-    const [current] = await this.db
-      .select({ attempts: orderEmailDeliveries.attempts })
-      .from(orderEmailDeliveries)
-      .where(
-        and(
-          eq(orderEmailDeliveries.id, deliveryId),
-          eq(orderEmailDeliveries.leaseToken, leaseToken),
-        ),
+    await this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(orderEmailDeliveries)
+        .where(
+          and(
+            eq(orderEmailDeliveries.id, deliveryId),
+            eq(orderEmailDeliveries.leaseToken, leaseToken),
+          ),
+        )
+        .for('update');
+      if (!current) return;
+      const attempts = current.attempts + 1;
+      const deadLettered = permanent || attempts >= 10;
+      const retryDelayMs = Math.min(
+        60 * 60_000,
+        60_000 * 5 ** Math.min(attempts - 1, 3),
       );
-    if (!current) return;
-
-    const attempts = current.attempts + 1;
-    const deadLettered = attempts >= 10;
-    const retryDelayMs = Math.min(
-      60 * 60_000,
-      60_000 * 5 ** Math.min(attempts - 1, 3),
-    );
-    await this.db
-      .update(orderEmailDeliveries)
-      .set({
-        status: deadLettered ? 'dead_lettered' : 'pending',
-        attempts,
-        nextAttemptAt: new Date(Date.now() + retryDelayMs),
-        deadLetteredAt: deadLettered ? new Date() : null,
-        leaseToken: null,
-        leaseExpiresAt: null,
-        lastError: error.slice(0, 1000),
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(orderEmailDeliveries.id, deliveryId),
-          eq(orderEmailDeliveries.leaseToken, leaseToken),
-        ),
-      );
+      await tx
+        .update(orderEmailDeliveries)
+        .set({
+          status: deadLettered ? 'dead_lettered' : 'pending',
+          attempts,
+          nextAttemptAt: new Date(Date.now() + retryDelayMs),
+          deadLetteredAt: deadLettered ? new Date() : null,
+          leaseToken: null,
+          leaseExpiresAt: null,
+          lastError: error.slice(0, 1000),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(orderEmailDeliveries.id, deliveryId),
+            eq(orderEmailDeliveries.leaseToken, leaseToken),
+          ),
+        );
+      if (deadLettered)
+        await writeOperationalNotificationIntent(
+          tx,
+          `order-email-failed:${deliveryId}`,
+          deliveryId,
+          'notification.delivery_failed',
+        );
+    });
   }
 }

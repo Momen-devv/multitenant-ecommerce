@@ -1,3 +1,7 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { writeOrderNotificationIntent } from '@/modules/orders/domain/order-notification-intent';
+import { writeOperationalNotificationIntent } from '@/modules/notifications/domain/operational-notification-intent';
+import { notificationTransaction } from '@/infrastructure/outbox/notification-intent.writer';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { and, asc, eq, isNull, lte, or, sql } from 'drizzle-orm';
@@ -49,6 +53,7 @@ type OrderViewer = 'shopper' | 'store_staff' | 'store_support';
 export class OrdersRepository {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
+    private readonly events: EventEmitter2,
     @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway,
     @Inject(stripeConfig.KEY)
     private readonly stripe: ConfigType<typeof stripeConfig>,
@@ -613,7 +618,7 @@ export class OrdersRepository {
       return;
     }
     if (refund.status === 'succeeded') {
-      await this.db.transaction(async (tx) => {
+      await notificationTransaction(this.db, this.events, async (tx) => {
         const [current] = await tx
           .select()
           .from(refundOperations)
@@ -649,6 +654,7 @@ export class OrdersRepository {
           })
           .where(eq(refundOperations.id, current.id));
         await this.insertPaymentEvent(tx, saved, 'refunded', null);
+        await writeOrderNotificationIntent(tx, saved, 'refunded');
         await tx.insert(outboxEvents).values({
           eventType: OutboxEventType.ORDER_EMAIL_INTENT,
           aggregateId: saved.id,
@@ -699,7 +705,7 @@ export class OrdersRepository {
     refundId: string | null,
     reason: string,
   ) {
-    await this.db.transaction(async (tx) => {
+    await notificationTransaction(this.db, this.events, async (tx) => {
       const [operation] = await tx
         .select()
         .from(refundOperations)
@@ -734,6 +740,12 @@ export class OrdersRepository {
         })
         .where(eq(refundOperations.id, id));
       await this.insertPaymentEvent(tx, saved, 'refund_failed', reason);
+      await writeOperationalNotificationIntent(
+        tx,
+        `refund-failed:${id}`,
+        saved.id,
+        'order.intervention_required',
+      );
     });
   }
 
@@ -742,28 +754,58 @@ export class OrdersRepository {
     leaseToken: string,
     reason: string,
   ) {
-    const [operation] = await this.db
-      .select()
-      .from(refundOperations)
-      .where(eq(refundOperations.id, id))
-      .limit(1);
-    if (!operation) return;
-    await this.db
-      .update(refundOperations)
-      .set({
-        status: 'review_required',
-        leaseToken: null,
-        leaseExpiresAt: null,
-        lastProviderError: reason.slice(0, 1000),
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(refundOperations.id, id),
-          eq(refundOperations.leaseToken, leaseToken),
-        ),
+    await notificationTransaction(this.db, this.events, async (tx) => {
+      const [operation] = await tx
+        .select()
+        .from(refundOperations)
+        .where(eq(refundOperations.id, id))
+        .for('update');
+      if (!operation || operation.leaseToken !== leaseToken) return;
+      await tx
+        .update(refundOperations)
+        .set({
+          status: 'review_required',
+          leaseToken: null,
+          leaseExpiresAt: null,
+          lastProviderError: reason.slice(0, 1000),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(refundOperations.id, id),
+            eq(refundOperations.leaseToken, leaseToken),
+          ),
+        );
+      await writeOperationalNotificationIntent(
+        tx,
+        `refund-review:${id}`,
+        operation.orderId,
+        'order.intervention_required',
       );
-    await this.markOrderReview(operation.orderId, reason);
+      const [order] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.id, operation.orderId))
+        .for('update');
+      if (order && !order.paymentReviewRequired) {
+        const [saved] = await tx
+          .update(orders)
+          .set({
+            paymentReviewRequired: true,
+            version: order.version + 1,
+            updatedAt: new Date(),
+          })
+          .where(eq(orders.id, order.id))
+          .returning();
+        if (saved)
+          await this.insertPaymentEvent(
+            tx,
+            saved,
+            'payment_review_required',
+            reason,
+          );
+      }
+    });
   }
 
   private async recordRefundFailure(
@@ -796,7 +838,7 @@ export class OrdersRepository {
   }
 
   private async markOrderReview(orderId: string, reason: string) {
-    await this.db.transaction(async (tx) => {
+    await notificationTransaction(this.db, this.events, async (tx) => {
       const [order] = await tx
         .select()
         .from(orders)
@@ -818,6 +860,13 @@ export class OrdersRepository {
           saved,
           'payment_review_required',
           reason,
+        );
+      if (saved)
+        await writeOperationalNotificationIntent(
+          tx,
+          `order-review:${saved.id}:${saved.version}`,
+          saved.id,
+          'order.intervention_required',
         );
     });
   }
@@ -898,7 +947,7 @@ export class OrdersRepository {
     review: boolean,
     reason: string,
   ) {
-    await this.db.transaction(async (tx) => {
+    await notificationTransaction(this.db, this.events, async (tx) => {
       const [order] = await tx
         .select()
         .from(orders)
@@ -929,6 +978,15 @@ export class OrdersRepository {
         fullyRefunded ? 'refunded_external' : 'payment_review_required',
         reason,
       );
+      if (fullyRefunded)
+        await writeOrderNotificationIntent(tx, saved, 'refunded');
+      if (review && !order.paymentReviewRequired)
+        await writeOperationalNotificationIntent(
+          tx,
+          `order-review:${saved.id}:${saved.version}`,
+          saved.id,
+          'order.intervention_required',
+        );
       if (fullyRefunded)
         await tx.insert(outboxEvents).values({
           eventType: OutboxEventType.ORDER_EMAIL_INTENT,
@@ -1086,7 +1144,7 @@ export class OrdersRepository {
         'Reason must be 1–500 characters.',
       );
     const requestHash = this.requestHash(input.dto);
-    return this.db.transaction(async (tx) => {
+    return notificationTransaction(this.db, this.events, async (tx) => {
       const existingReplay = await this.replayCommand(tx, input, requestHash);
       if (existingReplay) return existingReplay;
       const where = [
@@ -1253,6 +1311,8 @@ export class OrdersRepository {
         if (!refund) throw new Error('Refund operation was not persisted.');
         await this.insertRefundOutbox(tx, refund.id);
       }
+      if (input.email)
+        await writeOrderNotificationIntent(tx, saved, input.email);
       if (input.email)
         await tx.insert(outboxEvents).values({
           eventType: OutboxEventType.ORDER_EMAIL_INTENT,

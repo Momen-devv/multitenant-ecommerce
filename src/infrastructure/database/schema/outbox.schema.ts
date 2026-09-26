@@ -13,6 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 export const outboxEventTypeEnum = pgEnum('outbox_event_type', [
+  OutboxEventType.NOTIFICATION_INTENT,
   OutboxEventType.PLAN_PROVISIONING_REQUESTED,
   OutboxEventType.ORDER_EMAIL_INTENT,
   OutboxEventType.ORDER_REFUND_REQUESTED,

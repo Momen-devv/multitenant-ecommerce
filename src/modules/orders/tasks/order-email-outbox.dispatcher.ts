@@ -1,3 +1,4 @@
+import { writeOperationalNotificationIntent } from '@/modules/notifications/domain/operational-notification-intent';
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { OutboxEventType } from '@/common/enums';
@@ -64,6 +65,14 @@ export class OrderEmailOutboxDispatcher {
         error instanceof Error ? error.message : String(error),
         60_000,
         10,
+        async (tx) => {
+          await writeOperationalNotificationIntent(
+            tx,
+            `order-email-source-failed:${event.id}`,
+            event.id,
+            'notification.delivery_failed',
+          );
+        },
       );
     }
   }

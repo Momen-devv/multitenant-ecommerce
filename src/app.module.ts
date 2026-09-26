@@ -9,6 +9,7 @@ import { ThrottlerGuard, ThrottlerModule, seconds } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { AuthModule, AuthGuard } from '@thallesp/nestjs-better-auth';
 import { ScheduleModule } from '@nestjs/schedule';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import type { Redis } from 'ioredis';
 
 // Core / Infrastructure
@@ -68,6 +69,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
       }),
     }),
     ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
 
     AuthModule.forRootAsync({
       disableGlobalAuthGuard: true,
