@@ -8,10 +8,11 @@ import {
   notificationEvents,
 } from '@/infrastructure/database/schema/notifications.schema';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { parseNotificationIntent } from '../domain/notification-event';
 import { notificationPolicy } from '../domain/notification-policy';
+import { visibleNotification } from './notification-inbox.repository';
 import {
   notificationEmailOwner,
   notificationRecipientIdentity,
@@ -121,13 +122,7 @@ export class NotificationsRepository {
       const [row] = await tx
         .update(notifications)
         .set({ deletedAt: new Date() })
-        .where(
-          and(
-            eq(notifications.id, id),
-            eq(notifications.recipientUserId, userId),
-            isNull(notifications.deletedAt),
-          ),
-        )
+        .where(and(eq(notifications.id, id), visibleNotification(userId)))
         .returning();
       if (row)
         await tx
