@@ -1,3 +1,4 @@
+import { NotificationStreamService } from '../services/notification-stream.service';
 import { Inject, Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { sql } from 'drizzle-orm';
@@ -11,6 +12,7 @@ export class InvitationNotificationReconciliationTask {
   private running = false;
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
+    private readonly stream: NotificationStreamService,
     private readonly logger: LoggerService,
   ) {}
 
@@ -19,6 +21,7 @@ export class InvitationNotificationReconciliationTask {
     if (this.running) return;
     this.running = true;
     try {
+      const users = new Set<string>();
       await this.db.transaction(async (tx) => {
         // Lock in the same order as auth writes: invitation then lifecycle state.
         // Only due work participates, so old unresolved addresses cannot starve it.
@@ -50,7 +53,9 @@ export class InvitationNotificationReconciliationTask {
               and st.bound_user_id is null and u.email_verified and lower(trim(u.email)) = st.normalized_email`);
           // Association is independent of email success and event processing status.
           // Preserve email recipient identity and tombstones; never create delivery work here.
-          await tx.execute(sql`with bound as (
+          const inserted = await tx.execute<{
+            recipient_user_id: string;
+          }>(sql`with bound as (
             update notification_recipient_states rs set user_id = st.bound_user_id,
               outcome = 'materialized', materialized_at = now(), updated_at = now()
             from notification_events e, invitation_notification_state st, "user" u
@@ -64,7 +69,8 @@ export class InvitationNotificationReconciliationTask {
             select gen_random_uuid(), b.event_id, b.user_id, b.audiences, e.store_id, e.event_type,
               e.payload->'display', e.payload->'resource', b.occurred_at
             from bound b join notification_events e on e.id = b.event_id where e.payload is not null
-            on conflict do nothing`);
+            on conflict do nothing returning recipient_user_id`);
+          for (const row of inserted.rows) users.add(row.recipient_user_id);
           const reminder =
             await tx.execute(sql`update invitation_notification_state
             set reminder_recorded_at = now(), updated_at = now()
@@ -77,6 +83,7 @@ export class InvitationNotificationReconciliationTask {
             );
         }
       });
+      await Promise.all([...users].map((id) => this.stream.publish(id)));
     } catch (error) {
       this.logger.error(
         'Invitation notification reconciliation failed',
