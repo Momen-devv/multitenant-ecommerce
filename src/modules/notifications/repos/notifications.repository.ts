@@ -8,7 +8,7 @@ import {
   notificationEvents,
 } from '@/infrastructure/database/schema/notifications.schema';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { parseNotificationIntent } from '../domain/notification-event';
 import { notificationPolicy } from '../domain/notification-policy';
@@ -51,6 +51,32 @@ export class NotificationsRepository {
     );
     if (!snapshot) throw new Error('Recipient is absent from event snapshot');
     recipient = snapshot;
+    if (
+      intent.resource.kind === 'invitation' &&
+      recipient.audiences.includes('invitee')
+    ) {
+      const binding = await tx.execute<{
+        bound_user_id: string | null;
+        status: string;
+        valid: boolean;
+      }>(sql`
+        select st.bound_user_id, st.status, st.expires_at > now() as valid
+        from invitation_notification_state st where st.invitation_id = ${intent.resource.id} for update`);
+      const state = binding.rows[0];
+      if (
+        !recipient.userId &&
+        state?.bound_user_id &&
+        state.status === 'pending' &&
+        state.valid
+      ) {
+        const verified = await tx.execute(sql`select 1 from "user" u
+          join invitation_notification_state st on st.bound_user_id = u.id
+          where st.invitation_id = ${intent.resource.id} and u.email_verified
+            and lower(trim(u.email)) = st.normalized_email`);
+        if (verified.rows.length)
+          recipient = { ...recipient, userId: state.bound_user_id };
+      }
+    }
     const now = new Date();
     if (now.getTime() >= intent.occurredAt.getTime() + 180 * 86400000) {
       throw new Error('Notification is outside the supported replay period');

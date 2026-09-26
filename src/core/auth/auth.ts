@@ -10,6 +10,8 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { ConfigType } from '@nestjs/config';
 import { betterAuthConfig } from '../config';
 import { isProduction } from 'better-auth';
+import { createInvitationNotificationHooks } from './hooks/invitation-notifications.hook';
+import { atomicInvitationEndpoints } from './hooks/atomic-invitation-endpoints';
 import {
   ac,
   organizationManager,
@@ -112,6 +114,7 @@ export function createAuth({
     database: drizzleAdapter(db, {
       provider: 'pg',
       schema,
+      transaction: true,
     }),
 
     socialProviders: {
@@ -231,32 +234,24 @@ export function createAuth({
     },
 
     plugins: [
-      organization({
-        ac,
-        roles: {
-          [OrganizationRole.OWNER]: organizationOwner,
-          [OrganizationRole.MANAGER]: organizationManager,
-          [OrganizationRole.SUPPORT]: support,
-        },
-        allowUserToCreateOrganization: (user) => user.emailVerified === true,
-        organizationLimit: 1,
-        membershipLimit: 100,
-        invitationExpiresIn: 60 * 60 * 24 * 7,
-        invitationLimit: 100,
-        cancelPendingInvitationsOnReInvite: true,
-        sendInvitationEmail: (data) => {
-          const inviteLink = `${configuration.baseURL}/api/v1/stores/invitations/${data.id}/accept`;
-          const rejectLink = `${configuration.baseURL}/api/v1/stores/invitations/${data.id}/reject`;
-          return emailQueue.addInvitationEmailJob(
-            data.email,
-            data.organization.name,
-            data.inviter.user.name,
-            data.role,
-            inviteLink,
-            rejectLink,
-          );
-        },
-      }),
+      atomicInvitationEndpoints(
+        organization({
+          ac,
+          roles: {
+            [OrganizationRole.OWNER]: organizationOwner,
+            [OrganizationRole.MANAGER]: organizationManager,
+            [OrganizationRole.SUPPORT]: support,
+          },
+          allowUserToCreateOrganization: (user) => user.emailVerified === true,
+          organizationLimit: 1,
+          membershipLimit: 100,
+          invitationExpiresIn: 60 * 60 * 24 * 7,
+          invitationLimit: 100,
+          cancelPendingInvitationsOnReInvite: true,
+          requireEmailVerificationOnInvitation: true,
+          ...createInvitationNotificationHooks(db),
+        }),
+      ),
       admin({
         ac,
         roles: {

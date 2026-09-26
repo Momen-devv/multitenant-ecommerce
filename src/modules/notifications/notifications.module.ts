@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { InvitationNotificationReconciliationTask } from './tasks/invitation-notification-reconciliation.task';
 import { NotificationEventsRepository } from './repos/notification-events.repository';
 import { NotificationPreferencesRepository } from './repos/notification-preferences.repository';
 import { NotificationsRepository } from './repos/notifications.repository';
@@ -16,6 +17,7 @@ import { NotificationEmailDeliveryRepository } from './repos/notification-email-
   imports: [OutboxModule, NotificationsQueueModule],
   controllers: [NotificationsController],
   providers: [
+    InvitationNotificationReconciliationTask,
     NotificationInboxRepository,
     NotificationEventsRepository,
     NotificationPreferencesRepository,
