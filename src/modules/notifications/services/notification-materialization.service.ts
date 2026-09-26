@@ -1,3 +1,4 @@
+import { NotificationStreamService } from './notification-stream.service';
 import { Injectable } from '@nestjs/common';
 import { ZodError } from 'zod';
 import { NotificationEventsRepository } from '../repos/notification-events.repository';
@@ -8,6 +9,7 @@ import { parseNotificationIntent } from '../domain/notification-event';
 @Injectable()
 export class NotificationMaterializationService {
   constructor(
+    private readonly stream: NotificationStreamService,
     private readonly events: NotificationEventsRepository,
     private readonly inbox: NotificationsRepository,
     private readonly preferences: NotificationPreferencesRepository,
@@ -28,6 +30,7 @@ export class NotificationMaterializationService {
       if (Date.now() >= intent.occurredAt.getTime() + 180 * 86400000)
         throw new ZodError([]);
       for (;;) {
+        const users = new Set<string>();
         const complete = await this.events.checkpoint(
           event.id,
           event.leaseToken,
@@ -43,16 +46,19 @@ export class NotificationMaterializationService {
                 intent.eventType,
                 tx,
               );
-              await this.inbox.materializeRecipient(
+              const userId = await this.inbox.materializeRecipient(
                 tx,
                 event.id,
                 recipient,
                 enabled,
               );
+              if (userId) users.add(userId);
             }
             return current.fanoutProgress + batch.length;
           },
         );
+        if (complete !== null)
+          await Promise.all([...users].map((id) => this.stream.publish(id)));
         if (complete === null || complete) return;
       }
     } catch (error) {

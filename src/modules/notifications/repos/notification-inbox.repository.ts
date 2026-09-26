@@ -1,3 +1,4 @@
+import { NotificationStreamService } from '../services/notification-stream.service';
 import {
   Inject,
   Injectable,
@@ -38,6 +39,7 @@ export function visibleNotification(userId: string) {
 export class NotificationInboxRepository {
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
+    private readonly stream: NotificationStreamService,
   ) {}
 
   async list(userId: string, query: NotificationListDto) {
@@ -185,6 +187,7 @@ export class NotificationInboxRepository {
     const result = await this.db.execute<{ count: number }>(
       sql`with changed as (${update}) select count(*)::int as count from changed`,
     );
+    if (result.rows[0]?.count) await this.stream.publish(userId);
     return result.rows[0];
   }
 
@@ -194,7 +197,7 @@ export class NotificationInboxRepository {
     action: 'read' | 'archive' | 'delete',
     archived = false,
   ) {
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const [row] = await tx
         .update(n)
         .set(
@@ -220,5 +223,7 @@ export class NotificationInboxRepository {
           );
       return { id: row.id };
     });
+    await this.stream.publish(userId);
+    return result;
   }
 }

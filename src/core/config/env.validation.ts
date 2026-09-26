@@ -24,6 +24,17 @@ const envSchema = z.object({
   GITHUB_CLIENT_ID: z.string().min(1, 'GITHUB_CLIENT_ID is required'),
   GITHUB_CLIENT_SECRET: z.string().min(1, 'GITHUB_CLIENT_SECRET is required'),
 
+  NOTIFICATION_STREAM_MAX_CONNECTIONS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .default(5),
+  NOTIFICATION_STREAM_HEARTBEAT_MS: z.coerce
+    .number()
+    .int()
+    .min(1000)
+    .max(40_000)
+    .default(25_000),
   TRUSTED_ORIGINS: z.string().optional(),
 
   AWS_REGION: z.string(),

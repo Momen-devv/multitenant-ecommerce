@@ -1,3 +1,4 @@
+import { NotificationStreamService } from '../services/notification-stream.service';
 import { createHash } from 'node:crypto';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import * as schema from '@/infrastructure/database/schema/schema';
@@ -27,6 +28,7 @@ export type NotificationTransaction = Parameters<
 export class NotificationsRepository {
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
+    private readonly stream: NotificationStreamService,
   ) {}
 
   /** Called inside the worker's leased checkpoint transaction. No external work.
@@ -113,7 +115,7 @@ export class NotificationsRepository {
       .onConflictDoNothing()
       .returning({ id: states.id });
     // Tombstone takes precedence over any attempt to reconstruct cleaned history.
-    if (!claimed) return false;
+    if (!claimed) return null;
     if (recipient.userId && !expired && !removed)
       await tx
         .insert(notifications)
@@ -153,11 +155,11 @@ export class NotificationsRepository {
         })
         .onConflictDoNothing();
     }
-    return true;
+    return recipient.userId && !expired && !removed ? recipient.userId : null;
   }
 
   async softDelete(userId: string, id: string) {
-    return this.db.transaction(async (tx) => {
+    const deleted = await this.db.transaction(async (tx) => {
       const [row] = await tx
         .update(notifications)
         .set({ deletedAt: new Date() })
@@ -172,5 +174,7 @@ export class NotificationsRepository {
           );
       return Boolean(row);
     });
+    if (deleted) await this.stream.publish(userId);
+    return deleted;
   }
 }

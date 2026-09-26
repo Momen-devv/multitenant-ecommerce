@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { betterAuth, type BetterAuthOptions } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { organization, admin, openAPI, phoneNumber } from 'better-auth/plugins';
@@ -189,6 +190,13 @@ export function createAuth({
       },
       delete: async (key) => {
         await redis.del(key);
+        // Hash identifiers so pub/sub never exposes session credentials.
+        void redis
+          .publish(
+            'notifications:session.revoked',
+            createHash('sha256').update(key).digest('hex'),
+          )
+          .catch(() => undefined);
       },
     },
 

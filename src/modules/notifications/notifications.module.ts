@@ -1,3 +1,5 @@
+import { NotificationStreamService } from './services/notification-stream.service';
+import { NotificationStreamController } from './controllers/notification-stream.controller';
 import { Module } from '@nestjs/common';
 import { InvitationNotificationReconciliationTask } from './tasks/invitation-notification-reconciliation.task';
 import { NotificationEventsRepository } from './repos/notification-events.repository';
@@ -15,8 +17,9 @@ import { NotificationEmailDeliveryRepository } from './repos/notification-email-
 
 @Module({
   imports: [OutboxModule, NotificationsQueueModule],
-  controllers: [NotificationsController],
+  controllers: [NotificationStreamController, NotificationsController],
   providers: [
+    NotificationStreamService,
     InvitationNotificationReconciliationTask,
     NotificationInboxRepository,
     NotificationEventsRepository,
