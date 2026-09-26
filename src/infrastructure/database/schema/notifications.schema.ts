@@ -269,7 +269,7 @@ export const notificationMilestones = pgTable('notification_milestones', {
   createdAt: at('created_at').notNull().defaultNow(),
 });
 
-/** Capture strategy and auth lifecycle integration belong to ticket 04. */
+/** Trigger-owned lifecycle ledger; survives deletion of the auth invitation. */
 export const invitationNotificationState = pgTable(
   'invitation_notification_state',
   {

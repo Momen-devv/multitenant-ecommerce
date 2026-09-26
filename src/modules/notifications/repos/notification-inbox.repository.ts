@@ -28,7 +28,7 @@ export function visibleNotification(userId: string) {
       or (${n.audiences} ? 'staff' and exists (select 1 from store s join member m on m.organization_id = s.organization_id where s.id = ${n.storeId} and m.user_id = ${userId} and string_to_array(m.role, ',') && ${sql.param(orderReadRoles)}::text[]))
       or (${n.audiences} ? 'storeOwner' and exists (select 1 from store s where s.id = ${n.storeId} and s.owner_id = ${userId}))
       or ${n.audiences} ? 'inviter'
-      or (${n.audiences} ? 'invitee' and exists (select 1 from "user" u where u.id = ${userId} and u.email_verified = true))
+      or (${n.audiences} ? 'invitee' and exists (select 1 from "user" u join invitation_notification_state st on st.bound_user_id = u.id where u.id = ${userId} and u.email_verified = true and st.invitation_id = ${n.resource}->>'id' and lower(trim(u.email)) = st.normalized_email))
       or (${n.audiences} ? 'admin' and exists (select 1 from "user" u where u.id = ${userId} and 'platformSuperAdmin' = any(string_to_array(u.role, ','))))
     )`,
   );
