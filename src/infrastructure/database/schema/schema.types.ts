@@ -22,6 +22,13 @@ import {
   storeCheckoutSettings,
   carts,
   cartItems,
+  notificationEvents,
+  notifications,
+  notificationPreferences,
+  notificationEmailDeliveries,
+  notificationRecipientStates,
+  notificationMilestones,
+  invitationNotificationState,
 } from './schema';
 
 export type User = typeof user.$inferSelect;
@@ -95,3 +102,27 @@ export type Cart = typeof carts.$inferSelect;
 export type NewCart = typeof carts.$inferInsert;
 export type CartItem = typeof cartItems.$inferSelect;
 export type NewCartItem = typeof cartItems.$inferInsert;
+
+export type NotificationEvent = typeof notificationEvents.$inferSelect;
+export type NewNotificationEvent = typeof notificationEvents.$inferInsert;
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
+export type NotificationPreference =
+  typeof notificationPreferences.$inferSelect;
+export type NewNotificationPreference =
+  typeof notificationPreferences.$inferInsert;
+export type NotificationEmailDelivery =
+  typeof notificationEmailDeliveries.$inferSelect;
+export type NewNotificationEmailDelivery =
+  typeof notificationEmailDeliveries.$inferInsert;
+export type NotificationRecipientState =
+  typeof notificationRecipientStates.$inferSelect;
+export type NewNotificationRecipientState =
+  typeof notificationRecipientStates.$inferInsert;
+export type NotificationMilestone = typeof notificationMilestones.$inferSelect;
+export type NewNotificationMilestone =
+  typeof notificationMilestones.$inferInsert;
+export type InvitationNotificationState =
+  typeof invitationNotificationState.$inferSelect;
+export type NewInvitationNotificationState =
+  typeof invitationNotificationState.$inferInsert;
