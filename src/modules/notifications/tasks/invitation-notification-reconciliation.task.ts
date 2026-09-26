@@ -84,10 +84,10 @@ export class InvitationNotificationReconciliationTask {
         }
       });
       await Promise.all([...users].map((id) => this.stream.publish(id)));
-    } catch (error) {
+    } catch {
       this.logger.error(
         'Invitation notification reconciliation failed',
-        error instanceof Error ? error.stack : undefined,
+        undefined,
         InvitationNotificationReconciliationTask.name,
       );
     } finally {

@@ -2,7 +2,7 @@ import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import * as schema from '@/infrastructure/database/schema/schema';
 import { notificationEvents } from '@/infrastructure/database/schema/notifications.schema';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, lte, or, sql } from 'drizzle-orm';
 import { generateUUIDv7 } from '@/common/utils';
 import {
   fairDueEvents,
@@ -30,17 +30,18 @@ export class NotificationEventsRepository {
           eq(notificationEvents.id, id),
           eq(notificationEvents.leaseToken, token),
           eq(notificationEvents.status, 'processing'),
-          sql`${notificationEvents.leaseExpiresAt} > now()`,
+          gt(
+            notificationEvents.leaseExpiresAt,
+            sql<Date>`statement_timestamp()`,
+          ),
         ),
       );
   }
 
   async reserveDue(limit = 50) {
-    const candidates = await this.db.execute<{ id: string }>(
-      fairDueEvents(limit),
-    );
+    const candidates = await fairDueEvents(this.db, limit);
     const reserved: NotificationEvent[] = [];
-    for (const candidate of candidates.rows) {
+    for (const candidate of candidates) {
       const row = await this.reserve(candidate.id);
       if (row) reserved.push(row);
     }
@@ -138,7 +139,10 @@ export class NotificationEventsRepository {
             eq(notificationEvents.id, id),
             eq(notificationEvents.leaseToken, token),
             eq(notificationEvents.status, 'processing'),
-            sql`${notificationEvents.leaseExpiresAt} > statement_timestamp()`,
+            gt(
+              notificationEvents.leaseExpiresAt,
+              sql<Date>`statement_timestamp()`,
+            ),
           ),
         )
         .for('update');

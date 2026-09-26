@@ -7,7 +7,7 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, exists, isNull, or, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   resolveNotificationEmail,
@@ -34,19 +34,79 @@ export class NotificationPreferencesRepository {
   ) {}
 
   private async authorizeScope(
-    db: Pick<NodePgDatabase<typeof schema>, 'execute'>,
+    db: Pick<NodePgDatabase<typeof schema>, 'select'>,
     userId: string,
     storeId: string | null,
   ) {
     if (!storeId) return;
-    const result =
-      await db.execute(sql`select 1 from store s where s.id = ${storeId} and (
-      exists (select 1 from member m where m.organization_id = s.organization_id and m.user_id = ${userId})
-      or exists (select 1 from orders o where o.store_id = s.id and o.user_id = ${userId})
-      or exists (select 1 from invitation i join "user" u on u.id = ${userId} where i.organization_id = s.organization_id and (i.inviter_id = u.id or (u.email_verified = true and lower(i.email) = lower(u.email))))
-      or exists (select 1 from invitation_notification_state i join "user" u on u.id = ${userId} where i.store_id = s.id and (i.inviter_user_id = u.id or (u.email_verified = true and i.bound_user_id = u.id and i.normalized_email = lower(u.email))))
-    )`);
-    if (!result.rows.length) throw new NotFoundException('Store not found');
+    const {
+      store: s,
+      member: m,
+      orders: o,
+      invitation: i,
+      user: u,
+      invitationNotificationState: st,
+    } = schema;
+    const membership = db
+      .select({ id: m.id })
+      .from(m)
+      .where(and(eq(m.organizationId, s.organizationId), eq(m.userId, userId)));
+    const purchase = db
+      .select({ id: o.id })
+      .from(o)
+      .where(and(eq(o.storeId, s.id), eq(o.userId, userId)));
+    const invitation = db
+      .select({ id: i.id })
+      .from(i)
+      .innerJoin(u, eq(u.id, userId))
+      .where(
+        and(
+          eq(i.organizationId, s.organizationId),
+          or(
+            eq(i.inviterId, u.id),
+            and(
+              eq(u.emailVerified, true),
+              eq(
+                sql<string>`lower(${i.email})`,
+                sql<string>`lower(${u.email})`,
+              ),
+            ),
+          ),
+        ),
+      );
+    const invitationHistory = db
+      .select({ id: st.invitationId })
+      .from(st)
+      .innerJoin(u, eq(u.id, userId))
+      .where(
+        and(
+          eq(st.storeId, s.id),
+          or(
+            eq(st.inviterUserId, u.id),
+            and(
+              eq(u.emailVerified, true),
+              eq(st.boundUserId, u.id),
+              eq(st.normalizedEmail, sql<string>`lower(${u.email})`),
+            ),
+          ),
+        ),
+      );
+    const result = await db
+      .select({ id: s.id })
+      .from(s)
+      .where(
+        and(
+          eq(s.id, storeId),
+          or(
+            exists(membership),
+            exists(purchase),
+            exists(invitation),
+            exists(invitationHistory),
+          ),
+        ),
+      )
+      .limit(1);
+    if (!result.length) throw new NotFoundException('Store not found');
   }
 
   async get(userId: string, storeId: string | null) {
@@ -155,9 +215,13 @@ export class NotificationPreferencesRepository {
     }
     await this.db.transaction(async (tx) => {
       await this.authorizeScope(tx, userId, storeId);
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtext(${userId} || ':notification-preferences'))`,
-      );
+      // Lock the owning User so concurrent preference batches serialize even when
+      // there are no override rows yet. The lock lasts for this transaction.
+      await tx
+        .select({ id: schema.user.id })
+        .from(schema.user)
+        .where(eq(schema.user.id, userId))
+        .for('update');
       for (const item of updates) {
         const where = and(
           eq(preferences.userId, userId),

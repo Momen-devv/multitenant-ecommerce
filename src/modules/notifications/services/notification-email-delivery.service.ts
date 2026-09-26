@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { notificationEnabled } from '../domain/notification-rollout';
 import type { ConfigType } from '@nestjs/config';
 import { renderNotificationEmail } from '@/infrastructure/mail/templates/notificationEmailTemplate';
 import { appConfig } from '@/core/config';
@@ -28,6 +29,7 @@ export class NotificationEmailDeliveryService {
   ) {}
 
   async send(id: string) {
+    if (!notificationEnabled('NOTIFICATION_EMAIL_ENABLED')) return;
     const delivery = await this.deliveries.claim(id);
     if (!delivery?.leaseToken) return;
     const token = delivery.leaseToken;

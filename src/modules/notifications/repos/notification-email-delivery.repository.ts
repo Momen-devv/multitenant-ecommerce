@@ -1,7 +1,7 @@
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import { generateUUIDv7 } from '@/common/utils';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, lte, or, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/infrastructure/database/schema/schema';
 import { notificationEmailDeliveries as d } from '@/infrastructure/database/schema/notifications.schema';
@@ -18,18 +18,40 @@ export class NotificationEmailDeliveryRepository {
   ) {}
 
   async reserveDue(limit = 50) {
-    const candidates = await this.db.execute<{
-      id: string;
-    }>(sql`select id from (
-      select d.id, d.next_attempt_at, e.occurred_at,
-        row_number() over (partition by e.store_id order by d.next_attempt_at, e.occurred_at, d.id) as round
-      from notification_email_deliveries d join notification_events e on e.id = d.event_id
-      where d.status in ('pending', 'sending') and d.next_attempt_at <= now()
-        and (d.lease_expires_at is null or d.lease_expires_at <= now())
-        and (d.last_queued_at is null or d.last_queued_at <= now() - interval '5 minutes')
-    ) due order by round, next_attempt_at, occurred_at, id limit ${limit}`);
+    const now = new Date();
+    const e = schema.notificationEvents;
+    const due = this.db
+      .select({
+        id: d.id,
+        nextAttemptAt: d.nextAttemptAt,
+        occurredAt: e.occurredAt,
+        round:
+          sql<number>`row_number() over (partition by ${e.storeId} order by ${d.nextAttemptAt}, ${e.occurredAt}, ${d.id})`.as(
+            'round',
+          ),
+      })
+      .from(d)
+      .innerJoin(e, eq(e.id, d.eventId))
+      .where(
+        and(
+          this.due(now),
+          or(
+            isNull(d.lastQueuedAt),
+            lte(
+              d.lastQueuedAt,
+              new Date(now.getTime() - NOTIFICATION_LEASE_MS),
+            ),
+          ),
+        ),
+      )
+      .as('due');
+    const candidates = await this.db
+      .select({ id: due.id })
+      .from(due)
+      .orderBy(due.round, due.nextAttemptAt, due.occurredAt, due.id)
+      .limit(limit);
     const rows: (typeof d.$inferSelect)[] = [];
-    for (const candidate of candidates.rows) {
+    for (const candidate of candidates) {
       const now = new Date();
       const [row] = await this.db
         .update(d)
@@ -95,7 +117,7 @@ export class NotificationEmailDeliveryRepository {
         and(
           eq(d.id, id),
           eq(d.leaseToken, token),
-          sql`${d.leaseExpiresAt} > now()`,
+          gt(d.leaseExpiresAt, sql<Date>`statement_timestamp()`),
         ),
       )
       .returning({ id: d.id });
@@ -112,7 +134,7 @@ export class NotificationEmailDeliveryRepository {
         and(
           eq(d.id, id),
           eq(d.leaseToken, token),
-          sql`${d.leaseExpiresAt} > now()`,
+          gt(d.leaseExpiresAt, sql<Date>`statement_timestamp()`),
         ),
       )
       .returning();

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { notificationEnabled } from '../domain/notification-rollout';
 import { Interval } from '@nestjs/schedule';
 import { EmailQueueService } from '@/infrastructure/queue/email/email-queue.service';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
@@ -15,6 +16,7 @@ export class NotificationEmailRecoveryTask {
 
   @Interval('notification-email-recovery', 10_000)
   async recover() {
+    if (!notificationEnabled('NOTIFICATION_EMAIL_ENABLED')) return;
     if (this.running) return;
     this.running = true;
     try {
@@ -25,10 +27,10 @@ export class NotificationEmailRecoveryTask {
           await this.deliveries.releaseEnqueue(row.id, row.enqueueGeneration);
         }
       }
-    } catch (error) {
+    } catch {
       this.logger.error(
         'Notification email recovery failed',
-        error instanceof Error ? error.stack : undefined,
+        undefined,
         NotificationEmailRecoveryTask.name,
       );
     } finally {

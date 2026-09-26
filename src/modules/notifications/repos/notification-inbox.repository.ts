@@ -5,7 +5,22 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
-import { and, desc, eq, isNull, isNotNull, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  exists,
+  gt,
+  isNull,
+  isNotNull,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import * as schema from '@/infrastructure/database/schema/schema';
@@ -17,22 +32,120 @@ import { orderReadRoles } from '../domain/order-read-roles';
 import { NotificationListDto } from '../dto/notifications.dto';
 
 // Evaluate current access in the same database snapshot as each read/mutation.
-export function visibleNotification(userId: string) {
+export function visibleNotification(
+  db: Pick<NodePgDatabase<typeof schema>, 'select'>,
+  userId: string,
+) {
+  const {
+    user: u,
+    orders: o,
+    store: s,
+    member: m,
+    invitationNotificationState: st,
+  } = schema;
+  const currentTime = sql<Date>`statement_timestamp()`;
+  const audience = (value: string) => sql`${n.audiences} ? ${value}`;
+  const resourceId = sql<string>`${n.resource}->>'id'`;
+  const activeUser = db
+    .select({ id: u.id })
+    .from(u)
+    .where(
+      and(
+        eq(u.id, userId),
+        eq(u.isActive, true),
+        or(
+          isNull(u.banned),
+          ne(u.banned, true),
+          lte(u.banExpires, currentTime),
+        ),
+      ),
+    );
+  const purchase = db
+    .select({ id: o.id })
+    .from(o)
+    .where(
+      and(
+        eq(sql<string>`${o.id}::text`, resourceId),
+        eq(o.storeId, n.storeId),
+        eq(o.userId, userId),
+      ),
+    );
+  const staff = db
+    .select({ id: s.id })
+    .from(s)
+    .innerJoin(m, eq(m.organizationId, s.organizationId))
+    .where(
+      and(
+        eq(s.id, n.storeId),
+        eq(m.userId, userId),
+        sql`string_to_array(${m.role}, ',') && ${sql.param(orderReadRoles)}::text[]`,
+      ),
+    );
+  const owner = db
+    .select({ id: s.id })
+    .from(s)
+    .where(and(eq(s.id, n.storeId), eq(s.ownerId, userId)));
+  const invitee = db
+    .select({ id: u.id })
+    .from(u)
+    .innerJoin(st, eq(st.boundUserId, u.id))
+    .where(
+      and(
+        eq(u.id, userId),
+        eq(u.emailVerified, true),
+        eq(st.invitationId, resourceId),
+        eq(sql<string>`lower(trim(${u.email}))`, st.normalizedEmail),
+      ),
+    );
+  const admin = db
+    .select({ id: u.id })
+    .from(u)
+    .where(
+      and(
+        eq(u.id, userId),
+        sql`'platformSuperAdmin' = any(string_to_array(${u.role}, ','))`,
+      ),
+    );
   return and(
     eq(n.recipientUserId, userId),
     isNull(n.deletedAt),
-    sql`${n.occurredAt} > statement_timestamp() - interval '90 days'`,
-    sql`exists (select 1 from "user" u where u.id = ${userId} and u.is_active = true and (u.banned is not true or u.ban_expires <= statement_timestamp()))`,
-    sql`(
-      ${n.audiences} ? 'user'
-      or (${n.audiences} ? 'customer' and exists (select 1 from orders o where o.id::text = ${n.resource}->>'id' and o.store_id = ${n.storeId} and o.user_id = ${userId}))
-      or (${n.audiences} ? 'staff' and exists (select 1 from store s join member m on m.organization_id = s.organization_id where s.id = ${n.storeId} and m.user_id = ${userId} and string_to_array(m.role, ',') && ${sql.param(orderReadRoles)}::text[]))
-      or (${n.audiences} ? 'storeOwner' and exists (select 1 from store s where s.id = ${n.storeId} and s.owner_id = ${userId}))
-      or ${n.audiences} ? 'inviter'
-      or (${n.audiences} ? 'invitee' and exists (select 1 from "user" u join invitation_notification_state st on st.bound_user_id = u.id where u.id = ${userId} and u.email_verified = true and st.invitation_id = ${n.resource}->>'id' and lower(trim(u.email)) = st.normalized_email))
-      or (${n.audiences} ? 'admin' and exists (select 1 from "user" u where u.id = ${userId} and 'platformSuperAdmin' = any(string_to_array(u.role, ','))))
-    )`,
+    gt(n.occurredAt, sql<Date>`statement_timestamp() - interval '90 days'`),
+    exists(activeUser),
+    or(
+      audience('user'),
+      and(audience('customer'), exists(purchase)),
+      and(audience('staff'), exists(staff)),
+      and(audience('storeOwner'), exists(owner)),
+      audience('inviter'),
+      and(audience('invitee'), exists(invitee)),
+      and(audience('admin'), exists(admin)),
+    ),
   );
+}
+
+function invitationProjection() {
+  const i = schema.invitation;
+  return {
+    invitationStatus: i.status,
+    invitationExpired: lte(
+      i.expiresAt,
+      sql<Date>`statement_timestamp()`,
+    ).mapWith(Boolean),
+  };
+}
+
+function invitationJoin() {
+  return and(
+    eq(sql<string>`${n.resource}->>'kind'`, 'invitation'),
+    eq(schema.invitation.id, sql<string>`${n.resource}->>'id'`),
+  );
+}
+
+function currentInvitationStatus(
+  status: string | null,
+  expired: boolean | null,
+) {
+  return status === 'pending' && expired ? 'expired' : status;
 }
 
 @Injectable()
@@ -72,7 +185,11 @@ export class NotificationInboxRepository {
           cursorScope !== scope
         )
           throw new Error();
-        after = sql`(${n.occurredAt}, ${n.id}) < (${time}::timestamptz, ${id}::uuid)`;
+        const cursorTime = sql<Date>`${time}::timestamptz`;
+        after = or(
+          lt(n.occurredAt, cursorTime),
+          and(eq(n.occurredAt, cursorTime), lt(n.id, id)),
+        );
       } catch {
         throw new BadRequestException('Invalid cursor or filter scope');
       }
@@ -88,14 +205,13 @@ export class NotificationInboxRepository {
         readAt: n.readAt,
         archivedAt: n.archivedAt,
         cursorTime: sql<string>`to_char(${n.occurredAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
-        invitationStatus: sql<
-          string | null
-        >`case when ${n.resource}->>'kind' = 'invitation' then (select case when i.status = 'pending' and i.expires_at <= statement_timestamp() then 'expired' else i.status end from invitation i where i.id = ${n.resource}->>'id') else null end`,
+        ...invitationProjection(),
       })
       .from(n)
+      .leftJoin(schema.invitation, invitationJoin())
       .where(
         and(
-          visibleNotification(userId),
+          visibleNotification(this.db, userId),
           query.storeId ? eq(n.storeId, query.storeId) : undefined,
           query.type ? eq(n.type, query.type) : undefined,
           query.unread === undefined
@@ -123,7 +239,10 @@ export class NotificationInboxRepository {
         occurredAt: row.occurredAt,
         readAt: row.readAt,
         archivedAt: row.archivedAt,
-        invitationStatus: row.invitationStatus,
+        invitationStatus: currentInvitationStatus(
+          row.invitationStatus,
+          row.invitationExpired,
+        ),
       })),
       nextCursor:
         rows.length > query.limit && last
@@ -136,11 +255,11 @@ export class NotificationInboxRepository {
 
   async count(userId: string, storeId?: string) {
     const [row] = await this.db
-      .select({ count: sql<number>`count(*)::int` })
+      .select({ count: count() })
       .from(n)
       .where(
         and(
-          visibleNotification(userId),
+          visibleNotification(this.db, userId),
           isNull(n.readAt),
           isNull(n.archivedAt),
           storeId ? eq(n.storeId, storeId) : undefined,
@@ -160,35 +279,38 @@ export class NotificationInboxRepository {
         occurredAt: n.occurredAt,
         readAt: n.readAt,
         archivedAt: n.archivedAt,
-        invitationStatus: sql<
-          string | null
-        >`case when ${n.resource}->>'kind' = 'invitation' then (select case when i.status = 'pending' and i.expires_at <= statement_timestamp() then 'expired' else i.status end from invitation i where i.id = ${n.resource}->>'id') else null end`,
+        ...invitationProjection(),
       })
       .from(n)
-      .where(and(visibleNotification(userId), eq(n.id, id)));
+      .leftJoin(schema.invitation, invitationJoin())
+      .where(and(visibleNotification(this.db, userId), eq(n.id, id)));
     if (!row) throw new NotFoundException('Notification not found');
-    return row;
+    const { invitationExpired, ...notification } = row;
+    return {
+      ...notification,
+      invitationStatus: currentInvitationStatus(
+        row.invitationStatus,
+        invitationExpired,
+      ),
+    };
   }
 
   async readAll(userId: string, storeId?: string) {
     // One UPDATE: concurrent inserts after this statement's MVCC snapshot stay unread.
-    const update = this.db
+    const result = await this.db
       .update(n)
       .set({ readAt: sql`statement_timestamp()` })
       .where(
         and(
-          visibleNotification(userId),
+          visibleNotification(this.db, userId),
           isNull(n.readAt),
           isNull(n.archivedAt),
           storeId ? eq(n.storeId, storeId) : undefined,
         ),
-      )
-      .returning({ id: n.id });
-    const result = await this.db.execute<{ count: number }>(
-      sql`with changed as (${update}) select count(*)::int as count from changed`,
-    );
-    if (result.rows[0]?.count) await this.stream.publish(userId);
-    return result.rows[0];
+      );
+    const affected = result.rowCount ?? 0;
+    if (affected) await this.stream.publish(userId);
+    return { count: affected };
   }
 
   async mutate(
@@ -211,7 +333,7 @@ export class NotificationInboxRepository {
                 }
               : { deletedAt: sql`statement_timestamp()` },
         )
-        .where(and(visibleNotification(userId), eq(n.id, id)))
+        .where(and(visibleNotification(tx, userId), eq(n.id, id)))
         .returning({ id: n.id, eventId: n.eventId });
       if (!row) throw new NotFoundException('Notification not found');
       if (action === 'delete')
