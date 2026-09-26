@@ -1,3 +1,4 @@
+import { MailDeliveryError } from '@/common/errors/mail-delivery.error';
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Inject } from '@nestjs/common';
@@ -12,6 +13,7 @@ import {
 } from '@/infrastructure/queue/queue.constants';
 import { MailService } from '@/common/abstracts';
 import { LoggerService } from '../../logger/logger.service';
+import { NotificationEmailDeliveryService } from '@/modules/notifications/services/notification-email-delivery.service';
 
 import {
   welcomeTemplate,
@@ -51,6 +53,7 @@ export class EmailQueueProcessor extends WorkerHost {
     private readonly mailService: MailService,
     private readonly logger: LoggerService,
     private readonly deliveries: OrderEmailDeliveryRepository,
+    private readonly notificationDelivery: NotificationEmailDeliveryService,
     @Inject(appConfig.KEY)
     private readonly app: ConfigType<typeof appConfig>,
   ) {
@@ -59,6 +62,9 @@ export class EmailQueueProcessor extends WorkerHost {
 
   async process(job: Job<EmailJobData, unknown, EmailJobName>) {
     switch (job.name) {
+      case JobNames.EMAIL.NOTIFICATION:
+        await this.notificationDelivery.send(this.requireDeliveryId(job.data));
+        break;
       case JobNames.EMAIL.WELCOME:
         await this.mailService.sendEmail(
           job.data.to!,
@@ -177,6 +183,7 @@ export class EmailQueueProcessor extends WorkerHost {
           claimed.delivery.id,
           claimed.leaseToken,
           message,
+          error instanceof MailDeliveryError && error.permanent,
         );
       } catch (persistenceError) {
         this.logger.error(

@@ -46,7 +46,9 @@ export function mergeNotificationRecipients(
       : recipient;
     merged.set(identity, {
       ...primary,
-      email: primary.email ? normalizeNotificationEmail(primary.email) : null,
+      // User identity remains valid even with an undeliverable destination;
+      // the sender classifies that address without rolling back commerce.
+      email: primary.email ? primary.email.trim().toLowerCase() : null,
       audiences: [
         ...new Set([...(previous?.audiences ?? []), ...recipient.audiences]),
       ].sort(),

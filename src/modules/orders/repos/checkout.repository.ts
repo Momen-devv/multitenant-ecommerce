@@ -1,3 +1,7 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { writeOrderNotificationIntent } from '@/modules/orders/domain/order-notification-intent';
+import { writeOperationalNotificationIntent } from '@/modules/notifications/domain/operational-notification-intent';
+import { notificationTransaction } from '@/infrastructure/outbox/notification-intent.writer';
 import { createHash } from 'node:crypto';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
@@ -67,6 +71,7 @@ const PROVIDER_IDEMPOTENCY_SAFETY_WINDOW_MS = 23 * 60 * 60 * 1000;
 export class CheckoutRepository {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
+    private readonly events: EventEmitter2,
     @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway,
     @Inject(stripeConfig.KEY)
     private readonly stripe: ConfigType<typeof stripeConfig>,
@@ -148,7 +153,7 @@ export class CheckoutRepository {
       );
     }
     const requestHash = this.hash({ quoteId: dto.quoteId });
-    return this.db.transaction(async (tx) => {
+    return notificationTransaction(this.db, this.events, async (tx) => {
       const [command] = await tx
         .select()
         .from(commerceCommands)
@@ -320,6 +325,7 @@ export class CheckoutRepository {
       });
       // Ticket 08 owns dispatch; preserving this intent makes placement durable
       // without letting an email outage roll back financial/inventory state.
+      await writeOrderNotificationIntent(tx, order, 'placed');
       await tx.insert(outboxEvents).values({
         eventType: OutboxEventType.ORDER_EMAIL_INTENT,
         aggregateId: order.id,
@@ -1154,7 +1160,7 @@ export class CheckoutRepository {
     paymentIntentId: string,
     paymentChargeId: string | null,
   ): Promise<void> {
-    await this.db.transaction(async (tx) => {
+    await notificationTransaction(this.db, this.events, async (tx) => {
       const [attempt] = await tx
         .select()
         .from(checkoutAttempts)
@@ -1192,6 +1198,12 @@ export class CheckoutRepository {
             updatedAt: new Date(),
           })
           .where(eq(checkoutAttempts.id, attemptId));
+        await writeOperationalNotificationIntent(
+          tx,
+          `checkout-review:${attempt.id}`,
+          attempt.id,
+          'order.intervention_required',
+        );
         return;
       }
       const [order] = await tx
@@ -1253,6 +1265,7 @@ export class CheckoutRepository {
         actorAuthority: 'provider',
         actorUserId: null,
       });
+      await writeOrderNotificationIntent(tx, order, 'placed');
       await tx.insert(outboxEvents).values({
         eventType: OutboxEventType.ORDER_EMAIL_INTENT,
         aggregateId: order.id,
@@ -1312,21 +1325,31 @@ export class CheckoutRepository {
     leaseToken: string,
     reason: string,
   ): Promise<void> {
-    await this.db
-      .update(checkoutAttempts)
-      .set({
-        paymentReviewRequired: true,
-        leaseToken: null,
-        leaseExpiresAt: null,
-        lastProviderError: reason.slice(0, 1000),
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(checkoutAttempts.id, attemptId),
-          eq(checkoutAttempts.leaseToken, leaseToken),
-        ),
-      );
+    await notificationTransaction(this.db, this.events, async (tx) => {
+      const [saved] = await tx
+        .update(checkoutAttempts)
+        .set({
+          paymentReviewRequired: true,
+          leaseToken: null,
+          leaseExpiresAt: null,
+          lastProviderError: reason.slice(0, 1000),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(checkoutAttempts.id, attemptId),
+            eq(checkoutAttempts.leaseToken, leaseToken),
+          ),
+        )
+        .returning();
+      if (saved)
+        await writeOperationalNotificationIntent(
+          tx,
+          `checkout-review:${attemptId}`,
+          attemptId,
+          'order.intervention_required',
+        );
+    });
   }
 
   private async recordProviderFailure(
@@ -1336,23 +1359,33 @@ export class CheckoutRepository {
   ): Promise<void> {
     const failedAttempts = attempt.providerAttempts + 1;
     const message = error instanceof Error ? error.message : String(error);
-    await this.db
-      .update(checkoutAttempts)
-      .set({
-        providerAttempts: failedAttempts,
-        paymentReviewRequired: failedAttempts >= PROVIDER_MAX_ATTEMPTS,
-        leaseToken: null,
-        leaseExpiresAt: null,
-        lastProviderError: message.slice(0, 1000),
-        nextRetryAt: new Date(Date.now() + this.retryDelayMs(failedAttempts)),
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(checkoutAttempts.id, attempt.id),
-          eq(checkoutAttempts.leaseToken, leaseToken),
-        ),
-      );
+    await notificationTransaction(this.db, this.events, async (tx) => {
+      const [saved] = await tx
+        .update(checkoutAttempts)
+        .set({
+          providerAttempts: failedAttempts,
+          paymentReviewRequired: failedAttempts >= PROVIDER_MAX_ATTEMPTS,
+          leaseToken: null,
+          leaseExpiresAt: null,
+          lastProviderError: message.slice(0, 1000),
+          nextRetryAt: new Date(Date.now() + this.retryDelayMs(failedAttempts)),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(checkoutAttempts.id, attempt.id),
+            eq(checkoutAttempts.leaseToken, leaseToken),
+          ),
+        )
+        .returning();
+      if (saved && failedAttempts >= PROVIDER_MAX_ATTEMPTS)
+        await writeOperationalNotificationIntent(
+          tx,
+          `checkout-review:${attempt.id}`,
+          attempt.id,
+          'order.intervention_required',
+        );
+    });
   }
 
   private retryDelayMs(attempts: number) {

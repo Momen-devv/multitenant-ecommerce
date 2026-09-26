@@ -57,6 +57,16 @@ export class NotificationsRepository {
     }
     const expired =
       now.getTime() >= intent.occurredAt.getTime() + 90 * 86400000;
+    // A deleted recipient must advance progress without violating inbox FKs.
+    const account = recipient.userId
+      ? (
+          await tx
+            .select({ id: schema.user.id })
+            .from(schema.user)
+            .where(eq(schema.user.id, recipient.userId))
+        )[0]
+      : null;
+    const removed = Boolean(recipient.userId && !account);
     const [claimed] = await tx
       .insert(states)
       .values({
@@ -65,18 +75,20 @@ export class NotificationsRepository {
         userId: recipient.userId,
         audiences: recipient.audiences,
         occurredAt: intent.occurredAt,
-        outcome: expired
-          ? 'expired'
-          : recipient.userId
-            ? 'materialized'
-            : 'pending_binding',
-        materializedAt: recipient.userId && !expired ? now : null,
+        outcome: removed
+          ? 'suppressed'
+          : expired
+            ? 'expired'
+            : recipient.userId
+              ? 'materialized'
+              : 'pending_binding',
+        materializedAt: recipient.userId && !expired && !removed ? now : null,
       })
       .onConflictDoNothing()
       .returning({ id: states.id });
     // Tombstone takes precedence over any attempt to reconstruct cleaned history.
     if (!claimed) return false;
-    if (recipient.userId && !expired)
+    if (recipient.userId && !expired && !removed)
       await tx
         .insert(notifications)
         .values({
@@ -93,6 +105,7 @@ export class NotificationsRepository {
     // Legacy shopper delivery owns ALL Order customer/staff overlap sends.
     if (
       recipient.email &&
+      !removed &&
       (emailEnabled ||
         recipient.audiences.some(
           (audience) =>

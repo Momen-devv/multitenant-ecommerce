@@ -1,4 +1,5 @@
 export enum QueueNames {
+  NOTIFICATIONS = 'notifications',
   EMAIL = 'email',
   SMS = 'sms',
   RESOURCE_CLEANUP = 'resource-cleanup',
@@ -10,6 +11,7 @@ export enum QueueNames {
 
 export const JobNames = {
   EMAIL: {
+    NOTIFICATION: 'notification',
     WELCOME: 'welcome',
     RESET_PASSWORD: 'reset-password',
     VERIFICATION: 'verification',

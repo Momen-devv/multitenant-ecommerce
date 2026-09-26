@@ -61,6 +61,7 @@ export const refundOperationStatus = pgEnum('refund_operation_status', [
   'review_required',
 ]);
 export const orderEmailDeliveryStatus = pgEnum('order_email_delivery_status', [
+  'suppressed',
   'pending',
   'sending',
   'sent',
@@ -391,6 +392,7 @@ export const orderEmailDeliveries = pgTable(
     leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
     sentAt: timestamp('sent_at', { withTimezone: true }),
     deadLetteredAt: timestamp('dead_lettered_at', { withTimezone: true }),
+    suppressionReason: varchar('suppression_reason', { length: 255 }),
     lastError: varchar('last_error', { length: 1000 }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()

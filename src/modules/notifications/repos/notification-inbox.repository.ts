@@ -12,22 +12,11 @@ import {
   notifications as n,
   notificationRecipientStates as states,
 } from '@/infrastructure/database/schema/notifications.schema';
-import {
-  organizationOwner,
-  organizationManager,
-  support,
-} from '@/core/auth/permissions';
+import { orderReadRoles } from '../domain/order-read-roles';
 import { NotificationListDto } from '../dto/notifications.dto';
 
 // Evaluate current access in the same database snapshot as each read/mutation.
 export function visibleNotification(userId: string) {
-  const orderRoles = Object.entries({
-    owner: organizationOwner,
-    manager: organizationManager,
-    support,
-  })
-    .filter(([, role]) => role.statements.order?.includes('read'))
-    .map(([name]) => name);
   return and(
     eq(n.recipientUserId, userId),
     isNull(n.deletedAt),
@@ -36,7 +25,7 @@ export function visibleNotification(userId: string) {
     sql`(
       ${n.audiences} ? 'user'
       or (${n.audiences} ? 'customer' and exists (select 1 from orders o where o.id::text = ${n.resource}->>'id' and o.store_id = ${n.storeId} and o.user_id = ${userId}))
-      or (${n.audiences} ? 'staff' and exists (select 1 from store s join member m on m.organization_id = s.organization_id where s.id = ${n.storeId} and m.user_id = ${userId} and string_to_array(m.role, ',') && ${sql.param(orderRoles)}::text[]))
+      or (${n.audiences} ? 'staff' and exists (select 1 from store s join member m on m.organization_id = s.organization_id where s.id = ${n.storeId} and m.user_id = ${userId} and string_to_array(m.role, ',') && ${sql.param(orderReadRoles)}::text[]))
       or (${n.audiences} ? 'storeOwner' and exists (select 1 from store s where s.id = ${n.storeId} and s.owner_id = ${userId}))
       or ${n.audiences} ? 'inviter'
       or (${n.audiences} ? 'invitee' and exists (select 1 from "user" u where u.id = ${userId} and u.email_verified = true))
