@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { notificationEnabled } from '../domain/notification-rollout';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   Inject,
@@ -38,6 +39,9 @@ export class NotificationStreamService implements OnModuleDestroy {
   private readonly hints = new Subject<string>();
   private readonly revocations = new Subject<string>();
   private readonly closeConnections = new Set<() => void>();
+  get connectionCount() {
+    return this.closeConnections.size;
+  }
   constructor(
     @Inject(CACHE_CLIENT) redis: Redis,
     private readonly config: ConfigService,
@@ -112,6 +116,11 @@ export class NotificationStreamService implements OnModuleDestroy {
     return result.rows.length > 0;
   }
   async open(request: Request, response: Response, session: CurrentUser) {
+    if (
+      !notificationEnabled('NOTIFICATION_STREAM_ENABLED') ||
+      !notificationEnabled('NOTIFICATION_INBOX_ENABLED')
+    )
+      throw new HttpException('Live stream temporarily unavailable', 503);
     const origins = (process.env.TRUSTED_ORIGINS ?? process.env.BASE_URL ?? '')
       .split(',')
       .map((value) => value.trim())

@@ -24,6 +24,9 @@ const envSchema = z.object({
   GITHUB_CLIENT_ID: z.string().min(1, 'GITHUB_CLIENT_ID is required'),
   GITHUB_CLIENT_SECRET: z.string().min(1, 'GITHUB_CLIENT_SECRET is required'),
 
+  NOTIFICATION_INBOX_ENABLED: z.enum(['true', 'false']).default('true'),
+  NOTIFICATION_EMAIL_ENABLED: z.enum(['true', 'false']).default('true'),
+  NOTIFICATION_STREAM_ENABLED: z.enum(['true', 'false']).default('true'),
   NOTIFICATION_STREAM_MAX_CONNECTIONS: z.coerce
     .number()
     .int()

@@ -85,10 +85,10 @@ export class NotificationOutboxDispatcher {
           }
         }
       } while (this.wakePending);
-    } catch (error) {
+    } catch {
       this.logger.error(
         'Notification dispatch failed',
-        error instanceof Error ? error.stack : undefined,
+        undefined,
         NotificationOutboxDispatcher.name,
       );
     } finally {

@@ -10,6 +10,7 @@ import {
   Post,
   Query,
   Session,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { CurrentUser } from '@/core/auth/auth.types';
@@ -29,10 +30,12 @@ import {
 } from '../dto/notifications.dto';
 import { NotificationInboxRepository } from '../repos/notification-inbox.repository';
 import { NotificationPreferencesRepository } from '../repos/notification-preferences.repository';
+import { NotificationInboxGuard } from '../domain/notification-rollout';
 
 @ApiTags('Notifications')
 @ApiCookieAuth()
 @Controller('notifications')
+@UseGuards(NotificationInboxGuard)
 @ApiErrorResponse(401, 'Authentication is required')
 @ApiErrorResponse(400, 'Invalid request or preference batch')
 @ApiErrorResponse(404, 'Notification or Store is inaccessible')
@@ -44,7 +47,8 @@ export class NotificationsController {
 
   @Get()
   @ApiSuccessResponse({
-    description: 'Visible notifications',
+    description:
+      'Visible notifications retained for 90 days from source occurrence. Email sent means provider acceptance, not inbox delivery. Recovery is limited to 180 days. Dead letters require separate audited operator intervention; no reset endpoint is provided. Sent and provider-ambiguous deliveries cannot be automatically replayed.',
     model: NotificationPageDto,
   })
   @ApiOperation({
