@@ -20,6 +20,7 @@ import { CACHE_CLIENT } from '@/infrastructure/cache/cache.constants';
 import { EmailQueueService } from '@/infrastructure/queue/email/email-queue.service';
 import { SmsQueueService } from '@/infrastructure/queue/sms/sms-queue.service';
 import { createAuth } from '@/core/auth/auth';
+import { assertInvitationCaptureInstalled } from '@/modules/notifications/services/invitation-notification-capture';
 import { DATABASE } from './common/constants/injection-tokens.constants';
 
 // Common
@@ -81,22 +82,25 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
         DATABASE,
         betterAuthConfig.KEY,
       ],
-      useFactory: (
+      useFactory: async (
         emailQueue: EmailQueueService,
         smsQueue: SmsQueueService,
         redis: Redis,
         database: NodePgDatabase<typeof Schema>,
         configuration: ConfigType<typeof betterAuthConfig>,
-      ) => ({
-        auth: createAuth({
-          emailQueue,
-          smsQueue,
-          redis,
-          database,
-          configuration,
-        }),
-        bodyParser: { rawBody: true },
-      }),
+      ) => {
+        await assertInvitationCaptureInstalled(database);
+        return {
+          auth: createAuth({
+            emailQueue,
+            smsQueue,
+            redis,
+            database,
+            configuration,
+          }),
+          bodyParser: { rawBody: true },
+        };
+      },
     }),
 
     // Feature modules

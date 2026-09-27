@@ -1,4 +1,5 @@
 import { NotificationStreamService } from '../services/notification-stream.service';
+import { NOTIFICATION_INBOX_RETENTION_MS } from '../domain/notification-retention';
 import {
   Inject,
   Injectable,
@@ -109,7 +110,10 @@ export function visibleNotification(
   return and(
     eq(n.recipientUserId, userId),
     isNull(n.deletedAt),
-    gt(n.occurredAt, sql<Date>`statement_timestamp() - interval '90 days'`),
+    gt(
+      n.occurredAt,
+      sql<Date>`statement_timestamp() - ${NOTIFICATION_INBOX_RETENTION_MS} * interval '1 millisecond'`,
+    ),
     exists(activeUser),
     or(
       audience('user'),

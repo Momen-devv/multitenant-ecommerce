@@ -1,21 +1,39 @@
-import { sql } from 'drizzle-orm';
+import { and, eq, inArray, or, sql } from 'drizzle-orm';
+import { integer, pgSchema, text } from 'drizzle-orm/pg-core';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/infrastructure/database/schema/schema';
 
-/** Triggers commit capture; callbacks merely assert that the migration is active.
- * They never create a second email or decide recipients. Polling owns recovery.
- */
-export async function confirmInvitationCapture(
+// Read-only catalog mapping; deliberately excluded from application migrations.
+const triggers = pgSchema('pg_catalog').table('pg_trigger', {
+  name: text('tgname').notNull(),
+  relationId: integer('tgrelid').notNull(),
+  enabled: text('tgenabled').notNull(),
+});
+
+/** Fail startup if transactional invitation capture is unavailable. */
+export async function assertInvitationCaptureInstalled(
   db: NodePgDatabase<typeof schema>,
-  invitationId: string,
 ) {
-  if (!invitationId) throw new Error('Invitation capture requires an ID');
-  // Read catalog, not the uncommitted lifecycle row on a different connection.
-  const result = await db.execute(sql`select 1 from pg_trigger where
-    tgname = 'invitation_notification_capture' and tgrelid = 'invitation'::regclass
-    and tgenabled = 'O'`);
-  if (!result.rows.length)
+  const result = await db
+    .select({ name: triggers.name })
+    .from(triggers)
+    .where(
+      and(
+        inArray(triggers.enabled, ['O', 'A']),
+        or(
+          and(
+            eq(triggers.name, 'invitation_notification_capture'),
+            eq(triggers.relationId, sql`to_regclass('invitation')`),
+          ),
+          and(
+            eq(triggers.name, 'invitation_membership_confirmation'),
+            eq(triggers.relationId, sql`to_regclass('member')`),
+          ),
+        ),
+      ),
+    );
+  if (result.length !== 2)
     throw new Error(
-      'Durable invitation capture is not installed for this Store',
+      'Durable invitation capture is not installed; apply notification migrations before starting',
     );
 }

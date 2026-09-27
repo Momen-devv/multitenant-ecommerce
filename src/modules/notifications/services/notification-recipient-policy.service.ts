@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, lte, or, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import * as schema from '@/infrastructure/database/schema/schema';
@@ -18,16 +18,23 @@ export class NotificationRecipientPolicyService {
     intent: NotificationIntent,
   ) {
     if (intent.resource.kind === 'invitation') {
-      const result = await this.db.execute<{
-        status: string;
-        valid: boolean;
-        inviter_user_id: string;
-        normalized_email: string | null;
-        bound_user_id: string | null;
-      }>(sql`select status, expires_at > now() as valid, inviter_user_id,
-        normalized_email, bound_user_id from invitation_notification_state
-        where invitation_id = ${intent.resource.id} and store_id = ${intent.storeId}`);
-      const state = result.rows[0];
+      if (!intent.storeId) return [];
+      const st = schema.invitationNotificationState;
+      const [state] = await this.db
+        .select({
+          status: st.status,
+          valid: gt(st.expiresAt, sql`now()`).mapWith(Boolean),
+          inviterUserId: st.inviterUserId,
+          normalizedEmail: st.normalizedEmail,
+          boundUserId: st.boundUserId,
+        })
+        .from(st)
+        .where(
+          and(
+            eq(st.invitationId, intent.resource.id),
+            eq(st.storeId, intent.storeId),
+          ),
+        );
       if (!state) return [];
       if (
         ['invitation.created', 'invitation.reminder'].includes(
@@ -38,19 +45,19 @@ export class NotificationRecipientPolicyService {
         return [];
       if (
         recipient.audiences.includes('invitee') &&
-        recipient.email?.trim().toLowerCase() !== state.normalized_email
+        recipient.email?.trim().toLowerCase() !== state.normalizedEmail
       )
         return [];
       if (!recipient.userId) {
         // Email-only invitees are intentional; inbox binding still requires verification.
-        if (state.bound_user_id) {
-          recipient.userId = state.bound_user_id;
+        if (state.boundUserId) {
+          recipient.userId = state.boundUserId;
         } else {
           const [matching] = await this.db
             .select()
             .from(schema.user)
             .where(
-              sql`lower(trim(${schema.user.email})) = ${state.normalized_email}`,
+              sql`lower(trim(${schema.user.email})) = ${state.normalizedEmail}`,
             );
           if (
             matching &&
@@ -79,20 +86,24 @@ export class NotificationRecipientPolicyService {
           and(
             eq(schema.user.id, recipient.userId),
             eq(schema.user.isActive, true),
-            sql`(${schema.user.banned} is not true or ${schema.user.banExpires} <= now())`,
+            or(
+              eq(schema.user.banned, false),
+              isNull(schema.user.banned),
+              lte(schema.user.banExpires, sql`now()`),
+            ),
           ),
         );
       if (!account) return [];
       return recipient.audiences.filter(
         (reason) =>
-          (reason === 'inviter' && state.inviter_user_id === account.id) ||
+          (reason === 'inviter' && state.inviterUserId === account.id) ||
           (reason === 'invitee' &&
-            (state.bound_user_id === account.id ||
-              (!state.bound_user_id &&
+            (state.boundUserId === account.id ||
+              (!state.boundUserId &&
                 state.status === 'pending' &&
                 state.valid)) &&
             account.emailVerified &&
-            account.email.trim().toLowerCase() === state.normalized_email),
+            account.email.trim().toLowerCase() === state.normalizedEmail),
       );
     }
     if (!recipient.userId) return [];
@@ -103,7 +114,11 @@ export class NotificationRecipientPolicyService {
         and(
           eq(schema.user.id, recipient.userId),
           eq(schema.user.isActive, true),
-          sql`(${schema.user.banned} is not true or ${schema.user.banExpires} <= now())`,
+          or(
+            eq(schema.user.banned, false),
+            isNull(schema.user.banned),
+            lte(schema.user.banExpires, sql`now()`),
+          ),
         ),
       );
     if (!account) return [];

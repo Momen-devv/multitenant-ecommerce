@@ -1,6 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { NOTIFICATION_METADATA_RETENTION_MS } from '../domain/notification-retention';
 import { Interval } from '@nestjs/schedule';
-import { sql } from 'drizzle-orm';
+import {
+  and,
+  eq,
+  gt,
+  gte,
+  isNotNull,
+  isNull,
+  lte,
+  notExists,
+  or,
+  sql,
+} from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import * as schema from '@/infrastructure/database/schema/schema';
@@ -20,30 +32,95 @@ export class UserNotificationReconciliationTask {
     if (this.running) return;
     this.running = true;
     try {
-      const accounts = await this.db.execute<{ id: string }>(sql`
-        select u.id from "user" u, notification_registration_rollout r
-        where r.id = 'welcome-v1' and u.created_at >= r.activated_at
-          and not exists (select 1 from notification_milestones m
-            where m.source_key = 'user:' || u.id || ':registered')
-        order by u.created_at, u.id limit 100`);
-      for (const account of accounts.rows)
+      const {
+        user: u,
+        notificationRegistrationRollout: r,
+        notificationMilestones: m,
+        notificationEvents: e,
+        notificationEmailDeliveries: d,
+      } = schema;
+      const accounts = await this.db
+        .select({ id: u.id })
+        .from(u)
+        .innerJoin(r, eq(r.id, 'welcome-v1'))
+        .where(
+          and(
+            gte(u.createdAt, r.activatedAt),
+            notExists(
+              this.db
+                .select({ id: m.sourceKey })
+                .from(m)
+                .where(
+                  eq(m.sourceKey, sql`'user:' || ${u.id} || ':registered'`),
+                ),
+            ),
+          ),
+        )
+        .orderBy(u.createdAt, u.id)
+        .limit(100);
+      for (const account of accounts)
         await captureRegisteredUser(this.db, account.id);
       // Email eligibility is independent of inbox materialization and tombstones.
       // A unique event/recipient/channel key survives retries and verification resends.
-      await this.db.execute(sql`
-        insert into notification_email_deliveries
-          (id, event_id, recipient_identity, recipient_user_id, recipient_email,
-           audiences, payload, provider_idempotency_key)
-        select gen_random_uuid(), e.id, 'user:' || u.id, u.id, u.email,
-          '["user"]'::jsonb, e.payload, 'welcome/' || e.id::text
-        from notification_events e join "user" u on u.id = e.aggregate_id
-        where e.event_type = 'user.registered' and e.payload is not null
-          and e.occurred_at > now() - interval '180 days'
-          and u.email_verified and u.is_active
-          and (u.banned is not true or u.ban_expires <= now())
-          and not exists (select 1 from notification_email_deliveries d
-            where d.event_id = e.id and d.recipient_identity = 'user:' || u.id and d.channel = 'email')
-        order by e.occurred_at, e.id limit 100 on conflict do nothing`);
+      await this.db.transaction(async (tx) => {
+        const due = await tx
+          .select({
+            eventId: e.id,
+            userId: u.id,
+            email: u.email,
+            payload: e.payload,
+          })
+          .from(e)
+          .innerJoin(u, eq(u.id, e.aggregateId))
+          .where(
+            and(
+              eq(e.eventType, 'user.registered'),
+              isNotNull(e.payload),
+              gt(
+                e.occurredAt,
+                sql`now() - ${NOTIFICATION_METADATA_RETENTION_MS} * interval '1 millisecond'`,
+              ),
+              eq(u.emailVerified, true),
+              eq(u.isActive, true),
+              or(
+                eq(u.banned, false),
+                isNull(u.banned),
+                lte(u.banExpires, sql`now()`),
+              ),
+              notExists(
+                tx
+                  .select({ id: d.id })
+                  .from(d)
+                  .where(
+                    and(
+                      eq(d.eventId, e.id),
+                      eq(d.recipientIdentity, sql`'user:' || ${u.id}`),
+                      eq(d.channel, 'email'),
+                    ),
+                  ),
+              ),
+            ),
+          )
+          .orderBy(e.occurredAt, e.id)
+          .limit(100)
+          // Keep the account FK valid until delivery insertion completes.
+          .for('key share', { of: u });
+        if (due.length)
+          await tx
+            .insert(d)
+            .values(
+              due.map((row) => ({
+                eventId: row.eventId,
+                recipientIdentity: `user:${row.userId}`,
+                recipientUserId: row.userId,
+                recipientEmail: row.email,
+                audiences: ['user'] as ['user'],
+                payload: row.payload,
+                providerIdempotencyKey: `welcome/${row.eventId}`,
+              })),
+            )
+            .onConflictDoNothing();
+      });
     } catch {
       this.logger.error(
         'User welcome reconciliation failed',

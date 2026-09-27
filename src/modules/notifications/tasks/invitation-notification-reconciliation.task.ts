@@ -1,7 +1,18 @@
 import { NotificationStreamService } from '../services/notification-stream.service';
+import { NOTIFICATION_INBOX_RETENTION_MS } from '../domain/notification-retention';
 import { Inject, Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { sql } from 'drizzle-orm';
+import {
+  and,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNull,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import * as schema from '@/infrastructure/database/schema/schema';
@@ -23,64 +34,171 @@ export class InvitationNotificationReconciliationTask {
     try {
       const users = new Set<string>();
       await this.db.transaction(async (tx) => {
+        const {
+          invitation: i,
+          invitationNotificationState: st,
+          user: u,
+          notificationEvents: e,
+          notificationRecipientStates: rs,
+          notifications: inbox,
+        } = schema;
+        const now = sql<Date>`now()`;
+        const reminderCutoff = sql<Date>`now() - interval '3 days'`;
+        const verifiedEmail = and(
+          eq(u.emailVerified, true),
+          eq(sql<string>`lower(trim(${u.email}))`, st.normalizedEmail),
+        );
         // Lock in the same order as auth writes: invitation then lifecycle state.
         // Only due work participates, so old unresolved addresses cannot starve it.
-        const due = await tx.execute<{ id: string }>(sql`
-          select i.id from invitation i join invitation_notification_state st on st.invitation_id = i.id
-          where i.status = 'pending' and st.status = 'pending' and (
-            i.expires_at <= now()
-            or (st.reminder_recorded_at is null and st.created_at <= now() - interval '3 days')
-            or (st.bound_user_id is null and exists (select 1 from "user" u where u.email_verified
-              and lower(trim(u.email)) = st.normalized_email)))
-          order by i.expires_at, i.id limit 100 for update of i skip locked`);
-        for (const { id } of due.rows) {
-          await tx.execute(
-            sql`select 1 from invitation_notification_state where invitation_id = ${id} for update`,
-          );
-          const expired =
-            await tx.execute(sql`update invitation_notification_state
-            set status = 'expired', outcome_recorded_at = now(), updated_at = now()
-            where invitation_id = ${id} and status = 'pending' and expires_at <= now() returning invitation_id`);
-          if (expired.rows.length) {
-            await tx.execute(
-              sql`select record_invitation_notification(${id}, 'expired')`,
-            );
+        const due = await tx
+          .select({ id: i.id })
+          .from(i)
+          .innerJoin(st, eq(st.invitationId, i.id))
+          .where(
+            and(
+              eq(i.status, 'pending'),
+              eq(st.status, 'pending'),
+              or(
+                lte(i.expiresAt, now),
+                and(
+                  isNull(st.reminderRecordedAt),
+                  lte(st.createdAt, reminderCutoff),
+                ),
+                and(
+                  isNull(st.boundUserId),
+                  exists(tx.select({ id: u.id }).from(u).where(verifiedEmail)),
+                ),
+              ),
+            ),
+          )
+          .orderBy(i.expiresAt, i.id)
+          .limit(100)
+          .for('update', { of: i, skipLocked: true });
+        for (const { id } of due) {
+          await tx
+            .select({ id: st.invitationId })
+            .from(st)
+            .where(eq(st.invitationId, id))
+            .for('update');
+          const expired = await tx
+            .update(st)
+            .set({ status: 'expired', outcomeRecordedAt: now, updatedAt: now })
+            .where(
+              and(
+                eq(st.invitationId, id),
+                eq(st.status, 'pending'),
+                lte(st.expiresAt, now),
+              ),
+            )
+            .returning({ id: st.invitationId });
+          if (expired.length) {
+            // Reuse the migration-owned lifecycle writer used by auth triggers.
+            await tx
+              .select({
+                recorded: sql`record_invitation_notification(${id}, 'expired')`,
+              })
+              .from(st)
+              .where(eq(st.invitationId, id));
             continue;
           }
           // Bind only while pending and valid. An expired address can never claim history.
-          await tx.execute(sql`update invitation_notification_state st set bound_user_id = u.id, updated_at = now()
-            from "user" u where st.invitation_id = ${id} and st.status = 'pending' and st.expires_at > now()
-              and st.bound_user_id is null and u.email_verified and lower(trim(u.email)) = st.normalized_email`);
+          await tx
+            .update(st)
+            .set({ boundUserId: u.id, updatedAt: now })
+            .from(u)
+            .where(
+              and(
+                eq(st.invitationId, id),
+                eq(st.status, 'pending'),
+                gt(st.expiresAt, now),
+                isNull(st.boundUserId),
+                verifiedEmail,
+              ),
+            );
           // Association is independent of email success and event processing status.
           // Preserve email recipient identity and tombstones; never create delivery work here.
-          const inserted = await tx.execute<{
-            recipient_user_id: string;
-          }>(sql`with bound as (
-            update notification_recipient_states rs set user_id = st.bound_user_id,
-              outcome = 'materialized', materialized_at = now(), updated_at = now()
-            from notification_events e, invitation_notification_state st, "user" u
-            where st.invitation_id = ${id} and st.status = 'pending' and st.expires_at > now()
-              and st.bound_user_id = u.id and u.email_verified and lower(trim(u.email)) = st.normalized_email
-              and e.aggregate_id = st.invitation_id and e.event_type in ('invitation.created','invitation.reminder')
-              and rs.event_id = e.id and rs.outcome = 'pending_binding'
-              and rs.occurred_at > now() - interval '90 days'
-            returning rs.event_id, rs.user_id, rs.audiences, rs.occurred_at)
-            insert into notifications(id, event_id, recipient_user_id, audiences, store_id, type, display, resource, occurred_at)
-            select gen_random_uuid(), b.event_id, b.user_id, b.audiences, e.store_id, e.event_type,
-              e.payload->'display', e.payload->'resource', b.occurred_at
-            from bound b join notification_events e on e.id = b.event_id where e.payload is not null
-            on conflict do nothing returning recipient_user_id`);
-          for (const row of inserted.rows) users.add(row.recipient_user_id);
-          const reminder =
-            await tx.execute(sql`update invitation_notification_state
-            set reminder_recorded_at = now(), updated_at = now()
-            where invitation_id = ${id} and status = 'pending' and expires_at > now()
-              and reminder_recorded_at is null and created_at <= now() - interval '3 days'
-            returning invitation_id`);
-          if (reminder.rows.length)
-            await tx.execute(
-              sql`select record_invitation_notification(${id}, 'reminder')`,
-            );
+          const bound = await tx
+            .update(rs)
+            .set({
+              userId: st.boundUserId,
+              outcome: 'materialized',
+              materializedAt: now,
+              updatedAt: now,
+            })
+            .from(e)
+            .innerJoin(st, eq(e.aggregateId, st.invitationId))
+            .innerJoin(u, eq(st.boundUserId, u.id))
+            .where(
+              and(
+                eq(st.invitationId, id),
+                eq(st.status, 'pending'),
+                gt(st.expiresAt, now),
+                verifiedEmail,
+                inArray(e.eventType, [
+                  'invitation.created',
+                  'invitation.reminder',
+                ]),
+                eq(rs.eventId, e.id),
+                eq(rs.outcome, 'pending_binding'),
+                gt(
+                  rs.occurredAt,
+                  sql`now() - ${NOTIFICATION_INBOX_RETENTION_MS} * interval '1 millisecond'`,
+                ),
+              ),
+            )
+            .returning({
+              eventId: rs.eventId,
+              userId: rs.userId,
+              audiences: rs.audiences,
+              occurredAt: rs.occurredAt,
+              storeId: e.storeId,
+              type: e.eventType,
+              payload: e.payload,
+            });
+          const rows: (typeof inbox.$inferInsert)[] = bound.flatMap((row) =>
+            row.userId && row.payload
+              ? [
+                  {
+                    eventId: row.eventId,
+                    recipientUserId: row.userId,
+                    audiences: row.audiences,
+                    occurredAt: row.occurredAt,
+                    storeId: row.storeId,
+                    type: row.type,
+                    display: row.payload.display,
+                    resource: row.payload.resource,
+                  },
+                ]
+              : [],
+          );
+          if (rows.length) {
+            const inserted = await tx
+              .insert(inbox)
+              .values(rows)
+              .onConflictDoNothing()
+              .returning({ userId: inbox.recipientUserId });
+            for (const row of inserted) users.add(row.userId);
+          }
+          const reminder = await tx
+            .update(st)
+            .set({ reminderRecordedAt: now, updatedAt: now })
+            .where(
+              and(
+                eq(st.invitationId, id),
+                eq(st.status, 'pending'),
+                gt(st.expiresAt, now),
+                isNull(st.reminderRecordedAt),
+                lte(st.createdAt, reminderCutoff),
+              ),
+            )
+            .returning({ id: st.invitationId });
+          if (reminder.length)
+            await tx
+              .select({
+                recorded: sql`record_invitation_notification(${id}, 'reminder')`,
+              })
+              .from(st)
+              .where(eq(st.invitationId, id));
         }
       });
       await Promise.all([...users].map((id) => this.stream.publish(id)));
