@@ -114,6 +114,24 @@ export class NotificationRecipientPolicyService {
         account.role?.split(',').includes('platformSuperAdmin')
       )
         eligible.push(audience);
+      if (
+        audience === 'user' &&
+        intent.resource.kind === 'account' &&
+        intent.resource.id === account.id &&
+        account.emailVerified &&
+        account.email.trim().toLowerCase() ===
+          recipient.email?.trim().toLowerCase()
+      )
+        eligible.push(audience);
+      if (audience === 'storeOwner' && intent.storeId) {
+        const ownerStore = await this.db.query.store.findFirst({
+          where: and(
+            eq(schema.store.id, intent.storeId),
+            eq(schema.store.ownerId, account.id),
+          ),
+        });
+        if (ownerStore) eligible.push(audience);
+      }
       if (audience === 'customer') {
         const [order] = await this.db
           .select({ id: schema.orders.id })

@@ -17,6 +17,7 @@ const audience = z.enum([
 ]);
 export const notificationIntentSchema = z
   .object({
+    accountName: z.string().max(1000).optional(),
     sourceKey: z.string().min(1).max(255),
     eventType: z.custom<NotificationEventType>(
       (value) =>

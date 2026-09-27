@@ -16,7 +16,6 @@ import { LoggerService } from '../../logger/logger.service';
 import { NotificationEmailDeliveryService } from '@/modules/notifications/services/notification-email-delivery.service';
 
 import {
-  welcomeTemplate,
   resetPasswordTemplate,
   accountDeactivatedTemplate,
   accountReactivationTemplate,
@@ -66,11 +65,7 @@ export class EmailQueueProcessor extends WorkerHost {
         await this.notificationDelivery.send(this.requireDeliveryId(job.data));
         break;
       case JobNames.EMAIL.WELCOME:
-        await this.mailService.sendEmail(
-          job.data.to!,
-          'Welcome!',
-          welcomeTemplate(job.data.name!),
-        );
+        // Retired legacy jobs cannot bypass verified durable welcome delivery.
         break;
 
       case JobNames.EMAIL.RESET_PASSWORD:

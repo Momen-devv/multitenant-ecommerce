@@ -296,3 +296,14 @@ export const invitationNotificationState = pgTable(
     ),
   ],
 );
+
+/** Persisted rollout cutoff; migration seeds lifetime baselines before writes. */
+export const notificationRegistrationRollout = pgTable(
+  'notification_registration_rollout',
+  {
+    id: text('id').primaryKey(),
+    activatedAt: at('activated_at')
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+);
