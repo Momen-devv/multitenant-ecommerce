@@ -5,6 +5,7 @@ import { NotificationEventsRepository } from '../repos/notification-events.repos
 import { NotificationsRepository } from '../repos/notifications.repository';
 import { NotificationPreferencesRepository } from '../repos/notification-preferences.repository';
 import { parseNotificationIntent } from '../domain/notification-event';
+import { NOTIFICATION_METADATA_RETENTION_MS } from '../domain/notification-retention';
 
 @Injectable()
 export class NotificationMaterializationService {
@@ -27,7 +28,10 @@ export class NotificationMaterializationService {
       const intent = parseNotificationIntent(event.payload);
       if (intent.recipients.length !== event.recipientCount)
         throw new Error('Invalid recipient count');
-      if (Date.now() >= intent.occurredAt.getTime() + 180 * 86400000)
+      if (
+        Date.now() >=
+        intent.occurredAt.getTime() + NOTIFICATION_METADATA_RETENTION_MS
+      )
         throw new ZodError([]);
       for (;;) {
         const users = new Set<string>();
@@ -49,6 +53,7 @@ export class NotificationMaterializationService {
               const userId = await this.inbox.materializeRecipient(
                 tx,
                 event.id,
+                intent,
                 recipient,
                 enabled,
               );

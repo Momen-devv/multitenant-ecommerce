@@ -17,7 +17,7 @@ import { CACHE_CLIENT } from '@/infrastructure/cache/cache.constants';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import * as schema from '@/infrastructure/database/schema/schema';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { sql } from 'drizzle-orm';
+import { and, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import Redis from 'ioredis';
 import type { Request, Response } from 'express';
 import { Subject } from 'rxjs';
@@ -110,10 +110,23 @@ export class NotificationStreamService implements OnModuleDestroy {
     )
       return false;
     // Secondary storage can contain an old User snapshot: consult current account state.
+    const u = schema.user;
     const result = await this.db
-      .execute(sql`select 1 from "user" where id = ${session.user.id}
-      and is_active = true and (banned is not true or ban_expires <= now())`);
-    return result.rows.length > 0;
+      .select({ id: u.id })
+      .from(u)
+      .where(
+        and(
+          eq(u.id, session.user.id),
+          eq(u.isActive, true),
+          or(
+            eq(u.banned, false),
+            isNull(u.banned),
+            lte(u.banExpires, sql`now()`),
+          ),
+        ),
+      )
+      .limit(1);
+    return result.length > 0;
   }
   async open(request: Request, response: Response, session: CurrentUser) {
     if (

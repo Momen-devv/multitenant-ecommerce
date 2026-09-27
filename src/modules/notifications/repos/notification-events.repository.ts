@@ -127,12 +127,15 @@ export class NotificationEventsRepository {
     token: string,
     work: (
       tx: NotificationTransaction,
-      event: NotificationEvent,
+      event: Pick<NotificationEvent, 'fanoutProgress' | 'recipientCount'>,
     ) => Promise<number>,
   ) {
     return this.db.transaction(async (tx) => {
       const [event] = await tx
-        .select()
+        .select({
+          fanoutProgress: notificationEvents.fanoutProgress,
+          recipientCount: notificationEvents.recipientCount,
+        })
         .from(notificationEvents)
         .where(
           and(

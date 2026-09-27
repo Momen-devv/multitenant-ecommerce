@@ -28,18 +28,35 @@ export class OutboxRepository {
     return this.db.transaction(async (tx) => {
       const now = new Date();
       // Notification fan-out has a Store budget independent of BullMQ.
-      const fairIds =
-        eventType === OutboxEventType.NOTIFICATION_INTENT
-          ? (
-              await tx.execute<{ id: string }>(sql`select id from (
-            select id, created_at, row_number() over (
-              partition by payload->>'storeId' order by created_at, id
-            ) as round from outbox_events
-            where event_type = ${eventType} and published_at is null
-              and dead_lettered_at is null and available_at <= ${now}
-          ) due order by round, created_at, id limit ${limit}`)
-            ).rows.map((row) => row.id)
-          : null;
+      let fairIds: string[] | null = null;
+      if (eventType === OutboxEventType.NOTIFICATION_INTENT) {
+        const ranked = tx
+          .select({
+            id: outboxEvents.id,
+            createdAt: outboxEvents.createdAt,
+            round:
+              sql<number>`row_number() over (partition by ${outboxEvents.payload}->>'storeId' order by ${outboxEvents.createdAt}, ${outboxEvents.id})`.as(
+                'round',
+              ),
+          })
+          .from(outboxEvents)
+          .where(
+            and(
+              eq(outboxEvents.eventType, eventType),
+              isNull(outboxEvents.publishedAt),
+              isNull(outboxEvents.deadLetteredAt),
+              lte(outboxEvents.availableAt, now),
+            ),
+          )
+          .as('due');
+        fairIds = (
+          await tx
+            .select({ id: ranked.id })
+            .from(ranked)
+            .orderBy(ranked.round, ranked.createdAt, ranked.id)
+            .limit(limit)
+        ).map((row) => row.id);
+      }
       if (fairIds?.length === 0) return [];
       const dueEvents = await tx
         .select({ id: outboxEvents.id })

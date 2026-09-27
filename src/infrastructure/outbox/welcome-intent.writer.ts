@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, lte } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/infrastructure/database/schema/schema';
 import type { NotificationIntent } from '@/modules/notifications/domain/notification-event';
@@ -11,10 +11,19 @@ export async function writeWelcomeIntent(
   tx: Database,
   intent: NotificationIntent,
 ) {
-  const rollout =
-    await tx.execute(sql`select 1 from notification_registration_rollout
-    where id = 'welcome-v1' and activated_at <= ${intent.occurredAt}`);
-  if (!rollout.rows.length) return;
+  const rollout = await tx
+    .select({ id: schema.notificationRegistrationRollout.id })
+    .from(schema.notificationRegistrationRollout)
+    .where(
+      and(
+        eq(schema.notificationRegistrationRollout.id, 'welcome-v1'),
+        lte(
+          schema.notificationRegistrationRollout.activatedAt,
+          intent.occurredAt,
+        ),
+      ),
+    );
+  if (!rollout.length) return;
   const [milestone] = await tx
     .insert(schema.notificationMilestones)
     .values({

@@ -1,19 +1,19 @@
-import { NotificationStreamService } from '../services/notification-stream.service';
 import { createHash } from 'node:crypto';
-import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import * as schema from '@/infrastructure/database/schema/schema';
 import {
   notifications,
   notificationRecipientStates as states,
   notificationEmailDeliveries as deliveries,
-  notificationEvents,
 } from '@/infrastructure/database/schema/notifications.schema';
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { and, eq, gt, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { parseNotificationIntent } from '../domain/notification-event';
+import type { NotificationIntent } from '../domain/notification-event';
+import {
+  NOTIFICATION_INBOX_RETENTION_MS,
+  NOTIFICATION_METADATA_RETENTION_MS,
+} from '../domain/notification-retention';
 import { notificationPolicy } from '../domain/notification-policy';
-import { visibleNotification } from './notification-inbox.repository';
 import {
   notificationEmailOwner,
   notificationRecipientIdentity,
@@ -26,33 +26,18 @@ export type NotificationTransaction = Parameters<
 
 @Injectable()
 export class NotificationsRepository {
-  constructor(
-    @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
-    private readonly stream: NotificationStreamService,
-  ) {}
-
   /** Called inside the worker's leased checkpoint transaction. No external work.
    * Binding an email-only invitation later is a separate verified-identity operation.
    */
   async materializeRecipient(
     tx: NotificationTransaction,
     eventId: string,
+    intent: Readonly<NotificationIntent>,
     recipient: NotificationRecipient,
     emailEnabled: boolean,
   ) {
-    const [event] = await tx
-      .select()
-      .from(notificationEvents)
-      .where(eq(notificationEvents.id, eventId));
-    if (!event?.payload)
-      throw new Error('Notification event payload unavailable');
-    const intent = parseNotificationIntent(event.payload);
+    // The worker supplies a recipient from the validated, leased event snapshot.
     const identity = notificationRecipientIdentity(recipient);
-    const snapshot = intent.recipients.find(
-      (item) => notificationRecipientIdentity(item) === identity,
-    );
-    if (!snapshot) throw new Error('Recipient is absent from event snapshot');
-    recipient = snapshot;
     if (
       intent.resource.kind === 'invitation' &&
       recipient.audiences.includes('invitee')
@@ -93,11 +78,15 @@ export class NotificationsRepository {
       }
     }
     const now = new Date();
-    if (now.getTime() >= intent.occurredAt.getTime() + 180 * 86400000) {
+    if (
+      now.getTime() >=
+      intent.occurredAt.getTime() + NOTIFICATION_METADATA_RETENTION_MS
+    ) {
       throw new Error('Notification is outside the supported replay period');
     }
     const expired =
-      now.getTime() >= intent.occurredAt.getTime() + 90 * 86400000;
+      now.getTime() >=
+      intent.occurredAt.getTime() + NOTIFICATION_INBOX_RETENTION_MS;
     // A deleted recipient must advance progress without violating inbox FKs.
     const account = recipient.userId
       ? (
@@ -152,8 +141,7 @@ export class NotificationsRepository {
           (audience) =>
             notificationPolicy(intent.eventType, audience).mandatory,
         )) &&
-      notificationEmailOwner(intent.eventType, recipient) === 'notification' &&
-      now.getTime() < intent.occurredAt.getTime() + 180 * 86400000
+      notificationEmailOwner(intent.eventType, recipient) === 'notification'
     ) {
       await tx
         .insert(deliveries)
@@ -163,31 +151,11 @@ export class NotificationsRepository {
           recipientUserId: recipient.userId,
           recipientEmail: recipient.email,
           audiences: recipient.audiences,
-          payload: intent,
+          payload: { ...intent, recipients: [recipient] },
           providerIdempotencyKey: `notification/${createHash('sha256').update(`${eventId}:${identity}:email`).digest('hex')}`,
         })
         .onConflictDoNothing();
     }
     return recipient.userId && !expired && !removed ? recipient.userId : null;
-  }
-
-  async softDelete(userId: string, id: string) {
-    const deleted = await this.db.transaction(async (tx) => {
-      const [row] = await tx
-        .update(notifications)
-        .set({ deletedAt: new Date() })
-        .where(and(eq(notifications.id, id), visibleNotification(tx, userId)))
-        .returning();
-      if (row)
-        await tx
-          .update(states)
-          .set({ outcome: 'deleted', updatedAt: new Date() })
-          .where(
-            and(eq(states.eventId, row.eventId), eq(states.userId, userId)),
-          );
-      return Boolean(row);
-    });
-    if (deleted) await this.stream.publish(userId);
-    return deleted;
   }
 }

@@ -12,7 +12,6 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { ConfigType } from '@nestjs/config';
 import { betterAuthConfig } from '../config';
 import { isProduction } from 'better-auth';
-import { createInvitationNotificationHooks } from './hooks/invitation-notifications.hook';
 import { atomicInvitationEndpoints } from './hooks/atomic-invitation-endpoints';
 import {
   ac,
@@ -258,7 +257,9 @@ export function createAuth({
           invitationLimit: 100,
           cancelPendingInvitationsOnReInvite: true,
           requireEmailVerificationOnInvitation: true,
-          ...createInvitationNotificationHooks(db),
+          // The database trigger captures delivery inside the invitation transaction.
+          // Startup verifies the trigger; polling owns email delivery and recovery.
+          sendInvitationEmail: () => Promise.resolve(),
         }),
       ),
       admin({

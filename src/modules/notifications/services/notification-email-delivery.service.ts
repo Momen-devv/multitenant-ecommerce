@@ -18,6 +18,7 @@ import {
   notificationEmailOwner,
 } from '../domain/notification-recipient';
 import { PROVIDER_SAFETY_MS } from '../repos/notification-work';
+import { NOTIFICATION_METADATA_RETENTION_MS } from '../domain/notification-retention';
 
 @Injectable()
 export class NotificationEmailDeliveryService {
@@ -49,7 +50,10 @@ export class NotificationEmailDeliveryService {
         await this.deliveries.fail(id, token, true);
         return;
       }
-      if (Date.now() >= intent.occurredAt.getTime() + 180 * 86400000) {
+      if (
+        Date.now() >=
+        intent.occurredAt.getTime() + NOTIFICATION_METADATA_RETENTION_MS
+      ) {
         await this.deliveries.suppress(
           id,
           token,

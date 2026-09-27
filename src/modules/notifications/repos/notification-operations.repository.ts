@@ -26,6 +26,10 @@ import {
   outboxEvents as outbox,
 } from '@/infrastructure/database/schema/schema';
 import { OutboxEventType } from '@/common/enums/outbox-event-type.enum';
+import {
+  NOTIFICATION_INBOX_RETENTION_MS,
+  NOTIFICATION_METADATA_RETENTION_MS,
+} from '../domain/notification-retention';
 
 @Injectable()
 export class NotificationOperationsRepository {
@@ -89,8 +93,12 @@ export class NotificationOperationsRepository {
   async cleanup() {
     return this.db.transaction(async (tx) => {
       const now = new Date();
-      const inboxCutoff = new Date(now.getTime() - 90 * 86400000);
-      const metadataCutoff = new Date(now.getTime() - 180 * 86400000);
+      const inboxCutoff = new Date(
+        now.getTime() - NOTIFICATION_INBOX_RETENTION_MS,
+      );
+      const metadataCutoff = new Date(
+        now.getTime() - NOTIFICATION_METADATA_RETENTION_MS,
+      );
       const activeDelivery = tx
         .select({ id: deliveries.id })
         .from(deliveries)
@@ -201,13 +209,19 @@ export class NotificationOperationsRepository {
       const expiredOutbox = await tx
         .select({ id: outbox.id })
         .from(outbox)
-        .innerJoin(events, eq(events.sourceKey, outbox.deduplicationKey))
+        .leftJoin(events, eq(events.sourceKey, outbox.deduplicationKey))
         .where(
           and(
             eq(outbox.eventType, OutboxEventType.NOTIFICATION_INTENT),
             or(isNotNull(outbox.publishedAt), isNotNull(outbox.deadLetteredAt)),
-            lte(events.occurredAt, metadataCutoff),
-            isNull(events.payload),
+            or(
+              and(
+                lte(events.occurredAt, metadataCutoff),
+                isNull(events.payload),
+              ),
+              // Invalid intents can dead-letter before an event exists.
+              and(isNull(events.id), lte(outbox.createdAt, metadataCutoff)),
+            ),
             ne(outbox.payload, {}),
           ),
         )
