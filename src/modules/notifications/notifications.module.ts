@@ -1,3 +1,4 @@
+import { UserNotificationReconciliationTask } from './tasks/user-notification-reconciliation.task';
 import { NotificationStreamService } from './services/notification-stream.service';
 import { NotificationInboxGuard } from './domain/notification-rollout';
 import { NotificationOperationsRepository } from './repos/notification-operations.repository';
@@ -22,6 +23,7 @@ import { NotificationEmailDeliveryRepository } from './repos/notification-email-
   imports: [OutboxModule, NotificationsQueueModule],
   controllers: [NotificationStreamController, NotificationsController],
   providers: [
+    UserNotificationReconciliationTask,
     NotificationInboxGuard,
     NotificationOperationsRepository,
     NotificationRetentionTask,

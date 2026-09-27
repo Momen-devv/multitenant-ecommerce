@@ -1,3 +1,4 @@
+import { createUserNotificationHooks } from './hooks/user-notifications.hook';
 import { createHash } from 'node:crypto';
 import { betterAuth, type BetterAuthOptions } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -292,7 +293,7 @@ export function createAuth({
       }),
     ],
     hooks: {},
-    databaseHooks: {},
+    databaseHooks: createUserNotificationHooks(db),
   } satisfies BetterAuthOptions;
 
   return betterAuth<typeof authOptions>(authOptions);

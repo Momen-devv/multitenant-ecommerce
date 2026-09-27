@@ -33,14 +33,6 @@ export class EmailQueueService {
     @InjectQueue(QueueNames.EMAIL) private readonly emailQueue: Queue,
     private readonly logger: LoggerService,
   ) {}
-  async addWelcomeJob(to: string, name: string, token: string): Promise<void> {
-    await this.emailQueue.add(
-      JobNames.EMAIL.WELCOME,
-      { to, name, token },
-      this.jobOptions,
-    );
-  }
-
   async addResetPasswordJob(to: string, url: string): Promise<void> {
     await this.emailQueue.add(
       JobNames.EMAIL.RESET_PASSWORD,

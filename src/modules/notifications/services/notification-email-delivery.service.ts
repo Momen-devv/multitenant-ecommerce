@@ -1,3 +1,4 @@
+import { welcomeTemplate } from '@/infrastructure/mail/templates/welcomeTemplate';
 import { Inject, Injectable } from '@nestjs/common';
 import { notificationEnabled } from '../domain/notification-rollout';
 import type { ConfigType } from '@nestjs/config';
@@ -103,7 +104,10 @@ export class NotificationEmailDeliveryService {
           ? `/api/v1/stores/invitations/${encodeURIComponent(intent.resource.id)}`
           : '/api/v1/notifications';
       const url = new URL(path, this.app.baseUrl).toString();
-      const html = renderNotificationEmail(intent.display, url);
+      const html =
+        intent.eventType === 'user.registered'
+          ? welcomeTemplate(intent.accountName ?? '')
+          : renderNotificationEmail(intent.display, url);
       if (!(await this.deliveries.beginProviderRequest(id, token))) return;
       const sent = await this.mail.sendEmail(
         destination,

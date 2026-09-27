@@ -1,3 +1,4 @@
+import { writeWelcomeIntent } from '@/infrastructure/outbox/welcome-intent.writer';
 import { Inject, Injectable } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
@@ -30,21 +31,47 @@ export class StoreRepository implements IStoreRepository {
 
   async create(data: Omit<NewStore, 'id'>): Promise<Store> {
     try {
-      const [created] = await this.db
-        .insert(store)
-        .values({
-          id: generateUUIDv7(),
-          organizationId: data.organizationId,
-          ownerId: data.ownerId,
-          name: data.name,
-          slug: data.slug,
-          description: data.description,
-          defaultCurrency: data.defaultCurrency,
-          status: StoreStatus.ACTIVE,
-        })
-        .returning();
+      return await this.db.transaction(async (tx) => {
+        const [created] = await tx
+          .insert(store)
+          .values({
+            id: generateUUIDv7(),
+            organizationId: data.organizationId,
+            ownerId: data.ownerId,
+            name: data.name,
+            slug: data.slug,
+            description: data.description,
+            defaultCurrency: data.defaultCurrency,
+            status: StoreStatus.ACTIVE,
+          })
+          .returning();
 
-      return created;
+        const owner = await tx.query.user.findFirst({
+          where: eq(schema.user.id, created.ownerId),
+        });
+        await writeWelcomeIntent(tx, {
+          sourceKey: `store:${created.id}:created`,
+          eventType: 'store.created',
+          aggregateId: created.id,
+          aggregateVersion: 1,
+          storeId: created.id,
+          payloadVersion: 1,
+          occurredAt: created.createdAt,
+          recipients: [
+            {
+              userId: created.ownerId,
+              email: owner?.email ?? null,
+              audiences: ['storeOwner'],
+            },
+          ],
+          display: {
+            title: 'Your Store is ready',
+            body: `Welcome to your new Store, ${created.name.slice(0, 200)}.`,
+          },
+          resource: { kind: 'store', id: created.id },
+        });
+        return created;
+      });
     } catch (error) {
       if (this.isUniqueViolation(error, 'store_slug_unique')) {
         throw new SlugConflictError();

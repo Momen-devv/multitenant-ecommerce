@@ -1,3 +1,4 @@
+import { writeWelcomeIntent } from '@/infrastructure/outbox/welcome-intent.writer';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import { SubscriptionStatus } from '@/common/enums';
 import { generateUUIDv7 } from '@/common/utils/uuidv7';
@@ -488,7 +489,7 @@ export class BillingRepository implements IBillingRepository {
         );
       }
 
-      await tx
+      const [subscription] = await tx
         .insert(subscriptions)
         .values({
           storeId: resolvedStoreId,
@@ -520,7 +521,45 @@ export class BillingRepository implements IBillingRepository {
             endedAt: projection.endedAt,
             updatedAt: new Date(),
           },
+        })
+        .returning();
+
+      if (projection.status === SubscriptionStatus.ACTIVE) {
+        const ownerStore = await tx.query.store.findFirst({
+          where: eq(store.id, resolvedStoreId),
         });
+        const owner = ownerStore
+          ? await tx.query.user.findFirst({
+              where: eq(schema.user.id, ownerStore.ownerId),
+            })
+          : undefined;
+        const plan = knownPrice
+          ? await tx.query.plans.findFirst({
+              where: eq(plans.id, knownPrice.planId),
+            })
+          : undefined;
+        if (!ownerStore || !owner || !knownPrice || !plan)
+          throw new Error(
+            'Activation notification catalog or owner unavailable',
+          );
+        await writeWelcomeIntent(tx, {
+          sourceKey: `subscription:${subscription.id}:activated`,
+          eventType: 'subscription.activated',
+          aggregateId: subscription.id,
+          aggregateVersion: 1,
+          storeId: resolvedStoreId,
+          payloadVersion: 1,
+          occurredAt: new Date(),
+          recipients: [
+            { userId: owner.id, email: owner.email, audiences: ['storeOwner'] },
+          ],
+          display: {
+            title: 'Subscription activated',
+            body: `${plan.name.slice(0, 200)} is active. Plan Price ${knownPrice.id}: ${knownPrice.amount} ${knownPrice.currency.toUpperCase()} in minor units per ${knownPrice.interval}. Period: ${projection.currentPeriodStart?.toISOString() ?? 'unavailable'} to ${projection.currentPeriodEnd?.toISOString() ?? 'unavailable'}. This confirms activation and is not a payment receipt.`,
+          },
+          resource: { kind: 'subscription', id: subscription.id },
+        });
+      }
 
       if (stripeCheckoutSessionId) {
         await tx
