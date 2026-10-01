@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { sha256Hex } from '@/common/utils';
 import {
   notificationPolicy,
   type NotificationAudience,
@@ -24,7 +24,7 @@ export function notificationRecipientIdentity(
 ): string {
   if (recipient.userId) return `user:${recipient.userId}`;
   if (!recipient.email) throw new Error('Recipient requires a User or email');
-  return `email:${createHash('sha256').update(normalizeNotificationEmail(recipient.email)).digest('hex')}`;
+  return `email:${sha256Hex(normalizeNotificationEmail(recipient.email))}`;
 }
 
 export function mergeNotificationRecipients(

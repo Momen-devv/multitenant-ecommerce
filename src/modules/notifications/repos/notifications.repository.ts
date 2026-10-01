@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { sha256Hex } from '@/common/utils';
 import * as schema from '@/infrastructure/database/schema/schema';
 import {
   notifications,
@@ -152,7 +152,7 @@ export class NotificationsRepository {
           recipientEmail: recipient.email,
           audiences: recipient.audiences,
           payload: { ...intent, recipients: [recipient] },
-          providerIdempotencyKey: `notification/${createHash('sha256').update(`${eventId}:${identity}:email`).digest('hex')}`,
+          providerIdempotencyKey: `notification/${sha256Hex(`${eventId}:${identity}:email`)}`,
         })
         .onConflictDoNothing();
     }

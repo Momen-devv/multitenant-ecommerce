@@ -2,7 +2,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { writeOrderNotificationIntent } from '@/modules/orders/domain/order-notification-intent';
 import { writeOperationalNotificationIntent } from '@/modules/notifications/domain/operational-notification-intent';
 import { notificationTransaction } from '@/infrastructure/outbox/notification-intent.writer';
-import { createHash } from 'node:crypto';
+import { sha256Hex } from '@/common/utils';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -1798,7 +1798,7 @@ export class CheckoutRepository {
     return found?.id ?? '';
   }
   private hash(value: unknown) {
-    return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+    return sha256Hex(JSON.stringify(value));
   }
 
   private checkoutReturnUrls(request: Record<string, unknown> | null) {

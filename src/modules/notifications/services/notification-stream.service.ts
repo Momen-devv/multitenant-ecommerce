@@ -1,5 +1,5 @@
 import type { ConfigType } from '@nestjs/config';
-import { createHash } from 'node:crypto';
+import { sha256Hex } from '@/common/utils';
 import {
   Inject,
   Injectable,
@@ -157,9 +157,7 @@ export class NotificationStreamService implements OnModuleDestroy {
           if (value === userId) pending = true;
         }),
       );
-      const tokenHash = createHash('sha256')
-        .update(session.session.token)
-        .digest('hex');
+      const tokenHash = sha256Hex(session.session.token);
       subscriptions.add(
         this.revocations.subscribe((value) => {
           if (value === tokenHash) close();

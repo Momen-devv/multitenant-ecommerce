@@ -1,5 +1,6 @@
 import type { ConfigType } from '@nestjs/config';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { sha256Hex } from '@/common/utils';
 import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
 import { CACHE_CLIENT } from '@/infrastructure/cache/cache.constants';
 import { notificationConfig } from '@/core/config';
@@ -46,7 +47,7 @@ export class NotificationStreamConnectionsService implements OnModuleDestroy {
   async acquire(userId: string): Promise<NotificationStreamConnection | null> {
     const connection = {
       id: randomUUID(),
-      key: `notifications:connections:${createHash('sha256').update(userId).digest('hex')}`,
+      key: `notifications:connections:${sha256Hex(userId)}`,
     };
     const accepted = await this.redis.eval(
       acquire,

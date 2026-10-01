@@ -3,7 +3,6 @@ import { writeOrderNotificationIntent } from '@/modules/orders/domain/order-noti
 import { writeOperationalNotificationIntent } from '@/modules/notifications/domain/operational-notification-intent';
 import { notificationTransaction } from '@/infrastructure/outbox/notification-intent.writer';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { createHash } from 'crypto';
 import { and, asc, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
@@ -30,7 +29,7 @@ import type {
 import { stripeConfig } from '@/core/config';
 import type { ConfigType } from '@nestjs/config';
 import type { PaymentEnvironment } from '@/infrastructure/payments/payment-environment';
-import { generateUUIDv7 } from '@/common/utils';
+import { generateUUIDv7, sha256Hex } from '@/common/utils';
 import { compileApiQuery } from '@/common/api-query';
 import * as schema from '@/infrastructure/database/schema/schema';
 import type {
@@ -1520,9 +1519,7 @@ export class OrdersRepository {
   }
 
   private requestHash(dto: object) {
-    return createHash('sha256')
-      .update(JSON.stringify(this.canonicalize(dto)))
-      .digest('hex');
+    return sha256Hex(JSON.stringify(this.canonicalize(dto)));
   }
 
   private canonicalize(value: unknown): unknown {
