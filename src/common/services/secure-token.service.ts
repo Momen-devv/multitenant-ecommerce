@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { randomBytes, createHash, timingSafeEqual } from 'crypto';
+import { randomBytes, timingSafeEqual } from 'crypto';
+import { sha256Hex } from '@/common/utils';
 
 @Injectable()
 export class SecureTokenService {
@@ -10,7 +11,7 @@ export class SecureTokenService {
   }
 
   hash(token: string): string {
-    return createHash('sha256').update(token).digest('hex');
+    return sha256Hex(token);
   }
 
   verify(token: string, hashedToken: string): boolean {

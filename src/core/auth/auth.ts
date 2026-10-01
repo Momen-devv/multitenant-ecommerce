@@ -1,11 +1,15 @@
 import { createUserNotificationHooks } from './hooks/user-notifications.hook';
-import { createHash } from 'node:crypto';
 import { betterAuth, type BetterAuthOptions } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { organization, admin, openAPI, phoneNumber } from 'better-auth/plugins';
 import * as schema from '@/infrastructure/database/schema/schema';
 import type { Redis } from 'ioredis';
-import { generateUUIDv7, hashPassword, verifyPassword } from '@/common/utils';
+import {
+  generateUUIDv7,
+  hashPassword,
+  sha256Hex,
+  verifyPassword,
+} from '@/common/utils';
 import { AuthRole, OrganizationRole } from '@/common/enums';
 import * as Schema from '@/infrastructure/database/schema/schema';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -192,10 +196,7 @@ export function createAuth({
         await redis.del(key);
         // Hash identifiers so pub/sub never exposes session credentials.
         void redis
-          .publish(
-            'notifications:session.revoked',
-            createHash('sha256').update(key).digest('hex'),
-          )
+          .publish('notifications:session.revoked', sha256Hex(key))
           .catch(() => undefined);
       },
     },

@@ -3,7 +3,6 @@ import { writeOrderNotificationIntent } from '@/modules/orders/domain/order-noti
 import { writeOperationalNotificationIntent } from '@/modules/notifications/domain/operational-notification-intent';
 import { notificationTransaction } from '@/infrastructure/outbox/notification-intent.writer';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { createHash } from 'crypto';
 import { and, asc, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
@@ -30,7 +29,7 @@ import type {
 import { stripeConfig } from '@/core/config';
 import type { ConfigType } from '@nestjs/config';
 import type { PaymentEnvironment } from '@/infrastructure/payments/payment-environment';
-import { generateUUIDv7 } from '@/common/utils';
+import { generateUUIDv7, sha256Hex } from '@/common/utils';
 import { compileApiQuery } from '@/common/api-query';
 import * as schema from '@/infrastructure/database/schema/schema';
 import type {
@@ -128,7 +127,7 @@ export class OrdersRepository {
     userId: string,
     orderId: string,
     dto: CancelOrderDto,
-    key?: string,
+    key: string,
   ) {
     return this.transition({
       actorUserId: userId,
@@ -152,7 +151,7 @@ export class OrdersRepository {
     storeId: string,
     orderId: string,
     dto: OrderVersionDto,
-    key?: string,
+    key: string,
   ) {
     return this.transition({
       actorUserId,
@@ -172,7 +171,7 @@ export class OrdersRepository {
     storeId: string,
     orderId: string,
     dto: ShipOrderDto,
-    key?: string,
+    key: string,
   ) {
     const carrier = dto.carrier?.trim();
     const trackingNumber = dto.trackingNumber?.trim();
@@ -208,7 +207,7 @@ export class OrdersRepository {
     storeId: string,
     orderId: string,
     dto: DeliverOrderDto,
-    key?: string,
+    key: string,
   ) {
     return this.transition({
       actorUserId,
@@ -230,7 +229,7 @@ export class OrdersRepository {
     storeId: string,
     orderId: string,
     dto: StaffCancelOrderDto,
-    key?: string,
+    key: string,
   ) {
     return this.transition({
       actorUserId,
@@ -254,7 +253,7 @@ export class OrdersRepository {
     storeId: string,
     orderId: string,
     dto: ReturnToStoreOrderDto,
-    key?: string,
+    key: string,
   ) {
     if (dto.itemsReceived !== true)
       throw new CodedHttpError(
@@ -283,14 +282,8 @@ export class OrdersRepository {
     storeId: string,
     orderId: string,
     dto: OrderVersionDto,
-    key?: string,
+    key: string,
   ) {
-    if (!key || !/^[\x20-\x7E]{1,128}$/.test(key))
-      throw new CodedHttpError(
-        HttpStatus.BAD_REQUEST,
-        'IDEMPOTENCY_KEY_REQUIRED',
-        'A printable Idempotency-Key header is required.',
-      );
     const input = {
       actorUserId,
       authority: 'store_staff' as const,
@@ -1105,7 +1098,7 @@ export class OrdersRepository {
     storeId?: string;
     orderId: string;
     dto: { version: number };
-    key?: string;
+    key: string;
     operation: string;
     allowed: Array<'placed' | 'preparing' | 'shipped'>;
     next: 'preparing' | 'shipped' | 'delivered' | 'cancelled' | 'returned';
@@ -1118,12 +1111,6 @@ export class OrdersRepository {
     codCashCollected?: boolean;
     userScoped?: boolean;
   }) {
-    if (!input.key || !/^[\x20-\x7E]{1,128}$/.test(input.key))
-      throw new CodedHttpError(
-        HttpStatus.BAD_REQUEST,
-        'IDEMPOTENCY_KEY_REQUIRED',
-        'A printable Idempotency-Key header is required.',
-      );
     const reason = input.reason?.trim();
     if (input.reason !== undefined && !reason)
       throw new CodedHttpError(
@@ -1333,7 +1320,7 @@ export class OrdersRepository {
         actorUserId: input.actorUserId,
         operation: input.operation,
         resourceId: input.orderId,
-        idempotencyKey: input.key!,
+        idempotencyKey: input.key,
         requestHash,
         orderId: saved.id,
       });
@@ -1459,7 +1446,7 @@ export class OrdersRepository {
       actorUserId: string;
       operation: string;
       orderId: string;
-      key?: string;
+      key: string;
       storeId?: string;
       userScoped?: boolean;
       authority: 'shopper' | 'store_staff';
@@ -1474,7 +1461,7 @@ export class OrdersRepository {
           eq(commerceCommands.actorUserId, input.actorUserId),
           eq(commerceCommands.operation, input.operation),
           eq(commerceCommands.resourceId, input.orderId),
-          eq(commerceCommands.idempotencyKey, input.key!),
+          eq(commerceCommands.idempotencyKey, input.key),
         ),
       )
       .for('update');
@@ -1520,9 +1507,7 @@ export class OrdersRepository {
   }
 
   private requestHash(dto: object) {
-    return createHash('sha256')
-      .update(JSON.stringify(this.canonicalize(dto)))
-      .digest('hex');
+    return sha256Hex(JSON.stringify(this.canonicalize(dto)));
   }
 
   private canonicalize(value: unknown): unknown {

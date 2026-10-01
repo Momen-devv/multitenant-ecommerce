@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Get,
-  Headers,
   HttpCode,
   HttpStatus,
   Post,
@@ -23,6 +22,8 @@ import {
 import type { CurrentUser } from '@/core/auth/auth.types';
 import { CreateBillingPortalDto, CreateSubscriptionCheckoutDto } from '../dto';
 import { SubscriptionsService } from '../services/subscriptions.service';
+import { ParseIdempotencyKeyPipe } from '@/common/pipes/parse-idempotency-key.pipe';
+import { IdempotencyKey } from '@/common/decorators/idempotency-key.decorator';
 
 @ApiTags('Subscriptions')
 @ApiCookieAuth('mte.session_token')
@@ -46,6 +47,7 @@ export class SubscriptionsController {
     name: 'Idempotency-Key',
     description: 'Unique key for safely retrying this Checkout request',
     required: true,
+    schema: { type: 'string', format: 'uuid' },
   })
   @ApiSuccessResponse({
     status: HttpStatus.CREATED,
@@ -61,14 +63,14 @@ export class SubscriptionsController {
   @HttpCode(HttpStatus.CREATED)
   async createCheckout(
     @Body() dto: CreateSubscriptionCheckoutDto,
-    @Headers('idempotency-key') idempotencyKey: string,
+    @IdempotencyKey(ParseIdempotencyKeyPipe) idempotencyKey: string,
     @Session() session: CurrentUser,
   ) {
     return this.subscriptionsService.createCheckout(
       session.user.id,
       session.user.email,
       dto,
-      idempotencyKey ?? '',
+      idempotencyKey,
     );
   }
 

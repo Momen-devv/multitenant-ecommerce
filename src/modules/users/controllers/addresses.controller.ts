@@ -1,10 +1,8 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
-  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -33,6 +31,8 @@ import {
   UpdateAddressDto,
 } from '../dto';
 import { AddressesService } from '../services/addresses.service';
+import { ParseIdempotencyKeyPipe } from '@/common/pipes/parse-idempotency-key.pipe';
+import { IdempotencyKey } from '@/common/decorators/idempotency-key.decorator';
 
 @ApiTags('Addresses')
 @ApiCookieAuth()
@@ -61,7 +61,11 @@ export class AddressesController {
     description:
       'Retry a lost response with the same Idempotency-Key and body to return the originally saved address.',
   })
-  @ApiHeader({ name: 'idempotency-key', required: true })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    schema: { type: 'string', format: 'uuid' },
+  })
   @ApiSuccessResponse({
     status: HttpStatus.CREATED,
     description: 'Address created successfully',
@@ -71,20 +75,17 @@ export class AddressesController {
     HttpStatus.CONFLICT,
     'A user can have at most 5 saved addresses, or the Idempotency-Key was reused with a different request.',
   )
-  @ApiErrorResponse(
-    HttpStatus.BAD_REQUEST,
-    'idempotency-key header is required.',
-  )
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Idempotency-Key must be a UUID.')
   @ResponseMessage('Address created successfully')
   create(
     @Session() session: CurrentUser,
-    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @IdempotencyKey(ParseIdempotencyKeyPipe) idempotencyKey: string,
     @Body() dto: CreateAddressDto,
   ) {
     return this.addressesService.createAddress(
       session.user.id,
       dto,
-      requiredIdempotencyKey(idempotencyKey),
+      idempotencyKey,
     );
   }
 
@@ -136,12 +137,4 @@ export class AddressesController {
   ) {
     return this.addressesService.deleteAddress(session.user.id, addressId);
   }
-}
-
-function requiredIdempotencyKey(value: string | undefined): string {
-  const normalized = value?.trim();
-  if (!normalized || normalized.length > 255) {
-    throw new BadRequestException('idempotency-key header is required.');
-  }
-  return normalized;
 }

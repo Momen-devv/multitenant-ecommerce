@@ -9,6 +9,8 @@ import {
   productVariantOptionValues,
   productVariants,
   products,
+  productComments,
+  commentCreateRequests,
   categories,
   productCategories,
   store,
@@ -45,6 +47,9 @@ export type NewUserAddress = typeof userAddresses.$inferInsert;
 
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
+export type ProductComment = typeof productComments.$inferSelect;
+export type NewProductComment = typeof productComments.$inferInsert;
+export type CommentCreateRequest = typeof commentCreateRequests.$inferSelect;
 
 export type Category = typeof categories.$inferSelect;
 export type NewCategory = typeof categories.$inferInsert;

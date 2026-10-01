@@ -37,7 +37,7 @@ export class OrdersService {
     userId: string,
     storeId: string,
     dto: StartCheckoutDto,
-    idempotencyKey: string | undefined,
+    idempotencyKey: string,
   ) {
     return this.checkout.start(userId, storeId, dto, idempotencyKey);
   }
@@ -64,7 +64,7 @@ export class OrdersService {
     userId: string,
     orderId: string,
     dto: CancelOrderDto,
-    key?: string,
+    key: string,
   ) {
     return this.orders.cancelByShopper(userId, orderId, dto, key);
   }
@@ -73,7 +73,7 @@ export class OrdersService {
     storeId: string,
     orderId: string,
     dto: OrderVersionDto,
-    key?: string,
+    key: string,
   ) {
     return this.orders.prepare(userId, storeId, orderId, dto, key);
   }
@@ -82,7 +82,7 @@ export class OrdersService {
     storeId: string,
     orderId: string,
     dto: ShipOrderDto,
-    key?: string,
+    key: string,
   ) {
     return this.orders.ship(userId, storeId, orderId, dto, key);
   }
@@ -91,7 +91,7 @@ export class OrdersService {
     storeId: string,
     orderId: string,
     dto: DeliverOrderDto,
-    key?: string,
+    key: string,
   ) {
     return this.orders.deliver(userId, storeId, orderId, dto, key);
   }
@@ -100,7 +100,7 @@ export class OrdersService {
     storeId: string,
     orderId: string,
     dto: StaffCancelOrderDto,
-    key?: string,
+    key: string,
   ) {
     return this.orders.cancelByStaff(userId, storeId, orderId, dto, key);
   }
@@ -109,7 +109,7 @@ export class OrdersService {
     storeId: string,
     orderId: string,
     dto: ReturnToStoreOrderDto,
-    key?: string,
+    key: string,
   ) {
     return this.orders.returnToStore(userId, storeId, orderId, dto, key);
   }
@@ -118,7 +118,7 @@ export class OrdersService {
     storeId: string,
     orderId: string,
     dto: OrderVersionDto,
-    key?: string,
+    key: string,
   ) {
     return this.orders.retryRefund(userId, storeId, orderId, dto, key);
   }
@@ -131,7 +131,7 @@ export class OrdersService {
     return this.checkout.attemptDetail(userId, attemptId);
   }
 
-  cancelAttempt(userId: string, attemptId: string, key?: string) {
+  cancelAttempt(userId: string, attemptId: string, key: string) {
     return this.checkout.cancelAttempt(userId, attemptId, key);
   }
 }

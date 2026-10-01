@@ -43,6 +43,7 @@ import { PlansModule } from './modules/plans/plans.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { ProductsModule } from './modules/products/products.module';
+import { CommentsModule } from './modules/comments/comments.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
@@ -111,6 +112,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     BillingModule,
     SubscriptionsModule,
     ProductsModule,
+    CommentsModule,
     CategoriesModule,
     PaymentsModule,
     CheckoutModule,

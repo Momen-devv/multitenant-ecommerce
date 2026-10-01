@@ -2,7 +2,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { writeOrderNotificationIntent } from '@/modules/orders/domain/order-notification-intent';
 import { writeOperationalNotificationIntent } from '@/modules/notifications/domain/operational-notification-intent';
 import { notificationTransaction } from '@/infrastructure/outbox/notification-intent.writer';
-import { createHash } from 'node:crypto';
+import { sha256Hex } from '@/common/utils';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -123,7 +123,7 @@ export class CheckoutRepository {
     userId: string,
     storeId: string,
     dto: StartCheckoutDto,
-    idempotencyKey: string | undefined,
+    idempotencyKey: string,
   ) {
     const quote = await this.db.query.checkoutQuotes.findFirst({
       where: and(
@@ -143,15 +143,8 @@ export class CheckoutRepository {
     userId: string,
     storeId: string,
     dto: StartCheckoutDto,
-    idempotencyKey: string | undefined,
+    idempotencyKey: string,
   ) {
-    if (!idempotencyKey || !/^[\x20-\x7e]{1,128}$/.test(idempotencyKey)) {
-      throw new CodedHttpError(
-        HttpStatus.BAD_REQUEST,
-        'IDEMPOTENCY_KEY_REQUIRED',
-        'A printable Idempotency-Key header is required.',
-      );
-    }
     const requestHash = this.hash({ quoteId: dto.quoteId });
     return notificationTransaction(this.db, this.events, async (tx) => {
       const [command] = await tx
@@ -363,9 +356,8 @@ export class CheckoutRepository {
     userId: string,
     storeId: string,
     dto: StartCheckoutDto,
-    idempotencyKey: string | undefined,
+    idempotencyKey: string,
   ) {
-    this.requireIdempotencyKey(idempotencyKey);
     const requestHash = this.hash({ quoteId: dto.quoteId });
 
     // Replay is deliberately checked before a fresh provider read. A completed
@@ -608,12 +600,7 @@ export class CheckoutRepository {
     return this.inspectAttemptForOperator(attemptId);
   }
 
-  async cancelAttempt(
-    userId: string,
-    attemptId: string,
-    key: string | undefined,
-  ) {
-    this.requireIdempotencyKey(key);
+  async cancelAttempt(userId: string, attemptId: string, key: string) {
     const requestHash = this.hash({});
     let releaseWithoutProviderSession = false;
     await this.db.transaction(async (tx) => {
@@ -1798,7 +1785,7 @@ export class CheckoutRepository {
     return found?.id ?? '';
   }
   private hash(value: unknown) {
-    return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+    return sha256Hex(JSON.stringify(value));
   }
 
   private checkoutReturnUrls(request: Record<string, unknown> | null) {
@@ -1812,17 +1799,5 @@ export class CheckoutRepository {
     )
       return null;
     return { successUrl, cancelUrl };
-  }
-
-  private requireIdempotencyKey(
-    key: string | undefined,
-  ): asserts key is string {
-    if (!key || !/^[\x20-\x7e]{1,128}$/.test(key)) {
-      throw new CodedHttpError(
-        HttpStatus.BAD_REQUEST,
-        'IDEMPOTENCY_KEY_REQUIRED',
-        'A printable Idempotency-Key header is required.',
-      );
-    }
   }
 }

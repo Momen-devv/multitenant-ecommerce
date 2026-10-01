@@ -3,7 +3,6 @@ import {
   Get,
   Post,
   Body,
-  Headers,
   Param,
   ParseUUIDPipe,
   Query,
@@ -36,6 +35,8 @@ import {
   OrderResponseDto,
 } from '../dto';
 import { OrdersService } from '../services/orders.service';
+import { ParseIdempotencyKeyPipe } from '@/common/pipes/parse-idempotency-key.pipe';
+import { IdempotencyKey } from '@/common/decorators/idempotency-key.decorator';
 import { ORDER_LIST_EXAMPLE, ORDER_RESPONSE_EXAMPLE } from '../orders.swagger';
 @ApiTags('My Orders')
 @ApiCookieAuth('mte.session_token')
@@ -108,9 +109,9 @@ export class UserOrdersController {
   @ApiHeader({
     name: 'Idempotency-Key',
     required: true,
-    schema: { type: 'string', minLength: 1, maxLength: 128 },
+    schema: { type: 'string', format: 'uuid' },
   })
-  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'IDEMPOTENCY_KEY_REQUIRED')
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Idempotency-Key must be a UUID')
   @ApiParam({ name: 'orderId', format: 'uuid' })
   @ApiBody({
     type: CancelOrderDto,
@@ -132,7 +133,7 @@ export class UserOrdersController {
     @Session() session: CurrentUser,
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: CancelOrderDto,
-    @Headers('idempotency-key') key?: string,
+    @IdempotencyKey(ParseIdempotencyKeyPipe) key: string,
   ) {
     return this.orders.shopperCancel(session.user.id, orderId, dto, key);
   }
