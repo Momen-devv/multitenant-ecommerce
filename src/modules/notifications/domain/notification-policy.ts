@@ -31,9 +31,9 @@ export function notificationPolicy(
   event: NotificationEventType,
   audience: NotificationAudience,
 ) {
-  const entry = notificationCatalog[event] as
-    | Partial<Record<NotificationAudience, boolean>>
-    | undefined;
+  const entry = notificationCatalog[event] as Partial<
+    Record<NotificationAudience, boolean>
+  >;
   const mandatory = entry?.[audience];
   if (mandatory === undefined) throw new Error('Unsupported notification key');
   return {
