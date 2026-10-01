@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Get,
-  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -38,6 +37,8 @@ import {
   StartCheckoutResponseDto,
 } from '../dto';
 import { OrdersService } from '../services/orders.service';
+import { ParseIdempotencyKeyPipe } from '@/common/pipes/parse-idempotency-key.pipe';
+import { IdempotencyKey } from '@/common/decorators/idempotency-key.decorator';
 
 @ApiTags('Checkout')
 @ApiCookieAuth('mte.session_token')
@@ -84,7 +85,7 @@ export class CheckoutController {
   @ApiHeader({
     name: 'Idempotency-Key',
     required: true,
-    schema: { type: 'string', minLength: 1, maxLength: 128 },
+    schema: { type: 'string', format: 'uuid' },
   })
   @ApiBody({ type: StartCheckoutDto })
   @ApiSuccessResponse({
@@ -97,7 +98,7 @@ export class CheckoutController {
     description: 'Online checkout creation is being recovered',
     model: StartCheckoutResponseDto,
   })
-  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'IDEMPOTENCY_KEY_REQUIRED')
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Idempotency-Key must be a UUID')
   @ApiErrorResponse(
     HttpStatus.CONFLICT,
     'QUOTE_EXPIRED, QUOTE_CHANGED, CART_LOCKED, IDEMPOTENCY_CONFLICT, PAYMENT_METHOD_UNAVAILABLE, or INSUFFICIENT_STOCK',
@@ -107,7 +108,7 @@ export class CheckoutController {
     @Session() session: CurrentUser,
     @Param('storeId', ParseUUIDPipe) storeId: string,
     @Body() dto: StartCheckoutDto,
-    @Headers('idempotency-key') idempotencyKey?: string,
+    @IdempotencyKey(ParseIdempotencyKeyPipe) idempotencyKey: string,
     @Res({ passthrough: true }) response?: Response,
   ) {
     return this.orders
@@ -164,7 +165,7 @@ export class CheckoutController {
   @ApiHeader({
     name: 'Idempotency-Key',
     required: true,
-    schema: { type: 'string', minLength: 1, maxLength: 128 },
+    schema: { type: 'string', format: 'uuid' },
   })
   @ApiSuccessResponse({
     status: HttpStatus.ACCEPTED,
@@ -184,7 +185,7 @@ export class CheckoutController {
   cancel(
     @Session() session: CurrentUser,
     @Param('attemptId', ParseUUIDPipe) attemptId: string,
-    @Headers('idempotency-key') idempotencyKey?: string,
+    @IdempotencyKey(ParseIdempotencyKeyPipe) idempotencyKey: string,
     @Res({ passthrough: true }) response?: Response,
   ) {
     return this.orders

@@ -51,11 +51,7 @@ export class StorePaymentsService implements IStorePaymentReadinessReader {
     return this.isReady(row);
   }
 
-  async createOnboarding(
-    storeContext: ActiveStoreContext,
-    idempotencyKey: string | undefined,
-  ) {
-    this.requireIdempotencyKey(idempotencyKey);
+  async createOnboarding(storeContext: ActiveStoreContext) {
     const storeOwner = await this.findStoreOwner(storeContext.storeId);
     if (!storeOwner) {
       throw new CodedHttpError(
@@ -382,18 +378,6 @@ export class StorePaymentsService implements IStorePaymentReadinessReader {
       row.payoutsEnabled &&
       row.cardPaymentsActive,
     );
-  }
-
-  private requireIdempotencyKey(
-    key: string | undefined,
-  ): asserts key is string {
-    if (!key || key.length > 128 || /[^\x20-\x7E]/.test(key)) {
-      throw new CodedHttpError(
-        HttpStatus.BAD_REQUEST,
-        'IDEMPOTENCY_KEY_REQUIRED',
-        'Idempotency-Key must contain 1–128 printable ASCII characters.',
-      );
-    }
   }
 
   private providerUnavailable(message: string) {

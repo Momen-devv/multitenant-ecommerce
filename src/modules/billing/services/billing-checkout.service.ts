@@ -41,13 +41,6 @@ export class BillingCheckoutService {
     this.assertHttpUrl(input.successUrl, 'successUrl');
     this.assertHttpUrl(input.cancelUrl, 'cancelUrl');
 
-    const idempotencyKey = input.idempotencyKey.trim();
-    if (!idempotencyKey || idempotencyKey.length > 255) {
-      throw new BadRequestException(
-        'idempotencyKey must contain between 1 and 255 characters',
-      );
-    }
-
     const context = await this.billingRepository.findCheckoutContext(
       input.storeId,
       input.planPriceId,

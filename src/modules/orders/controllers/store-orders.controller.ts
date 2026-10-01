@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Get,
-  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -46,6 +45,8 @@ import {
   StaffCancelOrderDto,
 } from '../dto';
 import { OrdersService } from '../services/orders.service';
+import { ParseIdempotencyKeyPipe } from '@/common/pipes/parse-idempotency-key.pipe';
+import { IdempotencyKey } from '@/common/decorators/idempotency-key.decorator';
 import { ORDER_LIST_EXAMPLE, ORDER_RESPONSE_EXAMPLE } from '../orders.swagger';
 
 @ApiTags('Store Orders')
@@ -136,7 +137,7 @@ export class StoreOrdersController {
   @ApiHeader({
     name: 'Idempotency-Key',
     required: true,
-    schema: { type: 'string', minLength: 1, maxLength: 128 },
+    schema: { type: 'string', format: 'uuid' },
   })
   @ApiParam({ name: 'orderId', format: 'uuid' })
   @ApiBody({
@@ -148,7 +149,7 @@ export class StoreOrdersController {
     model: OrderResponseDto,
     example: ORDER_RESPONSE_EXAMPLE,
   })
-  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'IDEMPOTENCY_KEY_REQUIRED')
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Idempotency-Key must be a UUID')
   @ApiErrorResponse(
     HttpStatus.CONFLICT,
     'INVALID_ORDER_TRANSITION, STALE_VERSION, PAYMENT_REVIEW_REQUIRED, PAYMENT_NOT_CONFIRMED, or IDEMPOTENCY_CONFLICT',
@@ -159,7 +160,7 @@ export class StoreOrdersController {
     @ActiveStore() store: ActiveStoreContext,
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: OrderVersionDto,
-    @Headers('idempotency-key') key?: string,
+    @IdempotencyKey(ParseIdempotencyKeyPipe) key: string,
   ) {
     return this.orders.prepare(
       session.user.id,
@@ -181,7 +182,7 @@ export class StoreOrdersController {
   @ApiHeader({
     name: 'Idempotency-Key',
     required: true,
-    schema: { type: 'string', minLength: 1, maxLength: 128 },
+    schema: { type: 'string', format: 'uuid' },
   })
   @ApiParam({ name: 'orderId', format: 'uuid' })
   @ApiBody({
@@ -203,7 +204,7 @@ export class StoreOrdersController {
   })
   @ApiErrorResponse(
     HttpStatus.BAD_REQUEST,
-    'IDEMPOTENCY_KEY_REQUIRED or TRACKING_PAIR_REQUIRED',
+    'Idempotency-Key must be a UUID or TRACKING_PAIR_REQUIRED',
   )
   @ApiErrorResponse(
     HttpStatus.CONFLICT,
@@ -215,7 +216,7 @@ export class StoreOrdersController {
     @ActiveStore() store: ActiveStoreContext,
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: ShipOrderDto,
-    @Headers('idempotency-key') key?: string,
+    @IdempotencyKey(ParseIdempotencyKeyPipe) key: string,
   ) {
     return this.orders.ship(session.user.id, store.storeId, orderId, dto, key);
   }
@@ -231,7 +232,7 @@ export class StoreOrdersController {
   @ApiHeader({
     name: 'Idempotency-Key',
     required: true,
-    schema: { type: 'string', minLength: 1, maxLength: 128 },
+    schema: { type: 'string', format: 'uuid' },
   })
   @ApiParam({ name: 'orderId', format: 'uuid' })
   @ApiBody({
@@ -245,7 +246,7 @@ export class StoreOrdersController {
   })
   @ApiErrorResponse(
     HttpStatus.BAD_REQUEST,
-    'IDEMPOTENCY_KEY_REQUIRED or CASH_COLLECTION_NOT_APPLICABLE',
+    'Idempotency-Key must be a UUID or CASH_COLLECTION_NOT_APPLICABLE',
   )
   @ApiErrorResponse(
     HttpStatus.CONFLICT,
@@ -257,7 +258,7 @@ export class StoreOrdersController {
     @ActiveStore() store: ActiveStoreContext,
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: DeliverOrderDto,
-    @Headers('idempotency-key') key?: string,
+    @IdempotencyKey(ParseIdempotencyKeyPipe) key: string,
   ) {
     return this.orders.deliver(
       session.user.id,
@@ -279,7 +280,7 @@ export class StoreOrdersController {
   @ApiHeader({
     name: 'Idempotency-Key',
     required: true,
-    schema: { type: 'string', minLength: 1, maxLength: 128 },
+    schema: { type: 'string', format: 'uuid' },
   })
   @ApiParam({ name: 'orderId', format: 'uuid' })
   @ApiBody({
@@ -293,7 +294,7 @@ export class StoreOrdersController {
     model: OrderResponseDto,
     example: ORDER_RESPONSE_EXAMPLE,
   })
-  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'IDEMPOTENCY_KEY_REQUIRED')
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Idempotency-Key must be a UUID')
   @ApiErrorResponse(
     HttpStatus.CONFLICT,
     'INVALID_ORDER_TRANSITION, STALE_VERSION, PAYMENT_REVIEW_REQUIRED, PAYMENT_NOT_CONFIRMED, or IDEMPOTENCY_CONFLICT',
@@ -304,7 +305,7 @@ export class StoreOrdersController {
     @ActiveStore() store: ActiveStoreContext,
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: StaffCancelOrderDto,
-    @Headers('idempotency-key') key?: string,
+    @IdempotencyKey(ParseIdempotencyKeyPipe) key: string,
   ) {
     return this.orders.staffCancel(
       session.user.id,
@@ -326,7 +327,7 @@ export class StoreOrdersController {
   @ApiHeader({
     name: 'Idempotency-Key',
     required: true,
-    schema: { type: 'string', minLength: 1, maxLength: 128 },
+    schema: { type: 'string', format: 'uuid' },
   })
   @ApiParam({ name: 'orderId', format: 'uuid' })
   @ApiBody({
@@ -348,7 +349,7 @@ export class StoreOrdersController {
   })
   @ApiErrorResponse(
     HttpStatus.BAD_REQUEST,
-    'IDEMPOTENCY_KEY_REQUIRED or ITEMS_RECEIPT_REQUIRED',
+    'Idempotency-Key must be a UUID or ITEMS_RECEIPT_REQUIRED',
   )
   @ApiErrorResponse(
     HttpStatus.CONFLICT,
@@ -360,7 +361,7 @@ export class StoreOrdersController {
     @ActiveStore() store: ActiveStoreContext,
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: ReturnToStoreOrderDto,
-    @Headers('idempotency-key') key?: string,
+    @IdempotencyKey(ParseIdempotencyKeyPipe) key: string,
   ) {
     return this.orders.returnToStore(
       session.user.id,
@@ -384,7 +385,7 @@ export class StoreOrdersController {
   @ApiHeader({
     name: 'Idempotency-Key',
     required: true,
-    schema: { type: 'string', minLength: 1, maxLength: 128 },
+    schema: { type: 'string', format: 'uuid' },
   })
   @ApiParam({ name: 'orderId', format: 'uuid' })
   @ApiBody({
@@ -396,7 +397,7 @@ export class StoreOrdersController {
     model: OrderResponseDto,
     example: ORDER_RESPONSE_EXAMPLE,
   })
-  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'IDEMPOTENCY_KEY_REQUIRED')
+  @ApiErrorResponse(HttpStatus.BAD_REQUEST, 'Idempotency-Key must be a UUID')
   @ApiErrorResponse(
     HttpStatus.CONFLICT,
     'STALE_VERSION, REFUND_NOT_RETRYABLE, PAYMENT_REVIEW_REQUIRED, or IDEMPOTENCY_CONFLICT',
@@ -407,7 +408,7 @@ export class StoreOrdersController {
     @ActiveStore() store: ActiveStoreContext,
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: OrderVersionDto,
-    @Headers('idempotency-key') key?: string,
+    @IdempotencyKey(ParseIdempotencyKeyPipe) key: string,
   ) {
     return this.orders.retryRefund(
       session.user.id,

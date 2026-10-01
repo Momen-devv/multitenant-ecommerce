@@ -2,7 +2,6 @@ import {
   Controller,
   Body,
   Get,
-  Headers,
   HttpCode,
   HttpStatus,
   Post,
@@ -32,6 +31,8 @@ import {
   StorePaymentOnboardingResponseDto,
 } from '../dto/store-payment-connection.dto';
 import type { ActiveStoreContext } from '@/common/guards/active-store.guard';
+import { ParseIdempotencyKeyPipe } from '@/common/pipes/parse-idempotency-key.pipe';
+import { IdempotencyKey } from '@/common/decorators/idempotency-key.decorator';
 
 @ApiTags('Store Payments')
 @ApiCookieAuth('mte.session_token')
@@ -97,12 +98,11 @@ export class StorePaymentsController {
   @ApiHeader({
     name: 'Idempotency-Key',
     required: true,
-    description: 'Stable printable ASCII key, 1–128 characters.',
+    description: 'Stable UUID for safely retrying onboarding.',
     schema: {
       type: 'string',
-      minLength: 1,
-      maxLength: 128,
-      example: 'store-onboarding-1',
+      format: 'uuid',
+      example: '8e03978e-40d5-43e8-bc93-6894a57f9324',
     },
   })
   @ApiBody({
@@ -130,13 +130,14 @@ export class StorePaymentsController {
   @HttpCode(HttpStatus.OK)
   async onboarding(
     @ActiveStore() store: ActiveStoreContext,
-    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @IdempotencyKey(ParseIdempotencyKeyPipe) idempotencyKey: string,
     // The empty DTO documents that provider/account identifiers are never caller inputs.
     // ValidationPipe rejects any unknown body fields.
     @Body() body: StorePaymentOnboardingRequestDto,
   ) {
     void body;
-    return this.service.createOnboarding(store, idempotencyKey);
+    void idempotencyKey;
+    return this.service.createOnboarding(store);
   }
 
   @Post('refresh')
