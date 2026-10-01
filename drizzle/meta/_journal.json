@@ -288,6 +288,20 @@
       "when": 1790470100000,
       "tag": "0040_welcome_activation",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790837686554,
+      "tag": "0041_flashy_scarecrow",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1790838811034,
+      "tag": "0042_clear_harpoon",
+      "breakpoints": true
     }
   ]
 }
