@@ -7,6 +7,20 @@ import { LoggerService } from '@/infrastructure/logger/logger.service';
 
 @Injectable()
 export class EmailQueueService {
+  async addNotificationJob(
+    deliveryId: string,
+    generation: number,
+  ): Promise<void> {
+    await this.emailQueue.add(
+      JobNames.EMAIL.NOTIFICATION,
+      { deliveryId },
+      {
+        ...this.jobOptions,
+        attempts: 1,
+        jobId: `notification-email-${deliveryId}-${generation}`,
+      },
+    );
+  }
   // options for now
   private readonly jobOptions = {
     attempts: 4,
@@ -19,14 +33,6 @@ export class EmailQueueService {
     @InjectQueue(QueueNames.EMAIL) private readonly emailQueue: Queue,
     private readonly logger: LoggerService,
   ) {}
-  async addWelcomeJob(to: string, name: string, token: string): Promise<void> {
-    await this.emailQueue.add(
-      JobNames.EMAIL.WELCOME,
-      { to, name, token },
-      this.jobOptions,
-    );
-  }
-
   async addResetPasswordJob(to: string, url: string): Promise<void> {
     await this.emailQueue.add(
       JobNames.EMAIL.RESET_PASSWORD,

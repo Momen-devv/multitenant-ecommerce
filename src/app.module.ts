@@ -9,6 +9,7 @@ import { ThrottlerGuard, ThrottlerModule, seconds } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { AuthModule, AuthGuard } from '@thallesp/nestjs-better-auth';
 import { ScheduleModule } from '@nestjs/schedule';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import type { Redis } from 'ioredis';
 
 // Core / Infrastructure
@@ -19,6 +20,7 @@ import { CACHE_CLIENT } from '@/infrastructure/cache/cache.constants';
 import { EmailQueueService } from '@/infrastructure/queue/email/email-queue.service';
 import { SmsQueueService } from '@/infrastructure/queue/sms/sms-queue.service';
 import { createAuth } from '@/core/auth/auth';
+import { assertInvitationCaptureInstalled } from '@/modules/notifications/services/invitation-notification-capture';
 import { DATABASE } from './common/constants/injection-tokens.constants';
 
 // Common
@@ -47,6 +49,7 @@ import { CheckoutModule } from './modules/checkout/checkout.module';
 import { CartsModule } from './modules/carts/carts.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -67,6 +70,7 @@ import { AssistantModule } from './modules/assistant/assistant.module';
       }),
     }),
     ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
 
     AuthModule.forRootAsync({
       disableGlobalAuthGuard: true,
@@ -78,22 +82,25 @@ import { AssistantModule } from './modules/assistant/assistant.module';
         DATABASE,
         betterAuthConfig.KEY,
       ],
-      useFactory: (
+      useFactory: async (
         emailQueue: EmailQueueService,
         smsQueue: SmsQueueService,
         redis: Redis,
         database: NodePgDatabase<typeof Schema>,
         configuration: ConfigType<typeof betterAuthConfig>,
-      ) => ({
-        auth: createAuth({
-          emailQueue,
-          smsQueue,
-          redis,
-          database,
-          configuration,
-        }),
-        bodyParser: { rawBody: true },
-      }),
+      ) => {
+        await assertInvitationCaptureInstalled(database);
+        return {
+          auth: createAuth({
+            emailQueue,
+            smsQueue,
+            redis,
+            database,
+            configuration,
+          }),
+          bodyParser: { rawBody: true },
+        };
+      },
     }),
 
     // Feature modules
@@ -110,6 +117,7 @@ import { AssistantModule } from './modules/assistant/assistant.module';
     CartsModule,
     OrdersModule,
     AssistantModule,
+    NotificationsModule,
 
     RouterModule.register([{ path: 'health', module: HealthModule }]),
   ],

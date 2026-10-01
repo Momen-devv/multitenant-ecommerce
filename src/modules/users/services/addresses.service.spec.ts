@@ -71,7 +71,7 @@ describe('AddressesService', () => {
           countryCode: 'EG',
         },
         'address-create-limit',
-      )
+      ),
     ).rejects.toThrow(
       new ConflictException('A user can have at most 5 saved addresses.'),
     );

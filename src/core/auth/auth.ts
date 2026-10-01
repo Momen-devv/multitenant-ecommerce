@@ -1,3 +1,5 @@
+import { createUserNotificationHooks } from './hooks/user-notifications.hook';
+import { createHash } from 'node:crypto';
 import { betterAuth, type BetterAuthOptions } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { organization, admin, openAPI, phoneNumber } from 'better-auth/plugins';
@@ -10,6 +12,7 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { ConfigType } from '@nestjs/config';
 import { betterAuthConfig } from '../config';
 import { isProduction } from 'better-auth';
+import { atomicInvitationEndpoints } from './hooks/atomic-invitation-endpoints';
 import {
   ac,
   organizationManager,
@@ -112,6 +115,7 @@ export function createAuth({
     database: drizzleAdapter(db, {
       provider: 'pg',
       schema,
+      transaction: true,
     }),
 
     socialProviders: {
@@ -186,6 +190,13 @@ export function createAuth({
       },
       delete: async (key) => {
         await redis.del(key);
+        // Hash identifiers so pub/sub never exposes session credentials.
+        void redis
+          .publish(
+            'notifications:session.revoked',
+            createHash('sha256').update(key).digest('hex'),
+          )
+          .catch(() => undefined);
       },
     },
 
@@ -231,32 +242,26 @@ export function createAuth({
     },
 
     plugins: [
-      organization({
-        ac,
-        roles: {
-          [OrganizationRole.OWNER]: organizationOwner,
-          [OrganizationRole.MANAGER]: organizationManager,
-          [OrganizationRole.SUPPORT]: support,
-        },
-        allowUserToCreateOrganization: (user) => user.emailVerified === true,
-        organizationLimit: 1,
-        membershipLimit: 100,
-        invitationExpiresIn: 60 * 60 * 24 * 7,
-        invitationLimit: 100,
-        cancelPendingInvitationsOnReInvite: true,
-        sendInvitationEmail: (data) => {
-          const inviteLink = `${configuration.baseURL}/api/v1/stores/invitations/${data.id}/accept`;
-          const rejectLink = `${configuration.baseURL}/api/v1/stores/invitations/${data.id}/reject`;
-          return emailQueue.addInvitationEmailJob(
-            data.email,
-            data.organization.name,
-            data.inviter.user.name,
-            data.role,
-            inviteLink,
-            rejectLink,
-          );
-        },
-      }),
+      atomicInvitationEndpoints(
+        organization({
+          ac,
+          roles: {
+            [OrganizationRole.OWNER]: organizationOwner,
+            [OrganizationRole.MANAGER]: organizationManager,
+            [OrganizationRole.SUPPORT]: support,
+          },
+          allowUserToCreateOrganization: (user) => user.emailVerified === true,
+          organizationLimit: 1,
+          membershipLimit: 100,
+          invitationExpiresIn: 60 * 60 * 24 * 7,
+          invitationLimit: 100,
+          cancelPendingInvitationsOnReInvite: true,
+          requireEmailVerificationOnInvitation: true,
+          // The database trigger captures delivery inside the invitation transaction.
+          // Startup verifies the trigger; polling owns email delivery and recovery.
+          sendInvitationEmail: () => Promise.resolve(),
+        }),
+      ),
       admin({
         ac,
         roles: {
@@ -289,7 +294,7 @@ export function createAuth({
       }),
     ],
     hooks: {},
-    databaseHooks: {},
+    databaseHooks: createUserNotificationHooks(db),
   } satisfies BetterAuthOptions;
 
   return betterAuth<typeof authOptions>(authOptions);

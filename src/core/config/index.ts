@@ -9,3 +9,4 @@ export { default as storageConfig } from './storage.config';
 export { default as betterAuthConfig } from './better-auth.config';
 export { default as stripeConfig } from './strip.config';
 export { default as typesafeConfig } from './typesafe.config';
+export { default as notificationConfig } from './notification.config';

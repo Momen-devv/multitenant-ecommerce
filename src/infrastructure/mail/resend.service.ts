@@ -4,6 +4,7 @@ import { Resend } from 'resend';
 import type { ConfigType } from '@nestjs/config';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { MailService } from '@/common/abstracts';
+import { MailDeliveryError } from '@/common/errors/mail-delivery.error';
 
 @Injectable()
 export class ResendMailService extends MailService {
@@ -36,14 +37,14 @@ export class ResendMailService extends MailService {
 
     if (error) {
       this.logger.error(
-        `Failed to send email to ${to}.`,
-        error.message,
+        'Email provider rejected a request.',
+        error.name,
         MailService.name,
       );
-      throw new Error(error.message); // For Bullmq to handle the error and retry sending the email
+      throw new MailDeliveryError(error.name, error.statusCode ?? null);
     }
 
-    this.logger.log(`Email sent successfully to ${to}. Message ID: ${data.id}`);
+    this.logger.log(`Email provider accepted message ${data.id}`);
     return { providerMessageId: data.id };
   }
 }
