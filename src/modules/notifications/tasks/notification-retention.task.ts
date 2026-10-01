@@ -28,10 +28,10 @@ export class NotificationRetentionTask {
           sseConnections: this.stream.connectionCount,
         },
       );
-    } catch {
+    } catch (error) {
       this.logger.error(
         'Notification operations failed',
-        undefined,
+        error,
         NotificationRetentionTask.name,
       );
     } finally {
