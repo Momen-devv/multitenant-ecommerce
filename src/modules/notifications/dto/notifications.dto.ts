@@ -134,9 +134,8 @@ export class NotificationResourceDto {
 
 export class NotificationMessageDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
-  @ApiProperty({ type: String, nullable: true, format: 'uuid' }) storeId!:
-    | string
-    | null;
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
+  storeId!: string | null;
   @ApiProperty({ enum: Object.keys(notificationCatalog) })
   type!: NotificationEventType;
   @ApiProperty({ type: NotificationDisplayDto })
@@ -178,12 +177,10 @@ export class NotificationPreferenceResultDto {
   @ApiProperty() mandatory!: boolean;
   @ApiProperty() storeScoped!: boolean;
   @ApiProperty() defaultEmailEnabled!: boolean;
-  @ApiProperty({ type: Boolean, nullable: true }) globalOverride!:
-    | boolean
-    | null;
-  @ApiProperty({ type: Boolean, nullable: true }) storeOverride!:
-    | boolean
-    | null;
+  @ApiProperty({ type: Boolean, nullable: true })
+  globalOverride!: boolean | null;
+  @ApiProperty({ type: Boolean, nullable: true })
+  storeOverride!: boolean | null;
   @ApiProperty() emailEnabled!: boolean;
 }
 
