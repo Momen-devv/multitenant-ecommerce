@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { typesafeClientProvider } from './providers/typesafe-client.provider';
 import { PlatformAssistantController } from './controllers/platform-assistant.controller';
 import { StoreAssistantController } from './controllers/store-assistant.controller';
 import { AssistantRepository } from './repos/assistant.repository';
@@ -10,12 +9,12 @@ import { StoreAssistantService } from './services/store-assistant.service';
 import { StoreAssistantActionsService } from './services/store-assistant-actions.service';
 import { UsersModule } from '@/modules/users/users.module';
 import { StoresModule } from '@/modules/stores/stores.module';
+import { AiModule } from '@/infrastructure/ai/ai.module';
 
 @Module({
-  imports: [UsersModule, StoresModule],
+  imports: [UsersModule, StoresModule, AiModule],
   controllers: [PlatformAssistantController, StoreAssistantController],
   providers: [
-    typesafeClientProvider,
     PlatformAssistantService,
     PlatformAssistantActionsService,
     StoreAssistantService,

@@ -1,9 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { type TypeSafeClient } from '@typesafe-ai/sdk';
+import { Injectable } from '@nestjs/common';
 import type { StoreMembershipContext } from '@/common/guards/store-membership.guard';
 import { StoreAssistantAction } from '@/common/enums';
 import type { AssistantCommandDto } from '../dto';
-import { TYPESAFE_CLIENT } from '../providers/typesafe-client.provider';
+import { AiService } from '@/common/abstracts';
 import { storeAssistantQuestions } from '../questions/store-assistant.questions';
 import { StoreAssistantActionsService } from './store-assistant-actions.service';
 import type { AssistantHeaders } from '../types';
@@ -11,8 +10,7 @@ import type { AssistantHeaders } from '../types';
 @Injectable()
 export class StoreAssistantService {
   constructor(
-    @Inject(TYPESAFE_CLIENT)
-    private readonly jevClient: TypeSafeClient,
+    private readonly aiService: AiService,
     private readonly storeAssistantActionsService: StoreAssistantActionsService,
   ) {}
 
@@ -21,7 +19,7 @@ export class StoreAssistantService {
     context: StoreMembershipContext,
     headers: AssistantHeaders,
   ) {
-    const result = await this.jevClient.systemOne({
+    const result = await this.aiService.decide({
       state: {
         command: dto.command,
         context:
