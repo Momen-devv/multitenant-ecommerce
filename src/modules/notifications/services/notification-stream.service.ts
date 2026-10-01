@@ -17,7 +17,7 @@ import { notificationConfig } from '@/core/config';
 import Redis from 'ioredis';
 import type { Request } from 'express';
 import type { MessageEvent } from '@nestjs/common';
-import { Observable, Subject, type Subscription } from 'rxjs';
+import { Observable, Subject, Subscription } from 'rxjs';
 import {
   NotificationStreamConnectionsService,
   type NotificationStreamConnection,
@@ -137,33 +137,36 @@ export class NotificationStreamService implements OnModuleDestroy {
       let pending = false;
       let checking = false;
       let heartbeat: ReturnType<typeof setInterval> | undefined = undefined;
-      let hints: Subscription | undefined = undefined;
-      let revoked: Subscription | undefined = undefined;
+      const subscriptions = new Subscription();
       const close = () => {
         if (closed) return;
         closed = true;
-        if (heartbeat) clearInterval(heartbeat);
-        hints?.unsubscribe();
-        revoked?.unsubscribe();
+        if (heartbeat !== undefined) clearInterval(heartbeat);
+        subscriptions.unsubscribe();
         this.closeConnections.delete(close);
         void this.connections.release(connection);
         stream.complete();
       };
+      this.closeConnections.add(close);
       if (request.destroyed) {
         close();
         return close;
       }
-      hints = this.hints.subscribe((value) => {
-        if (value === userId) pending = true;
-      });
+      subscriptions.add(
+        this.hints.subscribe((value) => {
+          if (value === userId) pending = true;
+        }),
+      );
       const tokenHash = createHash('sha256')
         .update(session.session.token)
         .digest('hex');
-      revoked = this.revocations.subscribe((value) => {
-        if (value === tokenHash) close();
-      });
-      this.closeConnections.add(close);
+      subscriptions.add(
+        this.revocations.subscribe((value) => {
+          if (value === tokenHash) close();
+        }),
+      );
       stream.next({ type: 'inbox.changed', data: {} });
+      if (closed) return close;
       heartbeat = setInterval(() => {
         if (checking || closed) return;
         checking = true;
