@@ -1,6 +1,5 @@
-import { ConfigService } from '@nestjs/config';
-import { notificationEnabled } from '../domain/notification-rollout';
-import { createHash, randomUUID } from 'node:crypto';
+import type { ConfigType } from '@nestjs/config';
+import { createHash } from 'node:crypto';
 import {
   Inject,
   Injectable,
@@ -14,23 +13,18 @@ import { fromNodeHeaders } from 'better-auth/node';
 import type { Auth } from '@/core/auth/auth';
 import type { CurrentUser } from '@/core/auth/auth.types';
 import { CACHE_CLIENT } from '@/infrastructure/cache/cache.constants';
-import { DATABASE } from '@/common/constants/injection-tokens.constants';
-import * as schema from '@/infrastructure/database/schema/schema';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { and, eq, isNull, lte, or, sql } from 'drizzle-orm';
+import { notificationConfig } from '@/core/config';
 import Redis from 'ioredis';
-import type { Request, Response } from 'express';
-import { Subject } from 'rxjs';
+import type { Request } from 'express';
+import type { MessageEvent } from '@nestjs/common';
+import { Observable, Subject } from 'rxjs';
+import {
+  NotificationStreamConnectionsService,
+  type NotificationStreamConnection,
+} from './notification-stream-connections.service';
 
 const CHANNEL = 'notifications:inbox.changed';
 const REVOKED = 'notifications:session.revoked';
-const LEASE_MS = 75_000;
-const acquire = `redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
-if redis.call('ZCARD', KEYS[1]) >= tonumber(ARGV[4]) then return 0 end
-redis.call('ZADD', KEYS[1], ARGV[2], ARGV[3]); redis.call('PEXPIRE', KEYS[1], 75000); return 1`;
-const renew = `redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
-if not redis.call('ZSCORE', KEYS[1], ARGV[3]) then return 0 end
-redis.call('ZADD', KEYS[1], ARGV[2], ARGV[3]); redis.call('PEXPIRE', KEYS[1], 75000); return 1`;
 
 @Injectable()
 export class NotificationStreamService implements OnModuleDestroy {
@@ -44,9 +38,10 @@ export class NotificationStreamService implements OnModuleDestroy {
   }
   constructor(
     @Inject(CACHE_CLIENT) redis: Redis,
-    private readonly config: ConfigService,
+    @Inject(notificationConfig.KEY)
+    private readonly config: ConfigType<typeof notificationConfig>,
     private readonly auth: AuthService<Auth>,
-    @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
+    private readonly connections: NotificationStreamConnectionsService,
   ) {
     const options = {
       enableOfflineQueue: false,
@@ -109,139 +104,89 @@ export class NotificationStreamService implements OnModuleDestroy {
       current.user.id !== session.user.id
     )
       return false;
-    // Secondary storage can contain an old User snapshot: consult current account state.
-    const u = schema.user;
-    const result = await this.db
-      .select({ id: u.id })
-      .from(u)
-      .where(
-        and(
-          eq(u.id, session.user.id),
-          eq(u.isActive, true),
-          or(
-            eq(u.banned, false),
-            isNull(u.banned),
-            lte(u.banExpires, sql`now()`),
-          ),
-        ),
-      )
-      .limit(1);
-    return result.length > 0;
+    return true;
   }
-  async open(request: Request, response: Response, session: CurrentUser) {
-    if (
-      !notificationEnabled('NOTIFICATION_STREAM_ENABLED') ||
-      !notificationEnabled('NOTIFICATION_INBOX_ENABLED')
-    )
+  async open(
+    request: Request,
+    session: CurrentUser,
+  ): Promise<Observable<MessageEvent>> {
+    if (!this.config.streamEnabled || !this.config.inboxEnabled)
       throw new HttpException('Live stream temporarily unavailable', 503);
-    const origins = (process.env.TRUSTED_ORIGINS ?? process.env.BASE_URL ?? '')
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean);
-    if (request.headers.origin && !origins.includes(request.headers.origin))
+    if (
+      request.headers.origin &&
+      !this.config.trustedOrigins.includes(request.headers.origin)
+    )
       throw new ForbiddenException('Origin is not allowed');
     if (!(await this.valid(request, session)))
       throw new UnauthorizedException();
     const userId = session.user.id;
-    const id = randomUUID();
-    const key = `notifications:connections:${createHash('sha256').update(userId).digest('hex')}`;
-    if (this.subscriber.status !== 'ready')
-      throw new HttpException('Live stream temporarily unavailable', 503);
-    let accepted: unknown;
+    let connection: NotificationStreamConnection | null;
     try {
-      accepted = await this.publisher.eval(
-        acquire,
-        1,
-        key,
-        Date.now(),
-        Date.now() + LEASE_MS,
-        id,
-        this.config.get<number>('NOTIFICATION_STREAM_MAX_CONNECTIONS', 5),
-      );
+      connection = await this.connections.acquire(userId);
     } catch {
       throw new HttpException('Live stream temporarily unavailable', 503);
     }
-    if (accepted !== 1)
-      throw new HttpException('Too many live connections', 429);
-    let closed = false;
-    let pending = false;
-    let checking = false;
-    const heartbeat: { timer?: ReturnType<typeof setInterval> } = {};
-    const close = () => {
-      if (closed) return;
-      closed = true;
-      clearInterval(heartbeat.timer);
-      hints.unsubscribe();
-      revoked.unsubscribe();
-      this.closeConnections.delete(close);
-      response.off('close', close);
-      response.off('error', close);
-      void this.publisher.zrem(key, id).catch(() => undefined);
-      response.end();
-    };
-    const write = (frame: string) => {
-      // Never queue output for a slow client; one failed write closes it.
-      try {
-        if (!closed && !response.write(frame)) close();
-      } catch {
-        close();
-      }
-    };
-    const hints = this.hints.subscribe((value) => {
-      if (value === userId) pending = true;
-    });
-    const tokenHash = createHash('sha256')
-      .update(session.session.token)
-      .digest('hex');
-    const revoked = this.revocations.subscribe((value) => {
-      if (value === tokenHash) close();
-    });
-    this.closeConnections.add(close);
-    response.on('close', close);
-    response.on('error', close);
-    if (response.destroyed) {
-      close();
-      return;
+    if (!connection) throw new HttpException('Too many live connections', 429);
+    if (request.destroyed) {
+      await this.connections.release(connection);
+      return new Observable((subscriber) => subscriber.complete());
     }
-    response.status(200).set({
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      'X-Accel-Buffering': 'no',
-    });
-    response.flushHeaders();
-    write('event: inbox.changed\ndata: {}\n\n');
-    heartbeat.timer = setInterval(
-      () => {
+
+    return new Observable<MessageEvent>((stream) => {
+      let closed = false;
+      let pending = false;
+      let checking = false;
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        clearInterval(heartbeat);
+        hints.unsubscribe();
+        revoked.unsubscribe();
+        this.closeConnections.delete(close);
+        void this.connections.release(connection);
+        stream.complete();
+      };
+      const hints = this.hints.subscribe((value) => {
+        if (value === userId) pending = true;
+      });
+      const tokenHash = createHash('sha256')
+        .update(session.session.token)
+        .digest('hex');
+      const revoked = this.revocations.subscribe((value) => {
+        if (value === tokenHash) close();
+      });
+      this.closeConnections.add(close);
+      if (request.destroyed) {
+        close();
+        return close;
+      }
+      stream.next({ type: 'inbox.changed', data: {} });
+      const heartbeat = setInterval(() => {
         if (checking || closed) return;
         checking = true;
         void (async () => {
           try {
-            const alive = await this.publisher.eval(
-              renew,
-              1,
-              key,
-              Date.now(),
-              Date.now() + LEASE_MS,
-              id,
-            );
-            if (alive !== 1 || !(await this.valid(request, session))) {
+            if (
+              !(await this.connections.renew(connection)) ||
+              !(await this.valid(request, session))
+            ) {
               close();
               return;
             }
             if (pending) {
               pending = false;
-              write('event: inbox.changed\ndata: {}\n\n');
-            } else write(': heartbeat\n\n');
+              stream.next({ type: 'inbox.changed', data: {} });
+            } else stream.next({ type: 'heartbeat', data: {} });
           } catch {
             close();
           } finally {
             checking = false;
           }
         })();
-      },
-      this.config.get<number>('NOTIFICATION_STREAM_HEARTBEAT_MS', 25_000),
-    );
-    heartbeat.timer.unref();
-    if (closed) clearInterval(heartbeat.timer);
+      }, this.config.streamHeartbeatMs);
+      heartbeat.unref();
+
+      return close;
+    });
   }
 }

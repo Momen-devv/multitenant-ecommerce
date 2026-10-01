@@ -1,5 +1,6 @@
 import { UserNotificationReconciliationTask } from './tasks/user-notification-reconciliation.task';
 import { NotificationStreamService } from './services/notification-stream.service';
+import { NotificationStreamConnectionsService } from './services/notification-stream-connections.service';
 import { NotificationInboxGuard } from './domain/notification-rollout';
 import { NotificationOperationsRepository } from './repos/notification-operations.repository';
 import { NotificationRetentionTask } from './tasks/notification-retention.task';
@@ -28,6 +29,7 @@ import { NotificationEmailDeliveryRepository } from './repos/notification-email-
     NotificationOperationsRepository,
     NotificationRetentionTask,
     NotificationStreamService,
+    NotificationStreamConnectionsService,
     InvitationNotificationReconciliationTask,
     NotificationInboxRepository,
     NotificationEventsRepository,
