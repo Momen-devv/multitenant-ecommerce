@@ -12,7 +12,7 @@ export class MailDeliveryError extends Error {
       (this.statusCode !== null &&
         this.statusCode >= 400 &&
         this.statusCode < 500 &&
-        ![408, 409, 429].includes(this.statusCode))
+        ![401, 403, 408, 409, 429].includes(this.statusCode))
     );
   }
 }

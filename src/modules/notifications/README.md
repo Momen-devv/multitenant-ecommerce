@@ -156,7 +156,7 @@ preserve session cookies.
 | `NOTIFICATION_EMAIL_ENABLED` | Enabled | Literal `false` pauses notification email recovery and sending |
 | `NOTIFICATION_STREAM_ENABLED` | Enabled | Literal `false` disables new streams |
 | `NOTIFICATION_STREAM_MAX_CONNECTIONS` | `5` | Concurrent streams per user across replicas |
-| `NOTIFICATION_STREAM_HEARTBEAT_MS` | `25000` | Heartbeat interval, clamped to 1,000–40,000 ms |
+| `NOTIFICATION_STREAM_HEARTBEAT_MS` | `25000` | Heartbeat interval, validated to 1,000–40,000 ms; values outside this range fail startup validation |
 | `TRUSTED_ORIGINS` | `BASE_URL` fallback | Comma-separated exact browser origins allowed for streams |
 
 Use consistent settings on every replica and restart processes after deployment

@@ -51,7 +51,7 @@ export async function writeOrderNotificationIntent(
     ],
     display: {
       title: `Order ${transition}`,
-      body: `Your Order has been ${transition}.`,
+      body: `Order ${order.id} has been ${transition}.`,
     },
     resource: { kind: 'order', id: order.id },
   });
