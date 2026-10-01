@@ -47,7 +47,10 @@ export class NotificationOutboxDispatcher {
         for (const row of rows) {
           try {
             const event = await this.events.ensure(row.payload);
-            if (event.status === 'processed')
+            if (
+              event.status === 'processed' ||
+              event.status === 'dead_lettered'
+            )
               await this.outbox.markPublished(row.id);
             else sources.set(event.id, row.id);
           } catch {
