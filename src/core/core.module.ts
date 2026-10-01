@@ -10,6 +10,7 @@ import {
   storageConfig,
   stripeConfig,
   typesafeConfig,
+  notificationConfig,
   validate,
 } from '@/core/config';
 import { RestrictInternalFieldsHook } from './auth/hooks/restrict-internal-fields.hook';
@@ -31,6 +32,7 @@ import { CheckActivationHook } from './auth/hooks/check-activation-hook';
         betterAuthConfig,
         stripeConfig,
         typesafeConfig,
+        notificationConfig,
       ],
     }),
   ],

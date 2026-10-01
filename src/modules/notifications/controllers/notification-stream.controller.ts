@@ -1,13 +1,13 @@
-import { Controller, Get, Req, Res, Session } from '@nestjs/common';
+import { Controller, MessageEvent, Req, Session, Sse } from '@nestjs/common';
 import {
   ApiCookieAuth,
   ApiOperation,
   ApiProduces,
   ApiTags,
 } from '@nestjs/swagger';
-import type { Request, Response } from 'express';
+import type { Request } from 'express';
+import type { Observable } from 'rxjs';
 import type { CurrentUser } from '@/core/auth/auth.types';
-import { SkipResponseTransform } from '@/common/decorators/skip-response-transform.decorator';
 import { NotificationStreamService } from '../services/notification-stream.service';
 
 @ApiTags('Notifications')
@@ -15,8 +15,7 @@ import { NotificationStreamService } from '../services/notification-stream.servi
 @Controller('notifications')
 export class NotificationStreamController {
   constructor(private readonly stream: NotificationStreamService) {}
-  @Get('stream')
-  @SkipResponseTransform()
+  @Sse('stream')
   @ApiProduces('text/event-stream')
   @ApiOperation({
     summary: 'Stream generic inbox changes',
@@ -25,9 +24,8 @@ export class NotificationStreamController {
   })
   open(
     @Req() request: Request,
-    @Res() response: Response,
     @Session() session: CurrentUser,
-  ) {
-    return this.stream.open(request, response, session);
+  ): Promise<Observable<MessageEvent>> {
+    return this.stream.open(request, session);
   }
 }
