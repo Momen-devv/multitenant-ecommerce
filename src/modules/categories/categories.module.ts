@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import endpointCacheConfig from '@/core/config/endpoint-cache.config';
 import { ActiveStoreGuard } from '@/common/guards/active-store.guard';
 import { StoresModule } from '@/modules/stores/stores.module';
 import { SubscriptionsModule } from '@/modules/subscriptions/subscriptions.module';
@@ -11,7 +13,12 @@ import { CategoriesService } from './services/categories.service';
 import { PublicCategoriesService } from './services/public-categories.service';
 
 @Module({
-  imports: [StoresModule, SubscriptionsModule, ProductsModule],
+  imports: [
+    ConfigModule.forFeature(endpointCacheConfig),
+    StoresModule,
+    SubscriptionsModule,
+    ProductsModule,
+  ],
   controllers: [CategoriesController, PublicCategoriesController],
   providers: [
     CategoriesService,

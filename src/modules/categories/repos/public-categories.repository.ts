@@ -17,58 +17,60 @@ export class PublicCategoriesRepository {
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
   ) {}
 
-  async findVisible(storeSlug: string) {
-    const activeStore = await this.findActiveStore(storeSlug);
-    if (!activeStore) return undefined;
-    const rows = await this.db
-      .select({
-        id: categories.id,
-        name: categories.name,
-        slug: categories.slug,
-        description: categories.description,
-        position: categories.position,
-        productCount: count(products.id),
-      })
-      .from(categories)
-      .innerJoin(
-        productCategories,
-        and(
-          eq(productCategories.storeId, categories.storeId),
-          eq(productCategories.categoryId, categories.id),
-        ),
-      )
-      .innerJoin(
-        products,
-        and(
-          eq(products.storeId, productCategories.storeId),
-          eq(products.id, productCategories.productId),
-          eq(products.status, ProductStatus.PUBLISHED),
-        ),
-      )
-      .where(
-        and(
-          eq(categories.storeId, activeStore.id),
-          eq(categories.status, CategoryStatus.PUBLISHED),
-        ),
-      )
-      .groupBy(categories.id)
-      .orderBy(asc(categories.position), asc(categories.id));
-    return { items: rows };
+  async findVisible(storeSlug: string, expectedStoreId?: string) {
+    return this.db.transaction(
+      async (tx) => {
+        const activeStore = await tx.query.store.findFirst({
+          columns: { id: true },
+          where: and(
+            eq(store.slug, storeSlug),
+            eq(store.status, StoreStatus.ACTIVE),
+            expectedStoreId ? eq(store.id, expectedStoreId) : undefined,
+          ),
+        });
+        if (!activeStore) return undefined;
+        const rows = await tx
+          .select({
+            id: categories.id,
+            name: categories.name,
+            slug: categories.slug,
+            description: categories.description,
+            position: categories.position,
+            productCount: count(products.id),
+          })
+          .from(categories)
+          .innerJoin(
+            productCategories,
+            and(
+              eq(productCategories.storeId, categories.storeId),
+              eq(productCategories.categoryId, categories.id),
+            ),
+          )
+          .innerJoin(
+            products,
+            and(
+              eq(products.storeId, productCategories.storeId),
+              eq(products.id, productCategories.productId),
+              eq(products.status, ProductStatus.PUBLISHED),
+            ),
+          )
+          .where(
+            and(
+              eq(categories.storeId, activeStore.id),
+              eq(categories.status, CategoryStatus.PUBLISHED),
+            ),
+          )
+          .groupBy(categories.id)
+          .orderBy(asc(categories.position), asc(categories.id));
+        return { items: rows };
+      },
+      { isolationLevel: 'repeatable read', accessMode: 'read only' },
+    );
   }
 
   async findVisibleBySlug(storeSlug: string, categorySlug: string) {
     const page = await this.findVisible(storeSlug);
     if (!page) return undefined;
     return page.items.find((category) => category.slug === categorySlug);
-  }
-
-  private async findActiveStore(storeSlug: string) {
-    return this.db.query.store.findFirst({
-      columns: { id: true },
-      where: and(
-        eq(store.slug, storeSlug),
-        eq(store.status, StoreStatus.ACTIVE),
-      ),
-    });
   }
 }
