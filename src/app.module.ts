@@ -9,6 +9,7 @@ import { ThrottlerGuard, ThrottlerModule, seconds } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { AuthModule, AuthGuard } from '@thallesp/nestjs-better-auth';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import type { Redis } from 'ioredis';
 
@@ -70,7 +71,14 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
         },
       }),
     }),
-    ScheduleModule.forRoot(),
+    ScheduleModule.forRootAsync({
+      imports: [CoreModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const enabled = config.get<string>('APPLICATION_ROLE') !== 'api';
+        return { cronJobs: enabled, intervals: enabled, timeouts: enabled };
+      },
+    }),
     EventEmitterModule.forRoot(),
 
     AuthModule.forRootAsync({

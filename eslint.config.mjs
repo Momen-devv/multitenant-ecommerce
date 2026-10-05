@@ -25,6 +25,10 @@ export default tseslint.config(
     },
   },
   {
+    files: ['ecosystem.config.cjs'],
+    extends: [tseslint.configs.disableTypeChecked],
+  },
+  {
     files: ['**/*.spec.ts', 'test/**/*.e2e-spec.ts'],
     rules: {
       '@typescript-eslint/unbound-method': 'off',

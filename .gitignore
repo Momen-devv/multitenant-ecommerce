@@ -66,4 +66,5 @@ AGENTS.md
 CONTEXT.md
 skills-lock.json
 *.md
+!/PM2.md
 !/src/modules/notifications/README.md

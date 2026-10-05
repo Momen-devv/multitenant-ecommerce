@@ -29,7 +29,7 @@ export const loggerConfig: LoggerOptions = {
       ? [
           new DailyRotateFile({
             dirname: `${LOG_DIR}/application`,
-            filename: 'application-%DATE%.log',
+            filename: `application-${process.pid}-%DATE%.log`,
             datePattern: 'YYYY-MM-DD-HH',
             zippedArchive: true,
             maxSize: '20m',
@@ -44,7 +44,7 @@ export const loggerConfig: LoggerOptions = {
     ? [
         new DailyRotateFile({
           dirname: `${LOG_DIR}/exceptions`,
-          filename: 'exceptions-%DATE%.log',
+          filename: `exceptions-${process.pid}-%DATE%.log`,
           datePattern: 'YYYY-MM-DD-HH',
           zippedArchive: true,
           maxSize: '20m',
@@ -57,7 +57,7 @@ export const loggerConfig: LoggerOptions = {
     ? [
         new DailyRotateFile({
           dirname: `${LOG_DIR}/rejections`,
-          filename: 'rejections-%DATE%.log',
+          filename: `rejections-${process.pid}-%DATE%.log`,
           datePattern: 'YYYY-MM-DD-HH',
           zippedArchive: true,
           maxSize: '20m',

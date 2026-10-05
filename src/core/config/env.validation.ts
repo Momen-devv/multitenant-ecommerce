@@ -5,6 +5,9 @@ import { z } from 'zod';
 const envSchema = z.object({
   ...endpointCacheEnvSchema.shape,
   NODE_ENV: z.enum(Environment),
+  APPLICATION_ROLE: z
+    .enum(['standalone', 'api', 'scheduler'])
+    .default('standalone'),
   PORT: z.coerce.number().default(3000),
   BASE_URL: z.string().min(1, 'BASE_URL must be a valid URL'),
   HEALTH_MEMORY_HEAP_MB: z.coerce.number().default(400),

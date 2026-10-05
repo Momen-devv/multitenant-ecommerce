@@ -1,0 +1,43 @@
+module.exports = {
+  apps: [
+    {
+      name: 'ecommerce-api',
+      cwd: __dirname,
+      script: './dist/src/main.js',
+      exec_mode: 'cluster',
+      instances: 4,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '512M',
+      exp_backoff_restart_delay: 100,
+      wait_ready: true,
+      listen_timeout: 30000,
+      kill_timeout: 30000,
+      time: true,
+      env_production: {
+        NODE_ENV: 'production',
+        PORT: 3000,
+        APPLICATION_ROLE: 'api',
+      },
+    },
+    {
+      name: 'ecommerce-scheduler',
+      cwd: __dirname,
+      script: './dist/src/scheduler.js',
+      exec_mode: 'fork',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '512M',
+      exp_backoff_restart_delay: 100,
+      wait_ready: true,
+      listen_timeout: 30000,
+      kill_timeout: 30000,
+      time: true,
+      env_production: {
+        NODE_ENV: 'production',
+        APPLICATION_ROLE: 'scheduler',
+      },
+    },
+  ],
+};
