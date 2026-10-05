@@ -22,9 +22,11 @@ import {
 import * as schema from '@/infrastructure/database/schema/schema';
 import { and, asc, eq, exists, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { publicProductQuery } from '../queries/public-product.query';
 import { findCategorySummariesByProduct } from '@/modules/categories/repos/category-membership.reader';
+import type { PublicProductAggregate } from '../cache/public-products.cache';
+import type { PublicProductResponseDto } from '../dto/response/product-response.dto';
 
 @Injectable()
 export class PublicProductsRepository {
@@ -36,6 +38,8 @@ export class PublicProductsRepository {
     storeSlug: string,
     input: ApiListQueryInput,
     categorySlug?: string,
+    expectedStoreId?: string,
+    requireVisibleCategory = false,
   ) {
     return this.db.transaction(
       async (tx) => {
@@ -44,9 +48,45 @@ export class PublicProductsRepository {
           where: and(
             eq(store.slug, storeSlug),
             eq(store.status, StoreStatus.ACTIVE),
+            expectedStoreId ? eq(store.id, expectedStoreId) : undefined,
           ),
         });
         if (!activeStore) return undefined;
+
+        if (requireVisibleCategory) {
+          if (!categorySlug)
+            throw new NotFoundException('Published Category not found');
+          // Visibility is independent of list filters/cursors, and shares the
+          // Product page's snapshot. Cached Category data is never a gate here.
+          const visibleCategory = await tx
+            .select({ id: categories.id })
+            .from(categories)
+            .innerJoin(
+              productCategories,
+              and(
+                eq(productCategories.storeId, categories.storeId),
+                eq(productCategories.categoryId, categories.id),
+              ),
+            )
+            .innerJoin(
+              products,
+              and(
+                eq(products.storeId, productCategories.storeId),
+                eq(products.id, productCategories.productId),
+                eq(products.status, ProductStatus.PUBLISHED),
+              ),
+            )
+            .where(
+              and(
+                eq(categories.storeId, activeStore.id),
+                eq(categories.slug, categorySlug),
+                eq(categories.status, CategoryStatus.PUBLISHED),
+              ),
+            )
+            .limit(1);
+          if (!visibleCategory.length)
+            throw new NotFoundException('Published Category not found');
+        }
 
         const query = compileApiQuery(publicProductQuery, input);
         const categoryCondition = categorySlug
@@ -123,7 +163,58 @@ export class PublicProductsRepository {
     );
   }
 
-  async findPublishedBySlug(storeSlug: string, slug: string) {
+  findPublishedBySlug(
+    storeSlug: string,
+    slug: string,
+    expectedStoreId?: string,
+  ) {
+    return this.readPublishedBySlug(storeSlug, slug, expectedStoreId, true);
+  }
+
+  findPublishedAggregateBySlug(
+    storeSlug: string,
+    slug: string,
+    expectedStoreId: string,
+  ) {
+    return this.readPublishedBySlug(storeSlug, slug, expectedStoreId, false);
+  }
+
+  // One statement reads the entire active Variant set, including newly added
+  // Variants. Filtering to cached IDs would hide graph changes.
+  findLiveAvailability(storeId: string, productId: string) {
+    return this.db
+      .select({
+        id: productVariants.id,
+        available: sql<boolean>`case when ${productVariants.inventoryPolicy} = 'untracked' then true else ${productVariants.onHand} - ${productVariants.reserved} > 0 end`,
+      })
+      .from(productVariants)
+      .where(
+        and(
+          eq(productVariants.storeId, storeId),
+          eq(productVariants.productId, productId),
+          eq(productVariants.status, ProductVariantStatus.ACTIVE),
+        ),
+      );
+  }
+
+  private readPublishedBySlug(
+    storeSlug: string,
+    slug: string,
+    expectedStoreId: string | undefined,
+    includeAvailability: true,
+  ): Promise<PublicProductResponseDto | undefined>;
+  private readPublishedBySlug(
+    storeSlug: string,
+    slug: string,
+    expectedStoreId: string | undefined,
+    includeAvailability: false,
+  ): Promise<PublicProductAggregate | undefined>;
+  private async readPublishedBySlug(
+    storeSlug: string,
+    slug: string,
+    expectedStoreId: string | undefined,
+    includeAvailability: boolean,
+  ): Promise<PublicProductResponseDto | PublicProductAggregate | undefined> {
     return this.db.transaction(
       async (tx) => {
         const activeStore = await tx.query.store.findFirst({
@@ -131,6 +222,7 @@ export class PublicProductsRepository {
           where: and(
             eq(store.slug, storeSlug),
             eq(store.status, StoreStatus.ACTIVE),
+            expectedStoreId ? eq(store.id, expectedStoreId) : undefined,
           ),
         });
         if (!activeStore) return undefined;
@@ -178,12 +270,14 @@ export class PublicProductsRepository {
                 compareAtPrice: true,
                 weightGrams: true,
               },
-              extras: {
-                available:
-                  sql<boolean>`case when ${productVariants.inventoryPolicy} = 'untracked' then true else ${productVariants.onHand} - ${productVariants.reserved} > 0 end`.as(
-                    'available',
-                  ),
-              },
+              extras: includeAvailability
+                ? {
+                    available:
+                      sql<boolean>`case when ${productVariants.inventoryPolicy} = 'untracked' then true else ${productVariants.onHand} - ${productVariants.reserved} > 0 end`.as(
+                        'available',
+                      ),
+                  }
+                : undefined,
               where: eq(productVariants.status, ProductVariantStatus.ACTIVE),
               orderBy: [
                 asc(productVariants.createdAt),

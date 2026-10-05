@@ -1,3 +1,4 @@
+import { CatalogCacheInvalidator } from '../cache/catalog-cache.invalidator';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import { ProductStatus } from '@/common/enums';
 import { ProductImageGalleryConflictError } from '@/common/errors';
@@ -8,7 +9,7 @@ import {
 import * as schema from '@/infrastructure/database/schema/schema';
 import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 
 const MAX_PRODUCT_IMAGES = 10;
 
@@ -26,6 +27,7 @@ export type CreateProductImageInput = {
 export class ProductImagesRepository {
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
+    @Optional() private readonly catalogCache?: CatalogCacheInvalidator,
   ) {}
 
   async productExists(storeId: string, productId: string): Promise<boolean> {
@@ -317,16 +319,21 @@ export class ProductImagesRepository {
       product: { status: ProductStatus },
     ) => Promise<Result>,
   ): Promise<Result | undefined> {
-    return this.db.transaction(async (tx) => {
-      const [product] = await tx
-        .select({ id: products.id, status: products.status })
-        .from(products)
-        .where(and(eq(products.storeId, storeId), eq(products.id, productId)))
-        .for('update');
-      if (!product) return undefined;
-      this.assertMutable(product.status);
-      return operation(tx, product);
-    });
+    const write = async () => {
+      return this.db.transaction(async (tx) => {
+        const [product] = await tx
+          .select({ id: products.id, status: products.status })
+          .from(products)
+          .where(and(eq(products.storeId, storeId), eq(products.id, productId)))
+          .for('update');
+        if (!product) return undefined;
+        this.assertMutable(product.status);
+        return operation(tx, product);
+      });
+    };
+    return this.catalogCache
+      ? this.catalogCache.commit(storeId, productId, write)
+      : write();
   }
 
   private assertMutable(status: ProductStatus) {

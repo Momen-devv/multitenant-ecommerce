@@ -1,4 +1,8 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import endpointCacheConfig from '@/core/config/endpoint-cache.config';
+import { CatalogCacheInvalidator } from './cache/catalog-cache.invalidator';
+import { PUBLIC_PRODUCT_LIST_READER } from './interfaces/public-product-list-reader.interface';
 import { StoresModule } from '../stores/stores.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { PRODUCTS_REPOSITORY } from './interfaces/repos';
@@ -33,12 +37,15 @@ import { ImageProcessingService } from '@/common/services/Image-processing.servi
     PublicProductsController,
   ],
   imports: [
+    ConfigModule.forFeature(endpointCacheConfig),
     StoresModule,
     SubscriptionsModule,
     StorageModule,
     ResourceCleanupQueueModule,
   ],
   providers: [
+    CatalogCacheInvalidator,
+    { provide: PUBLIC_PRODUCT_LIST_READER, useExisting: PublicProductsService },
     ProductsService,
     ProductsRepository,
     { provide: PRODUCTS_REPOSITORY, useExisting: ProductsRepository },
@@ -53,6 +60,10 @@ import { ImageProcessingService } from '@/common/services/Image-processing.servi
     ActiveStoreGuard,
     ImageProcessingService,
   ],
-  exports: [PublicProductsRepository],
+  exports: [
+    PublicProductsRepository,
+    PUBLIC_PRODUCT_LIST_READER,
+    CatalogCacheInvalidator,
+  ],
 })
 export class ProductsModule {}

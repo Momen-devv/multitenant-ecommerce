@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { StorefrontCacheContextReader } from './repos/storefront-cache-context.reader';
 import { StoreOwnerController } from './controllers/store-owner.controller';
 import { PlatformStoresController } from './controllers/platform-stores.controller';
 import { StoresService } from './services/stores.service';
@@ -22,6 +23,7 @@ import { StoreInvitationsController } from './controllers/store-invitations.cont
     StoreInvitationsController,
   ],
   providers: [
+    StorefrontCacheContextReader,
     StoresService,
     PlatformStoresService,
     StoreRepository,
@@ -32,6 +34,7 @@ import { StoreInvitationsController } from './controllers/store-invitations.cont
     StoreMembershipGuard,
   ],
   exports: [
+    StorefrontCacheContextReader,
     STORE_REPOSITORY,
     PlatformStoresService,
     StoreMembershipGuard,

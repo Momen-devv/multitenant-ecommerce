@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { CatalogCacheInvalidator } from '@/modules/products/cache/catalog-cache.invalidator';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import { CategoryStatus, ProductStatus, StoreStatus } from '@/common/enums';
 import {
@@ -35,50 +36,57 @@ import type {
 export class CategoriesRepository implements ICategoriesRepository {
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
+    @Optional() private readonly catalogCache?: CatalogCacheInvalidator,
   ) {}
 
   async create(storeId: string, input: CreateCategoryInput, limit: number) {
-    try {
-      return await this.db.transaction(async (tx) => {
-        await tx.execute(
-          sql`select pg_advisory_xact_lock(hashtext(${storeId} || ':categories'))`,
-        );
-        await this.assertActiveStore(tx, storeId);
-        const [{ usage }] = await tx
-          .select({ usage: count() })
-          .from(categories)
-          .where(
-            and(
-              eq(categories.storeId, storeId),
-              ne(categories.status, CategoryStatus.ARCHIVED),
-            ),
+    const write = async () => {
+      try {
+        return await this.db.transaction(async (tx) => {
+          await tx.execute(
+            sql`select pg_advisory_xact_lock(hashtext(${storeId} || ':categories'))`,
           );
-        if (usage >= limit) throw new CategoryLimitExceededError(limit, usage);
-        const [{ lastPosition }] = await tx
-          .select({ lastPosition: max(categories.position) })
-          .from(categories)
-          .where(
-            and(
-              eq(categories.storeId, storeId),
-              ne(categories.status, CategoryStatus.ARCHIVED),
-            ),
-          );
-        const [created] = await tx
-          .insert(categories)
-          .values({
-            storeId,
-            ...input,
-            position: (lastPosition ?? -1) + 1,
-          })
-          .returning();
-        return created;
-      });
-    } catch (error) {
-      if (this.isUniqueViolation(error, 'categories_store_slug_uidx')) {
-        throw new SlugConflictError();
+          await this.assertActiveStore(tx, storeId);
+          const [{ usage }] = await tx
+            .select({ usage: count() })
+            .from(categories)
+            .where(
+              and(
+                eq(categories.storeId, storeId),
+                ne(categories.status, CategoryStatus.ARCHIVED),
+              ),
+            );
+          if (usage >= limit)
+            throw new CategoryLimitExceededError(limit, usage);
+          const [{ lastPosition }] = await tx
+            .select({ lastPosition: max(categories.position) })
+            .from(categories)
+            .where(
+              and(
+                eq(categories.storeId, storeId),
+                ne(categories.status, CategoryStatus.ARCHIVED),
+              ),
+            );
+          const [created] = await tx
+            .insert(categories)
+            .values({
+              storeId,
+              ...input,
+              position: (lastPosition ?? -1) + 1,
+            })
+            .returning();
+          return created;
+        });
+      } catch (error) {
+        if (this.isUniqueViolation(error, 'categories_store_slug_uidx')) {
+          throw new SlugConflictError();
+        }
+        throw error;
       }
-      throw error;
-    }
+    };
+    return this.catalogCache
+      ? this.catalogCache.commitCatalog(storeId, write)
+      : write();
   }
 
   async findOne(storeId: string, categoryId: string) {
@@ -155,26 +163,79 @@ export class CategoriesRepository implements ICategoriesRepository {
     input: UpdateCategoryInput,
     expectedVersion: number,
   ) {
-    try {
-      return await this.db.transaction(async (tx) => {
+    const write = async () => {
+      try {
+        return await this.db.transaction(async (tx) => {
+          const category = await this.lockCategory(tx, storeId, categoryId);
+          if (!category) return undefined;
+          this.assertMutable(
+            category.status,
+            category.version,
+            expectedVersion,
+          );
+          if (
+            category.status === CategoryStatus.PUBLISHED &&
+            input.slug !== undefined &&
+            input.slug !== category.slug
+          ) {
+            throw new CategoryLifecycleConflictError(
+              'A published Category slug cannot be changed.',
+            );
+          }
+          const [updated] = await tx
+            .update(categories)
+            .set({
+              ...input,
+              version: sql`${categories.version} + 1`,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(categories.storeId, storeId),
+                eq(categories.id, categoryId),
+                eq(categories.version, expectedVersion),
+              ),
+            )
+            .returning();
+          if (!updated) throw new CategoryVersionConflictError();
+          return updated;
+        });
+      } catch (error) {
+        if (this.isUniqueViolation(error, 'categories_store_slug_uidx')) {
+          throw new SlugConflictError();
+        }
+        throw error;
+      }
+    };
+    return this.catalogCache
+      ? this.catalogCache.commitCatalog(storeId, write)
+      : write();
+  }
+
+  async transitionStatus(
+    storeId: string,
+    categoryId: string,
+    status: CategoryStatusTransition,
+    expectedVersion: number,
+  ) {
+    const write = async () => {
+      return this.db.transaction(async (tx) => {
         const category = await this.lockCategory(tx, storeId, categoryId);
         if (!category) return undefined;
         this.assertMutable(category.status, category.version, expectedVersion);
-        if (
-          category.status === CategoryStatus.PUBLISHED &&
-          input.slug !== undefined &&
-          input.slug !== category.slug
-        ) {
+        if (category.status === status) {
           throw new CategoryLifecycleConflictError(
-            'A published Category slug cannot be changed.',
+            `Category is already ${status}.`,
           );
         }
+        const now = new Date();
         const [updated] = await tx
           .update(categories)
           .set({
-            ...input,
+            status,
+            publishedAt: status === CategoryStatus.PUBLISHED ? now : null,
             version: sql`${categories.version} + 1`,
-            updatedAt: new Date(),
+            updatedAt: now,
           })
           .where(
             and(
@@ -187,126 +248,99 @@ export class CategoriesRepository implements ICategoriesRepository {
         if (!updated) throw new CategoryVersionConflictError();
         return updated;
       });
-    } catch (error) {
-      if (this.isUniqueViolation(error, 'categories_store_slug_uidx')) {
-        throw new SlugConflictError();
-      }
-      throw error;
-    }
-  }
-
-  async transitionStatus(
-    storeId: string,
-    categoryId: string,
-    status: CategoryStatusTransition,
-    expectedVersion: number,
-  ) {
-    return this.db.transaction(async (tx) => {
-      const category = await this.lockCategory(tx, storeId, categoryId);
-      if (!category) return undefined;
-      this.assertMutable(category.status, category.version, expectedVersion);
-      if (category.status === status) {
-        throw new CategoryLifecycleConflictError(
-          `Category is already ${status}.`,
-        );
-      }
-      const now = new Date();
-      const [updated] = await tx
-        .update(categories)
-        .set({
-          status,
-          publishedAt: status === CategoryStatus.PUBLISHED ? now : null,
-          version: sql`${categories.version} + 1`,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(categories.storeId, storeId),
-            eq(categories.id, categoryId),
-            eq(categories.version, expectedVersion),
-          ),
-        )
-        .returning();
-      if (!updated) throw new CategoryVersionConflictError();
-      return updated;
-    });
+    };
+    return this.catalogCache
+      ? this.catalogCache.commitCatalog(storeId, write)
+      : write();
   }
 
   async archive(storeId: string, categoryId: string, expectedVersion: number) {
-    return this.db.transaction(async (tx) => {
-      const category = await this.lockCategory(tx, storeId, categoryId);
-      if (!category) return undefined;
-      this.assertMutable(category.status, category.version, expectedVersion);
-      const now = new Date();
-      const [archived] = await tx
-        .update(categories)
-        .set({
-          status: CategoryStatus.ARCHIVED,
-          archivedAt: now,
-          version: sql`${categories.version} + 1`,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(categories.storeId, storeId),
-            eq(categories.id, categoryId),
-            eq(categories.version, expectedVersion),
-          ),
-        )
-        .returning();
-      if (!archived) throw new CategoryVersionConflictError();
-      return archived;
-    });
-  }
-
-  async reorder(storeId: string, requested: ReorderCategoryInput[]) {
-    return this.db.transaction(async (tx) => {
-      await this.assertActiveStore(tx, storeId);
-      const current = await tx
-        .select()
-        .from(categories)
-        .where(
-          and(
-            eq(categories.storeId, storeId),
-            ne(categories.status, CategoryStatus.ARCHIVED),
-          ),
-        )
-        .orderBy(asc(categories.position), asc(categories.id))
-        .for('update');
-      const byId = new Map(current.map((category) => [category.id, category]));
-      if (
-        current.length !== requested.length ||
-        requested.some((item) => {
-          const category = byId.get(item.id);
-          return !category || category.version !== item.expectedVersion;
-        })
-      ) {
-        throw new CategoryReorderConflictError(
-          'The Category order is incomplete or contains stale Categories.',
-        );
-      }
-      const updated: Category[] = [];
-      for (const [position, item] of requested.entries()) {
-        const [category] = await tx
+    const write = async () => {
+      return this.db.transaction(async (tx) => {
+        const category = await this.lockCategory(tx, storeId, categoryId);
+        if (!category) return undefined;
+        this.assertMutable(category.status, category.version, expectedVersion);
+        const now = new Date();
+        const [archived] = await tx
           .update(categories)
           .set({
-            position,
+            status: CategoryStatus.ARCHIVED,
+            archivedAt: now,
             version: sql`${categories.version} + 1`,
-            updatedAt: new Date(),
+            updatedAt: now,
           })
           .where(
             and(
               eq(categories.storeId, storeId),
-              eq(categories.id, item.id),
-              eq(categories.version, item.expectedVersion),
+              eq(categories.id, categoryId),
+              eq(categories.version, expectedVersion),
             ),
           )
           .returning();
-        if (!category) throw new CategoryVersionConflictError();
-        updated.push(category);
-      }
-      return updated;
-    });
+        if (!archived) throw new CategoryVersionConflictError();
+        return archived;
+      });
+    };
+    return this.catalogCache
+      ? this.catalogCache.commitCatalog(storeId, write)
+      : write();
+  }
+
+  async reorder(storeId: string, requested: ReorderCategoryInput[]) {
+    const write = async () => {
+      return this.db.transaction(async (tx) => {
+        await this.assertActiveStore(tx, storeId);
+        const current = await tx
+          .select()
+          .from(categories)
+          .where(
+            and(
+              eq(categories.storeId, storeId),
+              ne(categories.status, CategoryStatus.ARCHIVED),
+            ),
+          )
+          .orderBy(asc(categories.position), asc(categories.id))
+          .for('update');
+        const byId = new Map(
+          current.map((category) => [category.id, category]),
+        );
+        if (
+          current.length !== requested.length ||
+          requested.some((item) => {
+            const category = byId.get(item.id);
+            return !category || category.version !== item.expectedVersion;
+          })
+        ) {
+          throw new CategoryReorderConflictError(
+            'The Category order is incomplete or contains stale Categories.',
+          );
+        }
+        const updated: Category[] = [];
+        for (const [position, item] of requested.entries()) {
+          const [category] = await tx
+            .update(categories)
+            .set({
+              position,
+              version: sql`${categories.version} + 1`,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(categories.storeId, storeId),
+                eq(categories.id, item.id),
+                eq(categories.version, item.expectedVersion),
+              ),
+            )
+            .returning();
+          if (!category) throw new CategoryVersionConflictError();
+          updated.push(category);
+        }
+        return updated;
+      });
+    };
+    return this.catalogCache
+      ? this.catalogCache.commitCatalog(storeId, write)
+      : write();
   }
 
   private async lockCategory(

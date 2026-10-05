@@ -1,5 +1,6 @@
+import { ReadCacheService } from '@/infrastructure/cache/read-cache.service';
 import { writeWelcomeIntent } from '@/infrastructure/outbox/welcome-intent.writer';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import * as schema from '@/infrastructure/database/schema/schema';
@@ -27,6 +28,7 @@ export class StoreRepository implements IStoreRepository {
   constructor(
     @Inject(DATABASE)
     private readonly db: NodePgDatabase<typeof schema>,
+    @Optional() private readonly cache?: ReadCacheService,
   ) {}
 
   async create(data: Omit<NewStore, 'id'>): Promise<Store> {
@@ -162,29 +164,71 @@ export class StoreRepository implements IStoreRepository {
   }
 
   async update(id: string, data: Partial<Store>) {
-    const [updated] = await this.db
-      .update(store)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(store.id, id))
-      .returning();
+    const write = async () => {
+      const [updated] = await this.db
+        .update(store)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(store.id, id))
+        .returning();
 
-    return updated;
+      return updated;
+    };
+    const result = await write();
+    if (
+      result &&
+      this.cache &&
+      (data.status !== undefined ||
+        data.slug !== undefined ||
+        data.defaultCurrency !== undefined)
+    ) {
+      try {
+        await this.cache.invalidate(
+          { kind: 'store', storeId: id },
+          [],
+          'product-list',
+        );
+      } catch {
+        this.cache.record('product-list', 'invalidation-error');
+      }
+    }
+    return result;
   }
 
   async updateActiveStore(id: string, data: Partial<Store>) {
-    const [updated] = await this.db
-      .update(store)
-      .set({ ...data, updatedAt: new Date() })
-      .where(and(eq(store.id, id), eq(store.status, StoreStatus.ACTIVE)))
-      .returning();
+    const write = async () => {
+      const [updated] = await this.db
+        .update(store)
+        .set({ ...data, updatedAt: new Date() })
+        .where(and(eq(store.id, id), eq(store.status, StoreStatus.ACTIVE)))
+        .returning();
 
-    if (!updated) {
-      throw new StoreLifecycleConflictError(
-        'The Store is no longer active and cannot be modified.',
-      );
+      if (!updated) {
+        throw new StoreLifecycleConflictError(
+          'The Store is no longer active and cannot be modified.',
+        );
+      }
+
+      return updated;
+    };
+    const result = await write();
+    if (
+      result &&
+      this.cache &&
+      (data.status !== undefined ||
+        data.slug !== undefined ||
+        data.defaultCurrency !== undefined)
+    ) {
+      try {
+        await this.cache.invalidate(
+          { kind: 'store', storeId: id },
+          [],
+          'product-list',
+        );
+      } catch {
+        this.cache.record('product-list', 'invalidation-error');
+      }
     }
-
-    return updated;
+    return result;
   }
 
   async transitionStatus(input: {
@@ -195,34 +239,49 @@ export class StoreRepository implements IStoreRepository {
     newStatus: StoreStatus;
     reason: string;
   }): Promise<Store> {
-    return this.db.transaction(async (tx) => {
-      const [updated] = await tx
-        .update(store)
-        .set({ status: input.newStatus, updatedAt: new Date() })
-        .where(
-          and(
-            eq(store.id, input.storeId),
-            eq(store.status, input.previousStatus),
-          ),
-        )
-        .returning();
+    const write = async () => {
+      return this.db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(store)
+          .set({ status: input.newStatus, updatedAt: new Date() })
+          .where(
+            and(
+              eq(store.id, input.storeId),
+              eq(store.status, input.previousStatus),
+            ),
+          )
+          .returning();
 
-      if (!updated) {
-        throw new StoreLifecycleConflictError();
-      }
+        if (!updated) {
+          throw new StoreLifecycleConflictError();
+        }
 
-      await tx.insert(storeLifecycleAudit).values({
-        id: generateUUIDv7(),
-        storeId: input.storeId,
-        actorId: input.actorId,
-        actorAuthority: input.actorAuthority,
-        previousStatus: input.previousStatus,
-        newStatus: input.newStatus,
-        reason: input.reason,
+        await tx.insert(storeLifecycleAudit).values({
+          id: generateUUIDv7(),
+          storeId: input.storeId,
+          actorId: input.actorId,
+          actorAuthority: input.actorAuthority,
+          previousStatus: input.previousStatus,
+          newStatus: input.newStatus,
+          reason: input.reason,
+        });
+
+        return updated;
       });
-
-      return updated;
-    });
+    };
+    const result = await write();
+    if (result && this.cache) {
+      try {
+        await this.cache.invalidate(
+          { kind: 'store', storeId: input.storeId },
+          [],
+          'product-list',
+        );
+      } catch {
+        this.cache.record('product-list', 'invalidation-error');
+      }
+    }
+    return result;
   }
 
   async deleteOrganization(organizationId: string) {

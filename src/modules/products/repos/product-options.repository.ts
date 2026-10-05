@@ -1,3 +1,4 @@
+import { CatalogCacheInvalidator } from '../cache/catalog-cache.invalidator';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import { ProductStatus, ProductVariantStatus } from '@/common/enums';
 import { OptionGraphConflictError } from '@/common/errors';
@@ -13,7 +14,7 @@ import { and, asc, eq, gt, sql } from 'drizzle-orm';
 import { DrizzleQueryError } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DatabaseError } from 'pg';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type {
   CreateProductOptionDto,
   CreateProductOptionValueDto,
@@ -30,6 +31,7 @@ import {
 export class ProductOptionsRepository {
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
+    @Optional() private readonly catalogCache?: CatalogCacheInvalidator,
   ) {}
 
   async findGraph(storeId: string, productId: string) {
@@ -387,29 +389,36 @@ export class ProductOptionsRepository {
     productId: string,
     operation: (tx: NodePgDatabase<typeof schema>) => Promise<Result>,
   ): Promise<Result | undefined> {
-    try {
-      return await this.db.transaction(async (tx) => {
-        const [product] = await tx
-          .select({ id: products.id, status: products.status })
-          .from(products)
-          .where(and(eq(products.storeId, storeId), eq(products.id, productId)))
-          .for('update');
-        if (!product) return undefined;
-        if (product.status !== ProductStatus.DRAFT) {
+    const write = async () => {
+      try {
+        return await this.db.transaction(async (tx) => {
+          const [product] = await tx
+            .select({ id: products.id, status: products.status })
+            .from(products)
+            .where(
+              and(eq(products.storeId, storeId), eq(products.id, productId)),
+            )
+            .for('update');
+          if (!product) return undefined;
+          if (product.status !== ProductStatus.DRAFT) {
+            throw new OptionGraphConflictError(
+              'Options can only be changed for a draft Product.',
+            );
+          }
+          return operation(tx);
+        });
+      } catch (error) {
+        if (this.isUniqueViolation(error)) {
           throw new OptionGraphConflictError(
-            'Options can only be changed for a draft Product.',
+            'Option names and values must be unique within a Product.',
           );
         }
-        return operation(tx);
-      });
-    } catch (error) {
-      if (this.isUniqueViolation(error)) {
-        throw new OptionGraphConflictError(
-          'Option names and values must be unique within a Product.',
-        );
+        throw error;
       }
-      throw error;
-    }
+    };
+    return this.catalogCache
+      ? this.catalogCache.commit(storeId, productId, write)
+      : write();
   }
 
   private async touchProduct(

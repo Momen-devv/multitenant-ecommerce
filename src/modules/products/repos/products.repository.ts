@@ -1,3 +1,4 @@
+import { CatalogCacheInvalidator } from '../cache/catalog-cache.invalidator';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import {
   productImages,
@@ -15,7 +16,7 @@ import {
 import * as schema from '@/infrastructure/database/schema/schema';
 import { and, asc, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import { DrizzleQueryError } from 'drizzle-orm';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DatabaseError } from 'pg';
 import { SlugConflictError } from '@/common/errors/slug-conflict.error';
@@ -56,6 +57,7 @@ import {
 export class ProductsRepository implements IProductsRepository {
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
+    @Optional() private readonly catalogCache?: CatalogCacheInvalidator,
   ) {}
 
   async create(
@@ -63,27 +65,32 @@ export class ProductsRepository implements IProductsRepository {
     input: CreateProductInput,
     productLimit: number,
   ) {
-    try {
-      const product = await this.db.transaction(async (tx) => {
-        await this.assertProductLimit(tx, storeId, productLimit);
-        await this.assertAssignableCategories(tx, storeId, input.categoryIds);
-        const product = await this.insertProduct(tx, storeId, input);
-        await this.insertCategoryMemberships(
-          tx,
-          storeId,
-          product.id,
-          input.categoryIds,
-        );
+    const write = async () => {
+      try {
+        const product = await this.db.transaction(async (tx) => {
+          await this.assertProductLimit(tx, storeId, productLimit);
+          await this.assertAssignableCategories(tx, storeId, input.categoryIds);
+          const product = await this.insertProduct(tx, storeId, input);
+          await this.insertCategoryMemberships(
+            tx,
+            storeId,
+            product.id,
+            input.categoryIds,
+          );
+          return product;
+        });
         return product;
-      });
-      return product;
-    } catch (error) {
-      if (this.isUniqueViolation(error, 'products_store_slug_uidx')) {
-        throw new SlugConflictError();
-      }
+      } catch (error) {
+        if (this.isUniqueViolation(error, 'products_store_slug_uidx')) {
+          throw new SlugConflictError();
+        }
 
-      throw error;
-    }
+        throw error;
+      }
+    };
+    return this.catalogCache
+      ? this.catalogCache.commit(storeId, undefined, write)
+      : write();
   }
 
   async createSetup(
@@ -91,140 +98,147 @@ export class ProductsRepository implements IProductsRepository {
     input: CreateProductSetupInput,
     productLimit: number,
   ) {
-    try {
-      return await this.db.transaction(async (tx) => {
-        await this.assertProductLimit(tx, storeId, productLimit);
-        this.assertSetupInput(input);
-        await this.assertAssignableCategories(tx, storeId, input.categoryIds);
-        const product = await this.insertProduct(tx, storeId, input);
-        await this.insertCategoryMemberships(
-          tx,
-          storeId,
-          product.id,
-          input.categoryIds,
-        );
+    const write = async () => {
+      try {
+        return await this.db.transaction(async (tx) => {
+          await this.assertProductLimit(tx, storeId, productLimit);
+          this.assertSetupInput(input);
+          await this.assertAssignableCategories(tx, storeId, input.categoryIds);
+          const product = await this.insertProduct(tx, storeId, input);
+          await this.insertCategoryMemberships(
+            tx,
+            storeId,
+            product.id,
+            input.categoryIds,
+          );
 
-        const optionClientKeys = new Set<string>();
-        const valueByKey = new Map<
-          string,
-          {
-            id: string;
-            optionId: string;
-            optionPosition: number;
-            value: string;
-          }
-        >();
-        for (const [optionPosition, optionInput] of input.options.entries()) {
-          const [option] = await tx
-            .insert(productOptions)
-            .values({
-              storeId,
-              productId: product.id,
-              name: optionInput.name,
-              position: optionPosition,
-            })
-            .returning({ id: productOptions.id });
-          optionClientKeys.add(optionInput.clientKey);
-
-          const values = await tx
-            .insert(productOptionValues)
-            .values(
-              optionInput.values.map((valueInput, position) => ({
+          const optionClientKeys = new Set<string>();
+          const valueByKey = new Map<
+            string,
+            {
+              id: string;
+              optionId: string;
+              optionPosition: number;
+              value: string;
+            }
+          >();
+          for (const [optionPosition, optionInput] of input.options.entries()) {
+            const [option] = await tx
+              .insert(productOptions)
+              .values({
                 storeId,
                 productId: product.id,
+                name: optionInput.name,
+                position: optionPosition,
+              })
+              .returning({ id: productOptions.id });
+            optionClientKeys.add(optionInput.clientKey);
+
+            const values = await tx
+              .insert(productOptionValues)
+              .values(
+                optionInput.values.map((valueInput, position) => ({
+                  storeId,
+                  productId: product.id,
+                  optionId: option.id,
+                  value: valueInput.value,
+                  position,
+                })),
+              )
+              .returning({
+                id: productOptionValues.id,
+                value: productOptionValues.value,
+              });
+            for (const [
+              valuePosition,
+              valueInput,
+            ] of optionInput.values.entries()) {
+              const value = values[valuePosition];
+              valueByKey.set(valueInput.clientKey, {
+                id: value.id,
                 optionId: option.id,
-                value: valueInput.value,
-                position,
-              })),
-            )
-            .returning({
-              id: productOptionValues.id,
-              value: productOptionValues.value,
-            });
-          for (const [
-            valuePosition,
-            valueInput,
-          ] of optionInput.values.entries()) {
-            const value = values[valuePosition];
-            valueByKey.set(valueInput.clientKey, {
-              id: value.id,
-              optionId: option.id,
-              optionPosition,
-              value: value.value,
-            });
+                optionPosition,
+                value: value.value,
+              });
+            }
           }
-        }
 
-        for (const variantInput of input.variants) {
-          const selectedValues = variantInput.optionValueClientKeys.map((key) =>
-            valueByKey.get(key),
-          );
-          if (
-            selectedValues.some((value) => !value) ||
-            new Set(selectedValues.map((value) => value?.optionId)).size !==
-              optionClientKeys.size
-          ) {
-            throw new ProductLifecycleConflictError(
-              'Every Variant must select one value from every Product option.',
+          for (const variantInput of input.variants) {
+            const selectedValues = variantInput.optionValueClientKeys.map(
+              (key) => valueByKey.get(key),
             );
-          }
-          const selections = selectedValues
-            .filter((value): value is NonNullable<typeof value> =>
-              Boolean(value),
-            )
-            .sort((left, right) => left.optionPosition - right.optionPosition);
-          const { optionSignature, title } = deriveVariantPresentation(
-            selections.map((value) => ({
-              optionValueId: value.id,
-              value: value.value,
-            })),
-          );
-          const [variant] = await tx
-            .insert(productVariants)
-            .values({
-              storeId,
-              productId: product.id,
-              title,
-              optionSignature,
-              ...generateVariantIdentifiers(),
-              price: variantInput.price,
-              compareAtPrice: variantInput.compareAtPrice,
-              weightGrams: variantInput.weightGrams,
-              status: ProductVariantStatus.ACTIVE,
-              inventoryPolicy: variantInput.inventoryPolicy,
-              onHand: variantInput.onHand,
-              reserved:
-                variantInput.inventoryPolicy === InventoryPolicy.TRACKED
-                  ? 0
-                  : null,
-            })
-            .returning({ id: productVariants.id });
-          if (selections.length > 0) {
-            await tx.insert(productVariantOptionValues).values(
+            if (
+              selectedValues.some((value) => !value) ||
+              new Set(selectedValues.map((value) => value?.optionId)).size !==
+                optionClientKeys.size
+            ) {
+              throw new ProductLifecycleConflictError(
+                'Every Variant must select one value from every Product option.',
+              );
+            }
+            const selections = selectedValues
+              .filter((value): value is NonNullable<typeof value> =>
+                Boolean(value),
+              )
+              .sort(
+                (left, right) => left.optionPosition - right.optionPosition,
+              );
+            const { optionSignature, title } = deriveVariantPresentation(
               selections.map((value) => ({
+                optionValueId: value.id,
+                value: value.value,
+              })),
+            );
+            const [variant] = await tx
+              .insert(productVariants)
+              .values({
                 storeId,
                 productId: product.id,
-                variantId: variant.id,
-                optionId: value.optionId,
-                optionValueId: value.id,
-              })),
+                title,
+                optionSignature,
+                ...generateVariantIdentifiers(),
+                price: variantInput.price,
+                compareAtPrice: variantInput.compareAtPrice,
+                weightGrams: variantInput.weightGrams,
+                status: ProductVariantStatus.ACTIVE,
+                inventoryPolicy: variantInput.inventoryPolicy,
+                onHand: variantInput.onHand,
+                reserved:
+                  variantInput.inventoryPolicy === InventoryPolicy.TRACKED
+                    ? 0
+                    : null,
+              })
+              .returning({ id: productVariants.id });
+            if (selections.length > 0) {
+              await tx.insert(productVariantOptionValues).values(
+                selections.map((value) => ({
+                  storeId,
+                  productId: product.id,
+                  variantId: variant.id,
+                  optionId: value.optionId,
+                  optionValueId: value.id,
+                })),
+              );
+            }
+          }
+          const aggregate = await this.findOneWith(tx, storeId, product.id);
+          if (!aggregate) {
+            throw new ProductLifecycleConflictError(
+              'Product setup could not be read after creation.',
             );
           }
+          return aggregate;
+        });
+      } catch (error) {
+        if (this.isUniqueViolation(error, 'products_store_slug_uidx')) {
+          throw new SlugConflictError();
         }
-        const aggregate = await this.findOneWith(tx, storeId, product.id);
-        if (!aggregate) {
-          throw new ProductLifecycleConflictError(
-            'Product setup could not be read after creation.',
-          );
-        }
-        return aggregate;
-      });
-    } catch (error) {
-      if (this.isUniqueViolation(error, 'products_store_slug_uidx')) {
-        throw new SlugConflictError();
+        throw error;
       }
-      throw error;
-    }
+    };
+    return this.catalogCache
+      ? this.catalogCache.commit(storeId, undefined, write)
+      : write();
   }
 
   async findOne(
@@ -356,207 +370,98 @@ export class ProductsRepository implements IProductsRepository {
     categoryIds: string[],
     expectedVersion: number,
   ) {
-    return this.db.transaction(async (tx) => {
-      const [product] = await tx
-        .select()
-        .from(products)
-        .where(and(eq(products.storeId, storeId), eq(products.id, productId)))
-        .for('update');
-      if (!product) return undefined;
-      const [lockedStore] = await tx
-        .select({ status: store.status })
-        .from(store)
-        .where(eq(store.id, storeId))
-        .for('update');
-      if (lockedStore?.status !== StoreStatus.ACTIVE) {
-        throw new StoreLifecycleConflictError();
-      }
-      if (product.status === ProductStatus.ARCHIVED) {
-        throw new ProductLifecycleConflictError(
-          'Archived Products cannot change Categories.',
-        );
-      }
-      if (product.version !== expectedVersion) {
-        throw new ProductLifecycleConflictError(
-          'Product changed during this request.',
-        );
-      }
-      await this.assertAssignableCategories(tx, storeId, categoryIds);
-      const currentNonArchivedMemberships = await tx
-        .select({ categoryId: productCategories.categoryId })
-        .from(productCategories)
-        .innerJoin(
-          categories,
-          and(
-            eq(categories.storeId, productCategories.storeId),
-            eq(categories.id, productCategories.categoryId),
-          ),
-        )
-        .where(
-          and(
-            eq(productCategories.storeId, storeId),
-            eq(productCategories.productId, productId),
-            ne(categories.status, CategoryStatus.ARCHIVED),
-          ),
-        );
-      if (currentNonArchivedMemberships.length > 0) {
-        await tx.delete(productCategories).where(
-          and(
-            eq(productCategories.storeId, storeId),
-            eq(productCategories.productId, productId),
-            inArray(
-              productCategories.categoryId,
-              currentNonArchivedMemberships.map((row) => row.categoryId),
+    const write = async () => {
+      return this.db.transaction(async (tx) => {
+        const [product] = await tx
+          .select()
+          .from(products)
+          .where(and(eq(products.storeId, storeId), eq(products.id, productId)))
+          .for('update');
+        if (!product) return undefined;
+        const [lockedStore] = await tx
+          .select({ status: store.status })
+          .from(store)
+          .where(eq(store.id, storeId))
+          .for('update');
+        if (lockedStore?.status !== StoreStatus.ACTIVE) {
+          throw new StoreLifecycleConflictError();
+        }
+        if (product.status === ProductStatus.ARCHIVED) {
+          throw new ProductLifecycleConflictError(
+            'Archived Products cannot change Categories.',
+          );
+        }
+        if (product.version !== expectedVersion) {
+          throw new ProductLifecycleConflictError(
+            'Product changed during this request.',
+          );
+        }
+        await this.assertAssignableCategories(tx, storeId, categoryIds);
+        const currentNonArchivedMemberships = await tx
+          .select({ categoryId: productCategories.categoryId })
+          .from(productCategories)
+          .innerJoin(
+            categories,
+            and(
+              eq(categories.storeId, productCategories.storeId),
+              eq(categories.id, productCategories.categoryId),
             ),
-          ),
+          )
+          .where(
+            and(
+              eq(productCategories.storeId, storeId),
+              eq(productCategories.productId, productId),
+              ne(categories.status, CategoryStatus.ARCHIVED),
+            ),
+          );
+        if (currentNonArchivedMemberships.length > 0) {
+          await tx.delete(productCategories).where(
+            and(
+              eq(productCategories.storeId, storeId),
+              eq(productCategories.productId, productId),
+              inArray(
+                productCategories.categoryId,
+                currentNonArchivedMemberships.map((row) => row.categoryId),
+              ),
+            ),
+          );
+        }
+        await this.insertCategoryMemberships(
+          tx,
+          storeId,
+          productId,
+          categoryIds,
         );
-      }
-      await this.insertCategoryMemberships(tx, storeId, productId, categoryIds);
-      const [updated] = await tx
-        .update(products)
-        .set({ version: sql`${products.version} + 1`, updatedAt: new Date() })
-        .where(
-          and(
-            eq(products.storeId, storeId),
-            eq(products.id, productId),
-            eq(products.version, expectedVersion),
-          ),
-        )
-        .returning({ id: products.id });
-      if (!updated) {
-        throw new ProductLifecycleConflictError(
-          'Product changed during this request.',
-        );
-      }
-      return this.findOneWith(tx, storeId, productId);
-    });
+        const [updated] = await tx
+          .update(products)
+          .set({ version: sql`${products.version} + 1`, updatedAt: new Date() })
+          .where(
+            and(
+              eq(products.storeId, storeId),
+              eq(products.id, productId),
+              eq(products.version, expectedVersion),
+            ),
+          )
+          .returning({ id: products.id });
+        if (!updated) {
+          throw new ProductLifecycleConflictError(
+            'Product changed during this request.',
+          );
+        }
+        return this.findOneWith(tx, storeId, productId);
+      });
+    };
+    return this.catalogCache
+      ? this.catalogCache.commit(storeId, productId, write)
+      : write();
   }
 
   async update(storeId: string, productId: string, input: UpdateProductInput) {
-    const [updated] = await this.db
-      .update(products)
-      .set({
-        ...input,
-        version: sql`${products.version} + 1`,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(products.storeId, storeId),
-          eq(products.id, productId),
-          ne(products.status, ProductStatus.ARCHIVED),
-        ),
-      )
-      .returning();
-    return updated;
-  }
-
-  async archive(storeId: string, productId: string) {
-    return this.db.transaction(async (tx) => {
-      const [product] = await tx
-        .select()
-        .from(products)
-        .where(and(eq(products.storeId, storeId), eq(products.id, productId)))
-        .for('update');
-      if (!product) return undefined;
-
-      const [lockedStore] = await tx
-        .select({ status: store.status })
-        .from(store)
-        .where(eq(store.id, storeId))
-        .for('update');
-      if (lockedStore?.status !== StoreStatus.ACTIVE) {
-        throw new StoreLifecycleConflictError(
-          'The Store is no longer active and cannot be modified.',
-        );
-      }
-
-      if (product.status === ProductStatus.ARCHIVED) return product;
-
-      const archivedAt = new Date();
-      const [archivedProduct] = await tx
+    const write = async () => {
+      const [updated] = await this.db
         .update(products)
         .set({
-          status: ProductStatus.ARCHIVED,
-          archivedAt,
-          version: sql`${products.version} + 1`,
-          updatedAt: archivedAt,
-        })
-        .where(
-          and(
-            eq(products.storeId, storeId),
-            eq(products.id, productId),
-            eq(products.status, product.status),
-          ),
-        )
-        .returning();
-      if (!archivedProduct) {
-        throw new ProductLifecycleConflictError(
-          'Product status changed during this request.',
-        );
-      }
-
-      await tx
-        .update(productVariants)
-        .set({
-          status: ProductVariantStatus.ARCHIVED,
-          archivedAt,
-          version: sql`${productVariants.version} + 1`,
-          updatedAt: archivedAt,
-        })
-        .where(
-          and(
-            eq(productVariants.storeId, storeId),
-            eq(productVariants.productId, productId),
-            eq(productVariants.status, ProductVariantStatus.ACTIVE),
-          ),
-        );
-
-      return archivedProduct;
-    });
-  }
-
-  async transitionStatus(
-    storeId: string,
-    productId: string,
-    desiredStatus: ProductStatusTransition,
-  ) {
-    return this.db.transaction(async (tx) => {
-      const [product] = await tx
-        .select()
-        .from(products)
-        .where(and(eq(products.storeId, storeId), eq(products.id, productId)))
-        .for('update');
-      if (!product) return undefined;
-
-      const [lockedStore] = await tx
-        .select({ status: store.status })
-        .from(store)
-        .where(eq(store.id, storeId))
-        .for('update');
-      if (lockedStore?.status !== StoreStatus.ACTIVE) {
-        throw new StoreLifecycleConflictError(
-          'The Store is no longer active and cannot be modified.',
-        );
-      }
-
-      if (product.status === ProductStatus.ARCHIVED) {
-        throw new ProductLifecycleConflictError(
-          'Archived Products cannot change status.',
-        );
-      }
-      if (product.status === desiredStatus) return product;
-
-      if (desiredStatus === ProductStatus.PUBLISHED) {
-        await this.assertPublishable(tx, storeId, product);
-      }
-
-      const [updated] = await tx
-        .update(products)
-        .set({
-          status: desiredStatus,
-          publishedAt:
-            desiredStatus === ProductStatus.PUBLISHED ? new Date() : null,
+          ...input,
           version: sql`${products.version} + 1`,
           updatedAt: new Date(),
         })
@@ -564,17 +469,151 @@ export class ProductsRepository implements IProductsRepository {
           and(
             eq(products.storeId, storeId),
             eq(products.id, productId),
-            eq(products.status, product.status),
+            ne(products.status, ProductStatus.ARCHIVED),
           ),
         )
         .returning();
-      if (!updated) {
-        throw new ProductLifecycleConflictError(
-          'Product status changed during this request.',
-        );
-      }
       return updated;
-    });
+    };
+    return this.catalogCache
+      ? this.catalogCache.commit(storeId, productId, write)
+      : write();
+  }
+
+  async archive(storeId: string, productId: string) {
+    const write = async () => {
+      return this.db.transaction(async (tx) => {
+        const [product] = await tx
+          .select()
+          .from(products)
+          .where(and(eq(products.storeId, storeId), eq(products.id, productId)))
+          .for('update');
+        if (!product) return undefined;
+
+        const [lockedStore] = await tx
+          .select({ status: store.status })
+          .from(store)
+          .where(eq(store.id, storeId))
+          .for('update');
+        if (lockedStore?.status !== StoreStatus.ACTIVE) {
+          throw new StoreLifecycleConflictError(
+            'The Store is no longer active and cannot be modified.',
+          );
+        }
+
+        if (product.status === ProductStatus.ARCHIVED) return product;
+
+        const archivedAt = new Date();
+        const [archivedProduct] = await tx
+          .update(products)
+          .set({
+            status: ProductStatus.ARCHIVED,
+            archivedAt,
+            version: sql`${products.version} + 1`,
+            updatedAt: archivedAt,
+          })
+          .where(
+            and(
+              eq(products.storeId, storeId),
+              eq(products.id, productId),
+              eq(products.status, product.status),
+            ),
+          )
+          .returning();
+        if (!archivedProduct) {
+          throw new ProductLifecycleConflictError(
+            'Product status changed during this request.',
+          );
+        }
+
+        await tx
+          .update(productVariants)
+          .set({
+            status: ProductVariantStatus.ARCHIVED,
+            archivedAt,
+            version: sql`${productVariants.version} + 1`,
+            updatedAt: archivedAt,
+          })
+          .where(
+            and(
+              eq(productVariants.storeId, storeId),
+              eq(productVariants.productId, productId),
+              eq(productVariants.status, ProductVariantStatus.ACTIVE),
+            ),
+          );
+
+        return archivedProduct;
+      });
+    };
+    return this.catalogCache
+      ? this.catalogCache.commit(storeId, productId, write)
+      : write();
+  }
+
+  async transitionStatus(
+    storeId: string,
+    productId: string,
+    desiredStatus: ProductStatusTransition,
+  ) {
+    const write = async () => {
+      return this.db.transaction(async (tx) => {
+        const [product] = await tx
+          .select()
+          .from(products)
+          .where(and(eq(products.storeId, storeId), eq(products.id, productId)))
+          .for('update');
+        if (!product) return undefined;
+
+        const [lockedStore] = await tx
+          .select({ status: store.status })
+          .from(store)
+          .where(eq(store.id, storeId))
+          .for('update');
+        if (lockedStore?.status !== StoreStatus.ACTIVE) {
+          throw new StoreLifecycleConflictError(
+            'The Store is no longer active and cannot be modified.',
+          );
+        }
+
+        if (product.status === ProductStatus.ARCHIVED) {
+          throw new ProductLifecycleConflictError(
+            'Archived Products cannot change status.',
+          );
+        }
+        if (product.status === desiredStatus) return product;
+
+        if (desiredStatus === ProductStatus.PUBLISHED) {
+          await this.assertPublishable(tx, storeId, product);
+        }
+
+        const [updated] = await tx
+          .update(products)
+          .set({
+            status: desiredStatus,
+            publishedAt:
+              desiredStatus === ProductStatus.PUBLISHED ? new Date() : null,
+            version: sql`${products.version} + 1`,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(products.storeId, storeId),
+              eq(products.id, productId),
+              eq(products.status, product.status),
+            ),
+          )
+          .returning();
+        if (!updated) {
+          throw new ProductLifecycleConflictError(
+            'Product status changed during this request.',
+          );
+        }
+        return updated;
+      });
+    };
+    return this.catalogCache
+      ? this.catalogCache.commit(storeId, productId, write)
+      : write();
   }
 
   private async assertPublishable(
