@@ -63,7 +63,7 @@ const DISABLED_BETTER_AUTH_MANAGEMENT_PATHS = [
   '/organization/create',
   '/organization/update',
   '/organization/delete',
-  // '/organization/set-active',
+  '/organization/set-active',
   '/organization/get-full-organization',
   '/organization/list',
   '/organization/invite-member',

@@ -13,6 +13,7 @@ import { StoreMembershipGuard } from '@/common/guards/store-membership.guard';
 import { StoreMembershipController } from './controllers/store-membership.controller';
 import { StoreMembershipService } from './services/store-membership.service';
 import { StoreInvitationsController } from './controllers/store-invitations.controller';
+import { StoreOrganizationController } from './controllers/store-organization.controller';
 
 @Module({
   imports: [StorageModule],
@@ -21,6 +22,7 @@ import { StoreInvitationsController } from './controllers/store-invitations.cont
     PlatformStoresController,
     StoreMembershipController,
     StoreInvitationsController,
+    StoreOrganizationController,
   ],
   providers: [
     StorefrontCacheContextReader,

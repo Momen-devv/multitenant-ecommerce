@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsInt,
   IsOptional,
+  IsString,
   Max,
   MaxLength,
   Min,
@@ -13,6 +14,24 @@ import { OrganizationRole } from '@/common/enums';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
+
+export class SetActiveStoreOrganizationDto {
+  @ApiPropertyOptional({
+    description:
+      'Organization ID to activate; null clears the active organization.',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  organizationId?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Organization slug to activate instead of an ID.',
+  })
+  @IsOptional()
+  @IsString()
+  organizationSlug?: string;
+}
 
 export class ListStoreMembersDto {
   @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 25 })

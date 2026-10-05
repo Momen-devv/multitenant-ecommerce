@@ -17,4 +17,5 @@ export {
   InviteStoreMemberDto,
   ListStoreMembersDto,
   UpdateStoreMemberRoleDto,
+  SetActiveStoreOrganizationDto,
 } from './store-membership.dto';

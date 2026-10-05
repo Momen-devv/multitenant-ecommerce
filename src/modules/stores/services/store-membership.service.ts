@@ -8,6 +8,7 @@ import type {
   InviteStoreMemberDto,
   ListStoreMembersDto,
   UpdateStoreMemberRoleDto,
+  SetActiveStoreOrganizationDto,
 } from '../dto';
 
 type NodeHeaders = Record<string, string>;
@@ -18,6 +19,19 @@ export class StoreMembershipService {
 
   getAccess(context: StoreMembershipContext) {
     return context;
+  }
+
+  async setActiveOrganization(
+    dto: SetActiveStoreOrganizationDto,
+    headers: NodeHeaders,
+  ) {
+    return this.callAuth(() =>
+      this.authService.api.setActiveOrganization({
+        body: { ...dto },
+        headers: fromNodeHeaders(headers),
+        returnHeaders: true,
+      }),
+    );
   }
 
   async getFullOrganization(
