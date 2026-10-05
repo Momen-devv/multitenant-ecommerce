@@ -27,6 +27,21 @@ export class LiveHealthResultDto {
 }
 
 export class ReadyHealthResultDto {
+  @ApiProperty({
+    description:
+      'Optional endpoint cache health and fixed-label process metrics; does not affect required readiness.',
+    example: {
+      required: false,
+      status: 'disabled',
+      circuit: 'closed',
+      fallback: { active: 0, peak: 0, limit: 16, queued: 0 },
+      counters: {},
+      observations: {},
+      redis: { values: {}, sampledAt: null },
+    },
+  })
+  endpointCache!: Record<string, unknown>;
+
   @ApiProperty({ enum: ['ok', 'error', 'shutting_down'], example: 'ok' })
   status!: string;
 

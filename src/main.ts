@@ -1,3 +1,5 @@
+import { endpointCacheHttp } from '@/infrastructure/cache/endpoint-cache-http';
+import { ReadCacheService } from '@/infrastructure/cache/read-cache.service';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
@@ -13,6 +15,8 @@ async function bootstrap() {
 
   const express = app.getHttpAdapter().getInstance() as Express;
   express.set('query parser', 'extended');
+  express.disable('etag');
+  app.use(endpointCacheHttp(app.get(ReadCacheService)));
 
   app.enableCors({
     origin: true,

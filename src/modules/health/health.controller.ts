@@ -1,3 +1,4 @@
+import { ReadCacheService } from '@/infrastructure/cache/read-cache.service';
 import { Controller, Get, Inject } from '@nestjs/common';
 import {
   HealthCheck,
@@ -34,6 +35,7 @@ export class HealthController {
     private drizzle: DrizzleHealthIndicator,
     private redis: RedisHealthIndicator,
     private bullmq: BullMqHealthIndicator,
+    private readonly endpointCache: ReadCacheService,
     @Inject(appConfig.KEY)
     private readonly config: ConfigType<typeof appConfig>,
   ) {}
@@ -79,11 +81,12 @@ export class HealthController {
   @SkipResponseTransform()
   @Get('ready')
   @HealthCheck()
-  ready() {
-    return this.health.check([
+  async ready() {
+    const required = await this.health.check([
       () => this.drizzle.pingCheck('postgres'),
       () => this.redis.pingCheck('redis'),
       () => this.bullmq.pingCheck('bullmq'),
     ]);
+    return { ...required, endpointCache: this.endpointCache.health() };
   }
 }
