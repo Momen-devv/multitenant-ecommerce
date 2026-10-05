@@ -10,6 +10,8 @@ const envSchema = z.object({
     .default('standalone'),
   PORT: z.coerce.number().default(3000),
   BASE_URL: z.string().min(1, 'BASE_URL must be a valid URL'),
+  SWAGGER_USERNAME: z.string().min(1, 'SWAGGER_USERNAME is required'),
+  SWAGGER_PASSWORD: z.string().min(1, 'SWAGGER_PASSWORD is required'),
   HEALTH_MEMORY_HEAP_MB: z.coerce.number().default(400),
   HEALTH_MEMORY_RSS_MB: z.coerce.number().default(450),
 
