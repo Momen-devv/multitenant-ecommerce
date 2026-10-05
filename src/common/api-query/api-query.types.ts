@@ -98,3 +98,14 @@ export interface CompiledApiQuery {
     extend?: (row: Row) => Extension,
   ): CursorPage<Record<string, unknown> & Extension>;
 }
+
+export interface PreparedApiQuery extends CompiledApiQuery {
+  effectiveArguments: {
+    limit: number;
+    cursor: string | null;
+    sort: ApiQuerySort[];
+    fields: string[];
+    search: string | null;
+    filter: Record<string, Record<string, ApiQueryScalar | ApiQueryScalar[]>>;
+  };
+}

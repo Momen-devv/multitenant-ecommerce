@@ -1,1 +1,2 @@
 export const CACHE_CLIENT = Symbol('CACHE_CLIENT');
+export const ENDPOINT_CACHE_CLIENT = Symbol('ENDPOINT_CACHE_CLIENT');

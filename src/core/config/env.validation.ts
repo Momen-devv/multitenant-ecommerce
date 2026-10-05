@@ -1,7 +1,9 @@
+import { endpointCacheEnvSchema } from './endpoint-cache.config';
 import { Environment } from '@/common/enums';
 import { z } from 'zod';
 
 const envSchema = z.object({
+  ...endpointCacheEnvSchema.shape,
   NODE_ENV: z.enum(Environment),
   PORT: z.coerce.number().default(3000),
   BASE_URL: z.string().min(1, 'BASE_URL must be a valid URL'),

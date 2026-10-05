@@ -24,6 +24,7 @@ import type {
   ApiQuerySort,
   ApiQuerySortField,
   CompiledApiQuery,
+  PreparedApiQuery,
   ApiListQueryInput,
 } from './api-query.types';
 import { API_QUERY_LIMITS } from './api-query.limits';
@@ -50,6 +51,15 @@ export function compileApiQuery(
   definition: ApiQueryDefinition,
   input: ApiListQueryInput,
 ): CompiledApiQuery {
+  return prepareApiQuery(definition, input);
+}
+
+// Preparation is shared by database compilation and cache lookup so a hit
+// cannot skip semantic validation. SQL construction performs no database I/O.
+export function prepareApiQuery(
+  definition: ApiQueryDefinition,
+  input: ApiListQueryInput,
+): PreparedApiQuery {
   assertExpressionLength('cursor', input.cursor, API_QUERY_LIMITS.cursorLength);
   assertExpressionLength('sort', input.sort, API_QUERY_LIMITS.sortLength);
   assertExpressionLength('fields', input.fields, API_QUERY_LIMITS.fieldsLength);
@@ -90,13 +100,26 @@ export function compileApiQuery(
     conditions.push(buildCursorCondition(definition, sort, cursorValues));
   }
 
-  const filterCondition = buildFilterCondition(definition, input.filter);
+  const normalizedFilter: PreparedApiQuery['effectiveArguments']['filter'] = {};
+  const filterCondition = buildFilterCondition(
+    definition,
+    input.filter,
+    normalizedFilter,
+  );
   if (filterCondition) conditions.push(filterCondition);
   const searchCondition = buildSearchCondition(definition, input.search);
   if (searchCondition) conditions.push(searchCondition);
   const where = conditions.length ? and(...conditions) : undefined;
 
   return {
+    effectiveArguments: {
+      limit,
+      cursor: input.cursor || null,
+      sort,
+      fields: [...visibleFields],
+      search: input.search === undefined ? null : input.search.trim(),
+      filter: normalizedFilter,
+    },
     columns,
     where,
     orderBy,
@@ -262,6 +285,7 @@ function buildCursorCondition(
 function buildFilterCondition(
   definition: ApiQueryDefinition,
   input?: ApiListQueryInput['filter'],
+  normalized: PreparedApiQuery['effectiveArguments']['filter'] = {},
 ): SQL | undefined {
   if (!input) return undefined;
   const conditions: SQL[] = [];
@@ -280,6 +304,12 @@ function buildFilterCondition(
       throw new BadRequestException(`Unsupported filter field: ${field}`);
     }
     const configured = definition.filters[field];
+    const normalizedOperations: PreparedApiQuery['effectiveArguments']['filter'][string] =
+      {};
+    Object.defineProperty(normalized, field, {
+      value: normalizedOperations,
+      enumerable: true,
+    });
     operationCount += Object.keys(operations).length;
     if (operationCount > API_QUERY_LIMITS.filterOperations) {
       throw new BadRequestException('Too many filter operations');
@@ -303,12 +333,11 @@ function buildFilterCondition(
             `Filter ${field}.in accepts at most ${API_QUERY_LIMITS.inValues} values`,
           );
         }
-        conditions.push(
-          inArray(
-            configured.column,
-            rawValues.map((value) => configured.codec.parse(value)),
-          ),
+        const values = rawValues.map((value) => configured.codec.parse(value));
+        normalizedOperations[operator] = values.map((value) =>
+          configured.codec.serialize(value),
         );
+        conditions.push(inArray(configured.column, values));
         continue;
       }
 
@@ -318,6 +347,7 @@ function buildFilterCondition(
         );
       }
       const value = configured.codec.parse(rawValue);
+      normalizedOperations[operator] = configured.codec.serialize(value);
       const operation = { eq, ne, gt, gte, lt, lte }[operator];
       conditions.push(operation(configured.column, value));
     }

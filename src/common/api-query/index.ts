@@ -1,4 +1,9 @@
-export { compileApiQuery, defineApiQuery, filter } from './api-query';
+export {
+  compileApiQuery,
+  prepareApiQuery,
+  defineApiQuery,
+  filter,
+} from './api-query';
 export { ApiListQueryDto } from './api-list-query.dto';
 export {
   booleanCodec,
@@ -17,5 +22,6 @@ export type {
   ApiQueryOperator,
   ApiQuerySort,
   CompiledApiQuery,
+  PreparedApiQuery,
   CursorPage,
 } from './api-query.types';
