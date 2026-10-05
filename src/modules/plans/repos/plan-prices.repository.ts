@@ -10,11 +10,13 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, isNull } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { IPlanPricesRepository } from '../interfaces/repos/plan-prices-repository.interface';
+import { PlansCacheInvalidator } from '../cache/plans-cache.invalidator';
 
 @Injectable()
 export class PlanPricesRepository implements IPlanPricesRepository {
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
+    private readonly cacheInvalidator?: PlansCacheInvalidator,
   ) {}
 
   async createOrFindPendingPrice(
@@ -25,7 +27,7 @@ export class PlanPricesRepository implements IPlanPricesRepository {
       interval: NonNullable<NewPlanPrice['interval']>;
     },
   ) {
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const [plan] = await tx
         .select()
         .from(plans)
@@ -66,6 +68,9 @@ export class PlanPricesRepository implements IPlanPricesRepository {
         .returning();
       return { status: 'ready' as const, plan, price: created };
     });
+    if (result.status === 'ready')
+      await this.cacheInvalidator?.afterCommit(planId, [result.plan.code]);
+    return result;
   }
 
   async activatePendingPrice(input: {
@@ -91,6 +96,7 @@ export class PlanPricesRepository implements IPlanPricesRepository {
         ),
       )
       .returning();
+    if (updated) await this.cacheInvalidator?.afterCommit(input.planId);
     return updated;
   }
 
@@ -105,6 +111,7 @@ export class PlanPricesRepository implements IPlanPricesRepository {
       .set({ isActive: false, updatedAt: new Date() })
       .where(and(eq(planPrices.id, planPriceId), eq(planPrices.planId, planId)))
       .returning();
+    if (updated) await this.cacheInvalidator?.afterCommit(planId);
     return updated;
   }
 }

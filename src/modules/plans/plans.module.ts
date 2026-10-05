@@ -19,15 +19,24 @@ import { PlanPricesService } from './services/plan-prices.service';
 import { PublicPlansService } from './services/public-plans.service';
 import { PlanProvisioningOutboxDispatcher } from './provisioning/plan-provisioning-outbox.dispatcher';
 import { PlanProvisioningReconciler } from './provisioning/plan-provisioning.reconciler';
+import { PlansCacheInvalidator } from './cache/plans-cache.invalidator';
+import { ConfigModule } from '@nestjs/config';
+import endpointCacheConfig from '@/core/config/endpoint-cache.config';
 
 @Module({
-  imports: [BillingModule, OutboxModule, PlanProvisioningQueueModule],
+  imports: [
+    BillingModule,
+    OutboxModule,
+    PlanProvisioningQueueModule,
+    ConfigModule.forFeature(endpointCacheConfig),
+  ],
   controllers: [
     PlatformPlansController,
     PlanPricesController,
     PublicPlansController,
   ],
   providers: [
+    PlansCacheInvalidator,
     PlatformPlansService,
     PlanPricesService,
     PublicPlansService,

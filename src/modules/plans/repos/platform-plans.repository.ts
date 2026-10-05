@@ -32,16 +32,18 @@ import type {
   IPlatformPlansRepository,
   UpdatePlanInput,
 } from '../interfaces/repos/platform-plans-repository.interface';
+import { PlansCacheInvalidator } from '../cache/plans-cache.invalidator';
 
 @Injectable()
 export class PlatformPlansRepository implements IPlatformPlansRepository {
   constructor(
     @Inject(DATABASE) private readonly db: NodePgDatabase<typeof schema>,
+    private readonly cacheInvalidator?: PlansCacheInvalidator,
   ) {}
 
   async createPendingWithPrices(input: CreatePendingPlanWithPricesInput) {
     try {
-      return await this.db.transaction(async (tx) => {
+      const created = await this.db.transaction(async (tx) => {
         const [plan] = await tx
           .insert(plans)
           .values({
@@ -77,6 +79,9 @@ export class PlatformPlansRepository implements IPlatformPlansRepository {
           with: { prices: true },
         });
       });
+      if (created)
+        await this.cacheInvalidator?.afterCommit(created.id, [created.code]);
+      return created;
     } catch (error) {
       if (this.isUniqueViolation(error, 'plans_code_unique'))
         throw new PlanCodeConflictError();
@@ -104,11 +109,26 @@ export class PlatformPlansRepository implements IPlatformPlansRepository {
   }
 
   async updatePlan(planId: string, input: UpdatePlanInput) {
-    const [updated] = await this.db
-      .update(plans)
-      .set({ ...input, updatedAt: new Date() })
-      .where(eq(plans.id, planId))
-      .returning();
+    // Lock the old code in the same transaction so concurrent renames cannot
+    // hide the detail key that belonged to this committed update.
+    const { updated, oldCode } = await this.db.transaction(async (tx) => {
+      const [previous] = await tx
+        .select({ code: plans.code })
+        .from(plans)
+        .where(eq(plans.id, planId))
+        .for('update');
+      const [updated] = await tx
+        .update(plans)
+        .set({ ...input, updatedAt: new Date() })
+        .where(eq(plans.id, planId))
+        .returning();
+      return { updated, oldCode: previous?.code };
+    });
+    if (updated)
+      await this.cacheInvalidator?.afterCommit(
+        planId,
+        oldCode ? [oldCode, updated.code] : [updated.code],
+      );
     return updated;
   }
 
@@ -135,6 +155,7 @@ export class PlatformPlansRepository implements IPlatformPlansRepository {
         ),
       )
       .returning({ id: plans.id });
+    if (updated.length === 1) await this.cacheInvalidator?.afterCommit(planId);
     return updated.length === 1;
   }
 
@@ -150,6 +171,7 @@ export class PlatformPlansRepository implements IPlatformPlansRepository {
         ),
       )
       .returning({ id: plans.id });
+    if (updated.length === 1) await this.cacheInvalidator?.afterCommit(planId);
     return updated.length === 1;
   }
 
@@ -173,6 +195,7 @@ export class PlatformPlansRepository implements IPlatformPlansRepository {
         ),
       )
       .returning({ id: plans.id });
+    if (updated.length === 1) await this.cacheInvalidator?.afterCommit(planId);
     return updated.length === 1;
   }
 
@@ -229,6 +252,7 @@ export class PlatformPlansRepository implements IPlatformPlansRepository {
         ),
       )
       .returning({ id: plans.id });
+    if (updated.length === 1) await this.cacheInvalidator?.afterCommit(planId);
     return updated.length === 1;
   }
 
@@ -285,6 +309,7 @@ export class PlatformPlansRepository implements IPlatformPlansRepository {
         throw new Error(`Plan ${input.planId} is no longer being provisioned`);
       }
     });
+    await this.cacheInvalidator?.afterCommit(input.planId);
   }
 
   async markProvisioningFailed(
@@ -292,7 +317,7 @@ export class PlatformPlansRepository implements IPlatformPlansRepository {
     provisioningVersion: number,
     error: string,
   ): Promise<void> {
-    await this.db
+    const updated = await this.db
       .update(plans)
       .set({
         provisioningStatus: PlanProvisioningStatus.FAILED,
@@ -306,7 +331,9 @@ export class PlatformPlansRepository implements IPlatformPlansRepository {
           eq(plans.provisioningVersion, provisioningVersion),
           ne(plans.provisioningStatus, PlanProvisioningStatus.READY),
         ),
-      );
+      )
+      .returning({ id: plans.id });
+    if (updated.length) await this.cacheInvalidator?.afterCommit(planId);
   }
 
   private isUniqueViolation(err: unknown, constraintName?: string): boolean {
