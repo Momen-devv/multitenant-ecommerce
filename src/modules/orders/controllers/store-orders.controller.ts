@@ -31,7 +31,7 @@ import {
 import type { ActiveStoreContext } from '@/common/guards/active-store.guard';
 import { StoreMembershipGuard } from '@/common/guards/store-membership.guard';
 import { OrganizationRole } from '@/common/enums';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import {
   DeliverOrderDto,
   OrderCursorPageDto,

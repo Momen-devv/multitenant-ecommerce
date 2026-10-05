@@ -13,7 +13,7 @@ import {
 import { AccountService } from '../services/account.service';
 import { ResponseMessage } from '@/common/decorators/response-message.decorator';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import { ConfirmReactivationDto, RequestReactivationDto } from '../dto';
 import { seconds, Throttle } from '@nestjs/throttler';
 import { isProduction } from 'better-auth';

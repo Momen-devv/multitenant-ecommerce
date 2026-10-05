@@ -1,4 +1,4 @@
-import { createUserNotificationHooks } from './hooks/user-notifications.hook';
+import { createUserNotificationHooks } from '../hooks/user-notifications.hook';
 import { betterAuth, type BetterAuthOptions } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { organization, admin, openAPI, phoneNumber } from 'better-auth/plugins';
@@ -14,9 +14,9 @@ import { AuthRole, OrganizationRole } from '@/common/enums';
 import * as Schema from '@/infrastructure/database/schema/schema';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { ConfigType } from '@nestjs/config';
-import { betterAuthConfig } from '../config';
+import { betterAuthConfig } from '@/core/config';
 import { isProduction } from 'better-auth';
-import { atomicInvitationEndpoints } from './hooks/atomic-invitation-endpoints';
+import { atomicInvitationEndpoints } from '../hooks/atomic-invitation-endpoints';
 import {
   ac,
   organizationManager,
@@ -24,9 +24,42 @@ import {
   platformSuperAdmin,
   support,
   user,
-} from './permissions';
+} from '../permissions/permissions';
+
+// These HTTP routes are exposed through the Nest authentication module instead.
+const DISABLED_BETTER_AUTH_AUTHENTICATION_PATHS = [
+  '/sign-in/social',
+  '/sign-up/email',
+  '/sign-in/email',
+  '/reset-password',
+  '/verify-password',
+  '/request-password-reset',
+  '/sign-out',
+  '/forget-password',
+  '/verify-email',
+  '/send-verification-email',
+  '/get-session',
+  '/account-info',
+  '/change-email',
+  '/change-password',
+  '/update-session',
+  '/list-sessions',
+  '/revoke-session',
+  '/revoke-other-sessions',
+  '/list-accounts',
+  '/link-social',
+  '/unlink-account',
+  '/refresh-token',
+  '/get-access-token',
+  '/ok',
+  '/error',
+] as const;
 
 const DISABLED_BETTER_AUTH_MANAGEMENT_PATHS = [
+  '/update-user',
+  '/delete-user',
+  '/delete-user/callback',
+  '/revoke-sessions',
   '/organization/create',
   '/organization/update',
   '/organization/delete',
@@ -115,6 +148,9 @@ export function createAuth({
   const authOptions = {
     secret: configuration.secret,
     baseURL: configuration.baseURL,
+    onAPIError: {
+      errorURL: configuration.errorURL,
+    },
 
     database: drizzleAdapter(db, {
       provider: 'pg',
@@ -134,6 +170,7 @@ export function createAuth({
     },
 
     disabledPaths: [
+      ...DISABLED_BETTER_AUTH_AUTHENTICATION_PATHS,
       ...DISABLED_BETTER_AUTH_MANAGEMENT_PATHS,
       ...DISABLED_BETTER_AUTH_PHONE_PATHS,
     ],
@@ -179,7 +216,13 @@ export function createAuth({
 
     emailVerification: {
       sendVerificationEmail: ({ user, url, token }) => {
-        return emailQueue.addVerificationEmailJob(user.email, url, token);
+        const verificationUrl = new URL(url);
+        verificationUrl.pathname = '/api/v1/auth/verify-email';
+        return emailQueue.addVerificationEmailJob(
+          user.email,
+          verificationUrl.toString(),
+          token,
+        );
       },
     },
 
@@ -212,12 +255,6 @@ export function createAuth({
       window: isProduction ? 10 : 60,
       max: isProduction ? 100 : 500,
       storage: 'secondary-storage',
-      customRules: {
-        '/api/auth/sign-in/email': { window: 60, max: 5 },
-        '/api/auth/sign-up/email': { window: 60, max: 3 },
-        '/api/auth/request-password-reset': { window: 300, max: 3 },
-        '/api/auth/change-password': { window: 300, max: 3 },
-      },
     },
 
     advanced: {

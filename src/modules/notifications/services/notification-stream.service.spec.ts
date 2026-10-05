@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import type { Request } from 'express';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import { NotificationStreamService } from './notification-stream.service';
 
 jest.mock('@thallesp/nestjs-better-auth', () => ({

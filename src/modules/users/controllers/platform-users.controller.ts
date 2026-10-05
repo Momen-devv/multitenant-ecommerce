@@ -25,7 +25,7 @@ import { seconds, Throttle } from '@nestjs/throttler';
 import { AuthRole } from '@/common/enums';
 import { ApiErrorResponse, ApiSuccessResponse } from '@/common/decorators';
 import { ResponseMessage } from '@/common/decorators/response-message.decorator';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import {
   BanPlatformUserDto,
   CreatePlatformUserDto,

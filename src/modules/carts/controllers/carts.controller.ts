@@ -18,7 +18,7 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import {
   ApiErrorResponse,
   ApiSuccessResponse,

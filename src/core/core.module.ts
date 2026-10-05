@@ -13,8 +13,6 @@ import {
   notificationConfig,
   validate,
 } from '@/core/config';
-import { RestrictInternalFieldsHook } from './auth/hooks/restrict-internal-fields.hook';
-import { CheckActivationHook } from './auth/hooks/check-activation-hook';
 
 @Module({
   imports: [
@@ -36,6 +34,5 @@ import { CheckActivationHook } from './auth/hooks/check-activation-hook';
       ],
     }),
   ],
-  providers: [RestrictInternalFieldsHook, CheckActivationHook],
 })
 export class CoreModule {}

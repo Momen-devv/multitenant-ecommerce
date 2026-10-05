@@ -13,7 +13,7 @@ import { ImageProcessingService } from '@/common/services/Image-processing.servi
 import { ResourceCleanupQueueService } from '@/infrastructure/queue/resource-cleanup/resource-cleanup-queue.service';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { AuthService } from '@thallesp/nestjs-better-auth';
-import { Auth } from '@/core/auth/auth';
+import { Auth } from '@/modules/auth/config/auth';
 import { fromNodeHeaders } from 'better-auth/node';
 import { randomUUID } from 'node:crypto';
 import slugify from 'slugify';

@@ -2,7 +2,7 @@ import { HttpException, Injectable } from '@nestjs/common';
 import { AuthService } from '@thallesp/nestjs-better-auth';
 import { fromNodeHeaders } from 'better-auth/node';
 import { isAPIError } from 'better-auth/api';
-import type { Auth } from '@/core/auth/auth';
+import type { Auth } from '@/modules/auth/config/auth';
 import type { StoreMembershipContext } from '@/common/guards/store-membership.guard';
 import type {
   InviteStoreMemberDto,

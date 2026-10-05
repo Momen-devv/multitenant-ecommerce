@@ -2,7 +2,7 @@ import {
   organizationOwner,
   organizationManager,
   support,
-} from '@/core/auth/permissions';
+} from '@/modules/auth/permissions/permissions';
 
 export const orderReadRoles = Object.entries({
   owner: organizationOwner,

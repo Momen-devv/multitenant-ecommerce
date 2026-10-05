@@ -9,7 +9,7 @@ import {
 import { AuthService } from '@thallesp/nestjs-better-auth';
 import { fromNodeHeaders } from 'better-auth/node';
 import { isAPIError } from 'better-auth/api';
-import type { Auth } from '@/core/auth/auth';
+import type { Auth } from '@/modules/auth/config/auth';
 import { AuthRole } from '@/common/enums';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { USER_REPOSITORY, type IUserRepository } from '../interfaces/repos';

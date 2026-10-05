@@ -18,7 +18,7 @@ import { ResponseMessage } from '@/common/decorators/response-message.decorator'
 import { seconds, Throttle } from '@nestjs/throttler';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiSuccessResponse, ApiErrorResponse } from '@/common/decorators';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import {
   imageUploadOptions,
   MAX_STORE_LOGO_SIZE,

@@ -16,7 +16,7 @@ import type { Response } from 'express';
 import { ApiErrorResponse, ApiSuccessResponse } from '@/common/decorators';
 import { ResponseMessage } from '@/common/decorators/response-message.decorator';
 import { PlatformImpersonationService } from '../services/platform-impersonation.service';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import { Roles } from '@thallesp/nestjs-better-auth';
 import { AuthRole } from '@/common/enums';
 import { PlatformUserReasonDto } from '../dto';

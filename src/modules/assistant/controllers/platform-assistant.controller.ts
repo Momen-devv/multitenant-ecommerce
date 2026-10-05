@@ -12,7 +12,7 @@ import { Roles } from '@thallesp/nestjs-better-auth';
 import { ApiErrorResponse, ApiSuccessResponse } from '@/common/decorators';
 import { ResponseMessage } from '@/common/decorators/response-message.decorator';
 import { AuthRole } from '@/common/enums';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import { AssistantCommandDto } from '../dto';
 import { PlatformAssistantService } from '../services/platform-assistant.service';
 

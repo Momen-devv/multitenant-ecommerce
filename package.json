@@ -34,7 +34,7 @@
     "db:migrate": "npx drizzle-kit migrate --config=drizzle.config.ts",
     "db:push": "npx drizzle-kit push --config=drizzle.config.ts",
     "commerce:ops": "tsx src/cli/commerce-operations.cli.ts",
-    "auth:generate": "npx @better-auth/cli generate --config ./src/core/auth/auth.cli.ts --output ./src/infrastructure/database/schema/auth.schema.ts",
+    "auth:generate": "npx @better-auth/cli generate --config ./src/modules/auth/config/auth.cli.ts --output ./src/infrastructure/database/schema/auth.schema.ts",
     "prepare": "husky",
     "stripe:listen": "stripe listen --forward-to localhost:3000/api/v1/webhooks/stripe",
     "stripe:listen:connect": "stripe listen --forward-connect-to localhost:3000/api/v1/webhooks/stripe-connect"

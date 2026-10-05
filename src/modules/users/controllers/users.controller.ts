@@ -19,7 +19,7 @@ import {
   imageUploadOptions,
   MAX_PROFILE_IMAGE_SIZE,
 } from '@/infrastructure/storage/multer.config';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import { ResponseMessage } from '@/common/decorators/response-message.decorator';
 import { createImageFileValidator } from '@/infrastructure/storage/file-validation.config';
 import { seconds, Throttle } from '@nestjs/throttler';

@@ -1,7 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { AuthService } from '@thallesp/nestjs-better-auth';
 import { fromNodeHeaders } from 'better-auth/node';
-import type { Auth } from '@/core/auth/auth';
+import type { Auth } from '@/modules/auth/config/auth';
 import type {
   ConfirmPhoneChangeDto,
   PhoneSignInDto,

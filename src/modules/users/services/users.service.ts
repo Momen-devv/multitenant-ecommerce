@@ -4,7 +4,7 @@ import { StorageService } from '@/common/abstracts/storage.abstracts';
 import { ImageProcessingService } from '../../../common/services/Image-processing.service';
 import { randomUUID } from 'node:crypto';
 import { USER_REPOSITORY, type IUserRepository } from '../interfaces/repos';
-import { Auth } from '@/core/auth/auth';
+import { Auth } from '@/modules/auth/config/auth';
 import { AuthService } from '@thallesp/nestjs-better-auth';
 import { fromNodeHeaders } from 'better-auth/node';
 import { LoggerService } from '@/infrastructure/logger/logger.service';

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule, seconds } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
-import { AuthModule, AuthGuard } from '@thallesp/nestjs-better-auth';
+import { AuthGuard } from '@thallesp/nestjs-better-auth';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -18,11 +18,6 @@ import { CoreModule } from '@/core/core.module';
 import { InfrastructureModule } from '@/infrastructure/infrastructure.module';
 import { CacheModule } from '@/infrastructure/cache/cache.module';
 import { CACHE_CLIENT } from '@/infrastructure/cache/cache.constants';
-import { EmailQueueService } from '@/infrastructure/queue/email/email-queue.service';
-import { SmsQueueService } from '@/infrastructure/queue/sms/sms-queue.service';
-import { createAuth } from '@/core/auth/auth';
-import { assertInvitationCaptureInstalled } from '@/modules/notifications/services/invitation-notification-capture';
-import { DATABASE } from './common/constants/injection-tokens.constants';
 
 // Common
 import { AllExceptionsFilter } from '@/common/filters/http-exception.filter';
@@ -33,11 +28,8 @@ import type { ThrottledRequest } from '@/common/types/request.types';
 import { Environment } from '@/common/enums';
 
 // Feature modules
+import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import * as Schema from '@/infrastructure/database/schema/schema';
-import type { ConfigType } from '@nestjs/config';
-import { betterAuthConfig } from './core/config';
 import { HealthModule } from './modules/health/health.module';
 import { StoresModule } from './modules/stores/stores.module';
 import { PlansModule } from './modules/plans/plans.module';
@@ -81,38 +73,8 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     }),
     EventEmitterModule.forRoot(),
 
-    AuthModule.forRootAsync({
-      disableGlobalAuthGuard: true,
-      imports: [InfrastructureModule],
-      inject: [
-        EmailQueueService,
-        SmsQueueService,
-        CACHE_CLIENT,
-        DATABASE,
-        betterAuthConfig.KEY,
-      ],
-      useFactory: async (
-        emailQueue: EmailQueueService,
-        smsQueue: SmsQueueService,
-        redis: Redis,
-        database: NodePgDatabase<typeof Schema>,
-        configuration: ConfigType<typeof betterAuthConfig>,
-      ) => {
-        await assertInvitationCaptureInstalled(database);
-        return {
-          auth: createAuth({
-            emailQueue,
-            smsQueue,
-            redis,
-            database,
-            configuration,
-          }),
-          bodyParser: { rawBody: true },
-        };
-      },
-    }),
-
     // Feature modules
+    AuthModule,
     HealthModule,
     UsersModule,
     StoresModule,

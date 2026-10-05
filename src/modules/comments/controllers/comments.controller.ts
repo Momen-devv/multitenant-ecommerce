@@ -26,7 +26,7 @@ import {
   ResponseMessage,
 } from '@/common/decorators';
 import { ApiListQueryDto } from '@/common/api-query';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import { ParseSlugPipe } from '@/common/pipes/parse-slug.pipe';
 import { ParseIdempotencyKeyPipe } from '@/common/pipes/parse-idempotency-key.pipe';
 import { IdempotencyKey } from '@/common/decorators/idempotency-key.decorator';

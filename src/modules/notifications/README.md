@@ -1,4 +1,4 @@
-﻿# Notifications
+# Notifications
 
 This module provides a persistent inbox, email preferences, asynchronous email
 delivery, and authenticated live inbox hints. PostgreSQL owns notification state;
@@ -210,7 +210,7 @@ deliveries; never blindly reset sent or ambiguous deliveries.
 | `tasks/` | Dispatch, reconciliation, recovery, and scheduled operations |
 | `../../infrastructure/outbox/` | Source intent writers and outbox persistence |
 | `../../infrastructure/queue/notifications/` | BullMQ scheduling and processing |
-| `../../core/auth/` | Better Auth integration and source hooks |
+| `../auth/` | Better Auth integration and source hooks |
 
 Before deployment, validate invitation rollback, duplicate source handling,
 expired-lease recovery, recipient access changes, retention boundaries, and

@@ -10,8 +10,8 @@ import {
 } from '@nestjs/common';
 import { AuthService } from '@thallesp/nestjs-better-auth';
 import { fromNodeHeaders } from 'better-auth/node';
-import type { Auth } from '@/core/auth/auth';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { Auth } from '@/modules/auth/config/auth';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import { CACHE_CLIENT } from '@/infrastructure/cache/cache.constants';
 import { notificationConfig } from '@/core/config';
 import Redis from 'ioredis';

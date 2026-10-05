@@ -6,7 +6,7 @@ import {
   type CanActivate,
   type ExecutionContext,
 } from '@nestjs/common';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import { StoreStatus } from '@/common/enums';
 import { OrganizationRole } from '@/common/enums';
 import {

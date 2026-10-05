@@ -17,7 +17,7 @@ import { ResponseMessage } from '@/common/decorators/response-message.decorator'
 import { AuthRole } from '@/common/enums/auth-role.enum';
 import { PlatformStoresService } from '../services/platform-stores.service';
 import { ReactivateStoreDto, SuspendStoreDto } from '../dto';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import { ApiListQueryDto } from '@/common/api-query';
 
 @ApiTags('Platform Stores')

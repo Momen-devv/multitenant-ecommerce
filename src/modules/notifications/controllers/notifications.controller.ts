@@ -13,7 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import { ApiSuccessResponse } from '@/common/decorators/api-success-response.decorator';
 import { ApiErrorResponse } from '@/common/decorators/api-error-response.decorator';
 import {

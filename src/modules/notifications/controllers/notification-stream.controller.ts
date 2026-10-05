@@ -7,7 +7,7 @@ import {
 } from '@nestjs/swagger';
 import type { Request } from 'express';
 import type { Observable } from 'rxjs';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import { NotificationStreamService } from '../services/notification-stream.service';
 
 @ApiTags('Notifications')

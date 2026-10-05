@@ -19,7 +19,7 @@ import {
   ApiSuccessResponse,
   ResponseMessage,
 } from '@/common/decorators';
-import type { CurrentUser } from '@/core/auth/auth.types';
+import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import { CreateBillingPortalDto, CreateSubscriptionCheckoutDto } from '../dto';
 import { SubscriptionsService } from '../services/subscriptions.service';
 import { ParseIdempotencyKeyPipe } from '@/common/pipes/parse-idempotency-key.pipe';

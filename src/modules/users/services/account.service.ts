@@ -1,5 +1,5 @@
 import { CACHE_SERVICE } from '@/common/constants/injection-tokens.constants';
-import type { Auth } from '@/core/auth/auth';
+import type { Auth } from '@/modules/auth/config/auth';
 import { LoggerService } from '@/infrastructure/logger/logger.service';
 import { EmailQueueService } from '@/infrastructure/queue/email/email-queue.service';
 import type { ICacheService } from '@/infrastructure/cache/cache.interface';
