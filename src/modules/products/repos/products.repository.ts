@@ -349,6 +349,7 @@ export class ProductsRepository implements IProductsRepository {
     }
     const rows = await this.db.query.products.findMany({
       columns: { ...query.columns, id: true },
+      extras: query.extras,
       where: and(...conditions),
       orderBy: query.orderBy,
       limit: query.limit + 1,

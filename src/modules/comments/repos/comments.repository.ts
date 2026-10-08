@@ -62,6 +62,7 @@ export class CommentsRepository implements ICommentsRepository {
         if (!product) return undefined;
         const rows = await tx.query.productComments.findMany({
           columns: { ...query.columns, id: true },
+          extras: query.extras,
           where: and(eq(productComments.productId, product.id), query.where),
           orderBy: query.orderBy,
           limit: query.limit + 1,

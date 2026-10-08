@@ -93,6 +93,7 @@ export class StoreRepository implements IStoreRepository {
     const query = compileApiQuery(platformStoreQuery, input);
     const rows = await this.db.query.store.findMany({
       columns: query.columns,
+      extras: query.extras,
       where: query.where,
       orderBy: query.orderBy,
       limit: query.limit + 1,

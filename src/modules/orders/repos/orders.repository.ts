@@ -3,7 +3,16 @@ import { writeOrderNotificationIntent } from '@/modules/orders/domain/order-noti
 import { writeOperationalNotificationIntent } from '@/modules/notifications/domain/operational-notification-intent';
 import { notificationTransaction } from '@/infrastructure/outbox/notification-intent.writer';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, isNull, lte, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  eq,
+  getTableColumns,
+  isNull,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE } from '@/common/constants/injection-tokens.constants';
 import { CodedHttpError } from '@/common/errors';
@@ -61,7 +70,7 @@ export class OrdersRepository {
   async listForUser(userId: string, query: OrderQueryDto) {
     const compiled = compileApiQuery(userOrderQuery, query);
     const rows = await this.db
-      .select()
+      .select({ ...getTableColumns(orders), ...compiled.extras })
       .from(orders)
       .where(and(eq(orders.userId, userId), compiled.where))
       .orderBy(...compiled.orderBy)
@@ -91,7 +100,7 @@ export class OrdersRepository {
   async listForStore(storeId: string, query: OrderQueryDto) {
     const compiled = compileApiQuery(storeOrderQuery, query);
     const rows = await this.db
-      .select()
+      .select({ ...getTableColumns(orders), ...compiled.extras })
       .from(orders)
       .where(and(eq(orders.storeId, storeId), compiled.where))
       .orderBy(...compiled.orderBy)

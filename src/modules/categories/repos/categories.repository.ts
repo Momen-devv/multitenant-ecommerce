@@ -126,6 +126,7 @@ export class CategoriesRepository implements ICategoriesRepository {
     }
     const rows = await this.db.query.categories.findMany({
       columns: { ...query.columns, id: true },
+      extras: query.extras,
       where: and(...conditions),
       orderBy: query.orderBy,
       limit: query.limit + 1,

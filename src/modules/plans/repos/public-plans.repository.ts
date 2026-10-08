@@ -22,6 +22,7 @@ export class PublicPlansRepository implements IPublicPlansRepository {
     const query = compileApiQuery(publicPlanQuery, input);
     const rows = await this.db.query.plans.findMany({
       columns: query.columns,
+      extras: query.extras,
       where: and(
         eq(plans.isActive, true),
         eq(plans.provisioningStatus, PlanProvisioningStatus.READY),

@@ -100,6 +100,7 @@ export class PlatformPlansRepository implements IPlatformPlansRepository {
     const query = compileApiQuery(platformPlanQuery, input);
     const rows = await this.db.query.plans.findMany({
       columns: query.columns,
+      extras: query.extras,
       where: query.where,
       orderBy: query.orderBy,
       limit: query.limit + 1,

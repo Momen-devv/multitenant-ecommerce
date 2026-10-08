@@ -156,7 +156,7 @@ export function productListPolicy(
   return {
     scope: { kind: 'store', storeId },
     resource: requireVisibleCategory ? 'category-products' : 'product-list',
-    schemaVersion: 1,
+    schemaVersion: 2,
     keyHash: validatedQueryHash({
       ...args,
       categorySlug: categorySlug || null,

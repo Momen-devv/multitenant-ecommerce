@@ -78,6 +78,15 @@ export function prepareApiQuery(
   const columns = Object.fromEntries(
     [...requiredFields].map((field) => [field, true]),
   );
+  const extras = Object.fromEntries(
+    sort.flatMap(({ field }) => {
+      const sortable = definition.sortable[field];
+      const alias = `__cursor_${field}`;
+      return sortable.codec.cursor
+        ? [[alias, sortable.codec.cursor.select(sortable.column).as(alias)]]
+        : [];
+    }),
+  );
 
   const orderBy = sort.map(({ field, direction }) => {
     const sortable = definition.sortable[field];
@@ -95,7 +104,9 @@ export function prepareApiQuery(
     const cursorValues = cursor.values.map((value, index) => {
       const sortable = definition.sortable[sort[index].field];
       if (value === null && sortable.nullable) return null;
-      return sortable.codec.parse(value);
+      return sortable.codec.cursor
+        ? sortable.codec.cursor.parse(value)
+        : sortable.codec.parse(value);
     });
     conditions.push(buildCursorCondition(definition, sort, cursorValues));
   }
@@ -121,6 +132,7 @@ export function prepareApiQuery(
       filter: normalizedFilter,
     },
     columns,
+    extras,
     where,
     orderBy,
     limit,
@@ -137,6 +149,13 @@ export function prepareApiQuery(
               resource: definition.resource,
               sort: sort.map(({ field, direction }) => [field, direction]),
               values: sort.map(({ field }) => {
+                const precise = lastRow[`__cursor_${field}`];
+                const codec = definition.sortable[field].codec;
+                if (codec.cursor && precise !== undefined) {
+                  return precise === null
+                    ? null
+                    : codec.cursor.serialize(precise);
+                }
                 const value = lastRow[field] as never;
                 return value === null
                   ? null

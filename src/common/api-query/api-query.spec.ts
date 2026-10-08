@@ -65,6 +65,41 @@ function typecheckDefinitionConstraints() {
 void typecheckDefinitionConstraints;
 
 describe('api-query interface', () => {
+  it('preserves PostgreSQL microseconds in timestamp cursors without exposing cursor fields', () => {
+    const query = compileApiQuery(widgetQuery, {
+      limit: 1,
+      sort: '-createdAt',
+      fields: 'id,createdAt',
+    });
+    const page = query.createPage([
+      {
+        id: '019c0000-0000-7000-8000-000000000002',
+        createdAt: new Date('2026-10-07T10:55:25.423Z'),
+        __cursor_createdAt: '2026-10-07T10:55:25.423100Z',
+      },
+      {
+        id: '019c0000-0000-7000-8000-000000000001',
+        createdAt: new Date('2026-10-07T10:55:25.423Z'),
+        __cursor_createdAt: '2026-10-07T10:55:25.423100Z',
+      },
+    ]);
+    const boundary = JSON.parse(
+      Buffer.from(page.pageInfo.nextCursor!, 'base64url').toString(),
+    );
+    expect(boundary.values[0]).toBe('2026-10-07T10:55:25.423100Z');
+    expect(page.items[0]).not.toHaveProperty('__cursor_createdAt');
+    const next = compileApiQuery(widgetQuery, {
+      sort: '-createdAt',
+      cursor: page.pageInfo.nextCursor!,
+    });
+    const rendered = new PgDialect().sqlToQuery(next.where!);
+    expect(rendered.params.slice(0, 2)).toEqual([
+      '2026-10-07T10:55:25.423100Z',
+      '2026-10-07T10:55:25.423100Z',
+    ]);
+    expect(rendered.sql).toContain('"widgets"."created_at" <');
+  });
+
   it('compiles the default UUIDv7 page and creates an opaque next cursor', () => {
     const query = compileApiQuery(widgetQuery, { limit: 1 });
 

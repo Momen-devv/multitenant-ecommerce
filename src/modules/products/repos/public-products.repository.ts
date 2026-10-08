@@ -113,6 +113,7 @@ export class PublicProductsRepository {
           : undefined;
         const rows = await tx.query.products.findMany({
           columns: { ...query.columns, id: true },
+          extras: query.extras,
           with: {
             images: {
               columns: { id: true, publicUrl: true, altText: true },

@@ -8,6 +8,12 @@ export type ApiQueryOperator = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in';
 export interface ApiQueryCodec<T extends ApiQueryScalar = ApiQueryScalar> {
   parse(value: unknown): T;
   serialize(value: T): string | number | boolean | null;
+  // Preserve database precision separately from the public JavaScript value.
+  cursor?: {
+    select(column: AnyPgColumn): SQL;
+    parse(value: unknown): ApiQueryScalar | SQL;
+    serialize(value: unknown): string | number | boolean | null;
+  };
 }
 
 export interface ApiQuerySortField {
@@ -85,6 +91,7 @@ export interface CursorPage<T> {
 
 export interface CompiledApiQuery {
   columns: Record<string, boolean>;
+  extras: Record<string, SQL.Aliased>;
   where: SQL | undefined;
   orderBy: SQL[];
   limit: number;

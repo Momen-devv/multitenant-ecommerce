@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { sql } from 'drizzle-orm';
 import type { ApiQueryCodec } from './api-query.types';
 
 const UUID_PATTERN =
@@ -70,6 +71,30 @@ export const timestampCodec: ApiQueryCodec<Date> = {
   },
   serialize(value) {
     return value.toISOString();
+  },
+  cursor: {
+    select(column) {
+      return sql<string>`to_char(${column} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+    },
+    parse(value) {
+      if (
+        typeof value !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(
+          value,
+        )
+      ) {
+        throw new BadRequestException('Expected an ISO timestamp');
+      }
+      // Validate the calendar/time without sending the truncated Date to SQL.
+      timestampCodec.parse(value.replace(/(\.\d{3})\d+(?=Z|[+-])/, '$1'));
+      return sql`${value}::timestamptz`;
+    },
+    serialize(value) {
+      if (typeof value !== 'string') {
+        throw new BadRequestException('Expected an ISO timestamp');
+      }
+      return value;
+    },
   },
 };
 
