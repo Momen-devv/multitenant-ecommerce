@@ -2,35 +2,39 @@ import { NotFoundException } from '@nestjs/common';
 import { PublicCategoriesService } from './public-categories.service';
 
 describe('PublicCategoriesService', () => {
-  const categoriesRepository = {
-    findVisible: jest.fn(),
-    findVisibleBySlug: jest.fn(),
-  };
-  const productsRepository = {
-    findPublishedPage: jest.fn(),
+  const productsReader = {
+    listCategoryProducts: jest.fn(),
+    listPublishedProducts: jest.fn(),
   };
   let service: PublicCategoriesService;
 
   beforeEach(() => {
     jest.resetAllMocks();
     service = new PublicCategoriesService(
-      categoriesRepository as never,
-      productsRepository as never,
+      {} as never,
+      productsReader,
+      {} as never,
+      {} as never,
+      {} as never,
     );
   });
 
-  it('rejects nested Product browsing for a hidden or empty Category', async () => {
-    categoriesRepository.findVisibleBySlug.mockResolvedValue(undefined);
+  it('propagates a missing Category error from the product reader', async () => {
+    const error = new NotFoundException('Published Category not found');
+    productsReader.listCategoryProducts.mockRejectedValue(error);
 
     await expect(
       service.listCategoryProducts('store', 'empty-category', {}),
-    ).rejects.toBeInstanceOf(NotFoundException);
-    expect(productsRepository.findPublishedPage).not.toHaveBeenCalled();
+    ).rejects.toBe(error);
+    expect(productsReader.listCategoryProducts).toHaveBeenCalledWith(
+      'store',
+      'empty-category',
+      {},
+    );
   });
 
-  it('uses the same filtered Product query for a visible nested Category', async () => {
-    categoriesRepository.findVisibleBySlug.mockResolvedValue({ slug: 'shoes' });
-    productsRepository.findPublishedPage.mockResolvedValue({
+  it('passes the Store, Category, and query to the product reader', async () => {
+    productsReader.listCategoryProducts.mockResolvedValue({
       items: [{ slug: 'runner' }],
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
@@ -38,10 +42,10 @@ describe('PublicCategoriesService', () => {
     await expect(
       service.listCategoryProducts('store', 'shoes', { limit: 10 }),
     ).resolves.toMatchObject({ items: [{ slug: 'runner' }] });
-    expect(productsRepository.findPublishedPage).toHaveBeenCalledWith(
+    expect(productsReader.listCategoryProducts).toHaveBeenCalledWith(
       'store',
-      { limit: 10 },
       'shoes',
+      { limit: 10 },
     );
   });
 });

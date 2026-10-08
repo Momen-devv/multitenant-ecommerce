@@ -31,18 +31,18 @@ functions remain SQL migrations.
 The [notification catalog](domain/notification-policy.ts) defines supported
 combinations and mandatory email policy.
 
-| Events | Recipients | Mandatory email |
-| --- | --- | --- |
-| `order.placed`, `order.cancelled`, `order.refunded` | Customer and authorized staff | Customer |
-| `order.shipped`, `order.delivered` | Customer and authorized staff | None |
-| `invitation.created` | Invitee | Invitee |
-| `invitation.reminder` | Invitee | None |
-| `invitation.accepted`, `invitation.rejected`, `invitation.expired` | Inviter | None |
-| `invitation.cancelled` | Inviter and invitee | None |
-| `user.registered` | Registered user | None |
-| `store.created` | Store owner | None |
-| `subscription.activated` | Store owner | Store owner |
-| `order.intervention_required`, `notification.delivery_failed` | Platform administrators | None |
+| Events                                                             | Recipients                    | Mandatory email |
+| ------------------------------------------------------------------ | ----------------------------- | --------------- |
+| `order.placed`, `order.cancelled`, `order.refunded`                | Customer and authorized staff | Customer        |
+| `order.shipped`, `order.delivered`                                 | Customer and authorized staff | None            |
+| `invitation.created`                                               | Invitee                       | Invitee         |
+| `invitation.reminder`                                              | Invitee                       | None            |
+| `invitation.accepted`, `invitation.rejected`, `invitation.expired` | Inviter                       | None            |
+| `invitation.cancelled`                                             | Inviter and invitee           | None            |
+| `user.registered`                                                  | Registered user               | None            |
+| `store.created`                                                    | Store owner                   | None            |
+| `subscription.activated`                                           | Store owner                   | Store owner     |
+| `order.intervention_required`, `notification.delivery_failed`      | Platform administrators       | None            |
 
 The existing order-email pipeline remains the sole sender of shopper emails.
 A recipient who is both customer and staff receives one shopper email, without
@@ -76,18 +76,18 @@ contracts; inspect those contracts when upgrading the dependency.
 All routes use the `/api/v1/notifications` prefix and require an authenticated
 session. Foreign or inaccessible notification IDs return `404`.
 
-| Method | Path | Behavior |
-| --- | --- | --- |
-| GET | `/` | List visible messages, newest first |
-| GET | `/unread-count` | Count unread, non-archived messages |
-| GET | `/preferences` | Read effective email preferences and overrides |
-| PATCH | `/preferences` | Atomically apply a preference batch |
-| POST | `/read-all` | Mark visible, non-archived messages read |
-| GET | `/stream` | Open the SSE connection |
-| GET | `/:id` | Read a message without marking it read |
-| PATCH | `/:id/read` | Idempotently mark a message read |
-| PATCH | `/:id/archive` | Archive with `{ "archived": true }`; restore with `false` |
-| DELETE | `/:id` | Soft-delete and retain a recipient tombstone |
+| Method | Path            | Behavior                                                  |
+| ------ | --------------- | --------------------------------------------------------- |
+| GET    | `/`             | List visible messages, newest first                       |
+| GET    | `/unread-count` | Count unread, non-archived messages                       |
+| GET    | `/preferences`  | Read effective email preferences and overrides            |
+| PATCH  | `/preferences`  | Atomically apply a preference batch                       |
+| POST   | `/read-all`     | Mark visible, non-archived messages read                  |
+| GET    | `/stream`       | Open the SSE connection                                   |
+| GET    | `/:id`          | Read a message without marking it read                    |
+| PATCH  | `/:id/read`     | Idempotently mark a message read                          |
+| PATCH  | `/:id/archive`  | Archive with `{ "archived": true }`; restore with `false` |
+| DELETE | `/:id`          | Soft-delete and retain a recipient tombstone              |
 
 Listing accepts `storeId`, `type`, `unread`, `archived`, `limit`, and `cursor`.
 `unread` and `archived` use strings `"true"` and `"false"`. Archived messages are
@@ -150,14 +150,14 @@ preserve session cookies.
 
 ## Configuration
 
-| Variable | Default | Effect |
-| --- | --- | --- |
-| `NOTIFICATION_INBOX_ENABLED` | Enabled | Literal `false` disables inbox/preferences endpoints and new streams |
-| `NOTIFICATION_EMAIL_ENABLED` | Enabled | Literal `false` pauses notification email recovery and sending |
-| `NOTIFICATION_STREAM_ENABLED` | Enabled | Literal `false` disables new streams |
-| `NOTIFICATION_STREAM_MAX_CONNECTIONS` | `5` | Concurrent streams per user across replicas |
-| `NOTIFICATION_STREAM_HEARTBEAT_MS` | `25000` | Heartbeat interval, validated at 1,000–40,000 ms; values outside this range fail startup validation |
-| `TRUSTED_ORIGINS` | `BASE_URL` fallback | Comma-separated exact browser origins allowed for streams |
+| Variable                              | Default             | Effect                                                                                              |
+| ------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------- |
+| `NOTIFICATION_INBOX_ENABLED`          | Enabled             | Literal `false` disables inbox/preferences endpoints and new streams                                |
+| `NOTIFICATION_EMAIL_ENABLED`          | Enabled             | Literal `false` pauses notification email recovery and sending                                      |
+| `NOTIFICATION_STREAM_ENABLED`         | Enabled             | Literal `false` disables new streams                                                                |
+| `NOTIFICATION_STREAM_MAX_CONNECTIONS` | `5`                 | Concurrent streams per user across replicas                                                         |
+| `NOTIFICATION_STREAM_HEARTBEAT_MS`    | `25000`             | Heartbeat interval, validated at 1,000–40,000 ms; values outside this range fail startup validation |
+| `TRUSTED_ORIGINS`                     | `BASE_URL` fallback | Comma-separated exact browser origins allowed for streams                                           |
 
 Use consistent settings on every replica and restart processes after deployment
 configuration changes. Origins include scheme, host, and port, without paths or
@@ -166,13 +166,13 @@ source capture, durable state, or deduplication records.
 
 ## Recovery and retention
 
-| Scheduled work | Interval |
-| --- | --- |
-| Outbox dispatch and event recovery | 10 seconds |
-| Email recovery | 10 seconds |
-| Invitation reconciliation | 30 seconds |
+| Scheduled work                                   | Interval   |
+| ------------------------------------------------ | ---------- |
+| Outbox dispatch and event recovery               | 10 seconds |
+| Email recovery                                   | 10 seconds |
+| Invitation reconciliation                        | 30 seconds |
 | Registration and verified welcome reconciliation | 30 seconds |
-| Retention cleanup and metrics | 60 seconds |
+| Retention cleanup and metrics                    | 60 seconds |
 
 Workers use expiring leases and persisted retry state. PostgreSQL remains the
 source of truth after queue or process failure. Provider requests reuse their
@@ -201,16 +201,16 @@ deliveries; never blindly reset sent or ambiguous deliveries.
 
 ## Code map
 
-| Location | Responsibility |
-| --- | --- |
-| `controllers/`, `dto/` | HTTP contracts and validation |
-| `domain/` | Event validation, audience policy, retention, and rollout controls |
-| `repos/` | Persistence, authorization predicates, leases, checkpoints, and cleanup |
-| `services/` | Materialization, delivery, recipient eligibility, and SSE |
-| `tasks/` | Dispatch, reconciliation, recovery, and scheduled operations |
-| `../../infrastructure/outbox/` | Source intent writers and outbox persistence |
-| `../../infrastructure/queue/notifications/` | BullMQ scheduling and processing |
-| `../auth/` | Better Auth integration and source hooks |
+| Location                                    | Responsibility                                                          |
+| ------------------------------------------- | ----------------------------------------------------------------------- |
+| `controllers/`, `dto/`                      | HTTP contracts and validation                                           |
+| `domain/`                                   | Event validation, audience policy, retention, and rollout controls      |
+| `repos/`                                    | Persistence, authorization predicates, leases, checkpoints, and cleanup |
+| `services/`                                 | Materialization, delivery, recipient eligibility, and SSE               |
+| `tasks/`                                    | Dispatch, reconciliation, recovery, and scheduled operations            |
+| `../../infrastructure/outbox/`              | Source intent writers and outbox persistence                            |
+| `../../infrastructure/queue/notifications/` | BullMQ scheduling and processing                                        |
+| `../auth/`                                  | Better Auth integration and source hooks                                |
 
 Before deployment, validate invitation rollback, duplicate source handling,
 expired-lease recovery, recipient access changes, retention boundaries, and
