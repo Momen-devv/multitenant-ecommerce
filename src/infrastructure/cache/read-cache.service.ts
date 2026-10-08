@@ -252,22 +252,20 @@ export class ReadCacheService implements OnModuleInit, OnModuleDestroy {
     }
     let settled = false;
     let finished = false;
-    const run = async (): Promise<T> => {
+    const databaseLoad = this.controls.database(
+      resource,
+      load,
+      loadDeadline,
+      () => {
+        settled = true;
+        // Retain a timed-out coalescing entry until the actual loader settles.
+        if (finished && this.loads.get(key) === promise) this.loads.delete(key);
+      },
+    );
+    const promise = databaseLoad.then(async (value): Promise<T> => {
       const started = performance.now();
       const freshnessMs =
         policy.ttlSeconds * 1000 * (0.9 + Math.random() * 0.2);
-      // Loader errors stay outside cache catches and are never retried.
-      const value = await this.controls.database(
-        resource,
-        load,
-        loadDeadline,
-        () => {
-          settled = true;
-          // Retain a timed-out coalescing entry until the actual loader settles.
-          if (finished && this.loads.get(key) === promise)
-            this.loads.delete(key);
-        },
-      );
       try {
         const payload = policy.codec.encode(value);
         policy.codec.decode(payload);
@@ -301,8 +299,7 @@ export class ReadCacheService implements OnModuleInit, OnModuleDestroy {
         );
       }
       return value;
-    };
-    const promise = run();
+    });
     this.loads.set(key, promise);
     try {
       return await promise;

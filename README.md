@@ -1,5 +1,7 @@
 # Multitenant Ecommerce
 
+[![DeepScan grade](https://deepscan.io/api/teams/27600/projects/31885/branches/1036555/badge/grade.svg)](https://deepscan.io/dashboard#view=project&tid=27600&pid=31885&bid=1036555)
+
 A NestJS backend for a multitenant ecommerce platform. Store owners manage catalogs, staff, subscriptions, and orders; shoppers browse products and keep a separate cart for each store.
 
 Stores share a PostgreSQL database, with store membership and permissions controlling staff access and repositories scoping store-owned records. Platform subscription billing is separate from shopper payments through Stripe Connect.
