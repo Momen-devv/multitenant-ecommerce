@@ -10,12 +10,12 @@ import {
   sha256Hex,
   verifyPassword,
 } from '@/common/utils';
-import { AuthRole, OrganizationRole } from '@/common/enums';
+import { AuthRole, Environment, OrganizationRole } from '@/common/enums';
+import { isProductionEnvironment } from '@/common/utils/environment.util';
 import * as Schema from '@/infrastructure/database/schema/schema';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { ConfigType } from '@nestjs/config';
 import { betterAuthConfig } from '@/core/config';
-import { isProduction } from 'better-auth';
 import { atomicInvitationEndpoints } from '../hooks/atomic-invitation-endpoints';
 import {
   ac,
@@ -144,6 +144,7 @@ export function createAuth({
   configuration,
 }: AuthDependencies) {
   const db = database;
+  const isProduction = isProductionEnvironment();
 
   const authOptions = {
     secret: configuration.secret,
@@ -251,7 +252,7 @@ export function createAuth({
     },
 
     rateLimit: {
-      enabled: true,
+      enabled: process.env.NODE_ENV !== Environment.Benchmark,
       window: isProduction ? 10 : 60,
       max: isProduction ? 100 : 500,
       storage: 'secondary-storage',

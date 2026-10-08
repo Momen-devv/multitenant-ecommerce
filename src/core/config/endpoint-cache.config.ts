@@ -1,9 +1,10 @@
 import { registerAs } from '@nestjs/config';
 import { z } from 'zod';
+import { Environment } from '@/common/enums/environment.enum';
 
 const flag = z
   .enum(['true', 'false'])
-  .default('false')
+  .default('true')
   .transform((v) => v === 'true');
 const limit = (value: number, maximum: number) =>
   z.coerce.number().int().min(1).max(maximum).default(value);
@@ -38,7 +39,10 @@ export const endpointCacheEnvSchema = z.object({
 export default registerAs('endpointCache', () => {
   const env = endpointCacheEnvSchema.parse(process.env);
   return {
-    url: env.ENDPOINT_CACHE_REDIS_URL,
+    url:
+      process.env.NODE_ENV === Environment.Benchmark
+        ? process.env.BENCHMARK_REDIS_URL
+        : (env.ENDPOINT_CACHE_REDIS_URL ?? process.env.REDIS_URL),
     environment: process.env.NODE_ENV ?? 'development',
     prefix: env.ENDPOINT_CACHE_PREFIX,
     enabled: env.ENDPOINT_CACHE_ENABLED,

@@ -16,7 +16,7 @@ import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import type { CurrentUser } from '@/modules/auth/types/auth.types';
 import { ConfirmReactivationDto, RequestReactivationDto } from '../dto';
 import { seconds, Throttle } from '@nestjs/throttler';
-import { isProduction } from 'better-auth';
+import { isProductionEnvironment } from '@/common/utils/environment.util';
 import type { Response } from 'express';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiSuccessResponse, ApiErrorResponse } from '@/common/decorators';
@@ -62,7 +62,7 @@ export class AccountController {
 
     res.clearCookie('mte.session_token', {
       httpOnly: true,
-      secure: isProduction,
+      secure: isProductionEnvironment(),
       sameSite: 'lax',
       path: '/',
     });

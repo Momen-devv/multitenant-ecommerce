@@ -11,7 +11,7 @@ import { StorageService } from '@/common/abstracts/storage.abstracts';
 import { LoggerService } from '../logger/logger.service';
 import storageConfig from '@/core/config/storage.config';
 import type { ConfigType } from '@nestjs/config';
-import { Environment } from '@/common/enums/environment.enum';
+import { isProductionEnvironment } from '@/common/utils/environment.util';
 
 @Injectable()
 export class AwsS3StorageService
@@ -29,7 +29,7 @@ export class AwsS3StorageService
   ) {
     super();
     this.bucketName = this.configuration.AWS_S3_BUCKET_NAME;
-    this.isLocal = process.env.NODE_ENV !== Environment.Production;
+    this.isLocal = !isProductionEnvironment();
   }
 
   async onModuleInit() {

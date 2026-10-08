@@ -16,7 +16,9 @@ const envSchema = z.object({
   HEALTH_MEMORY_RSS_MB: z.coerce.number().default(450),
 
   DATABASE_URL: z.url('DATABASE_URL must be a valid URL'),
+  BENCHMARK_DATABASE_URL: z.url().optional(),
   REDIS_URL: z.url('REDIS_URL must be a valid URL'),
+  BENCHMARK_REDIS_URL: z.url().optional(),
   RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
   TYPESAFE_API_KEY: z.string().min(1, 'TYPESAFE_API_KEY is required'),
   TYPESAFE_DEFAULT_MODEL: z.string().min(1).default('jev-latest'),

@@ -14,7 +14,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import basicAuth from 'express-basic-auth';
 import { doubleCsrf } from 'csrf-csrf';
-import { Environment } from './common/enums';
+import { isProductionEnvironment } from './common/utils/environment.util';
 
 export async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -22,7 +22,7 @@ export async function bootstrap() {
     bufferLogs: true,
   });
 
-  const isProduction = process.env.NODE_ENV === Environment.Production;
+  const isProduction = isProductionEnvironment();
   const trustedOrigins = (
     process.env.TRUSTED_ORIGINS ?? new URL(process.env.BASE_URL!).origin
   )

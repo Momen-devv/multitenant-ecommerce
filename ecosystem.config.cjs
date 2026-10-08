@@ -19,6 +19,11 @@ module.exports = {
         PORT: 3000,
         APPLICATION_ROLE: 'api',
       },
+      env_benchmark: {
+        NODE_ENV: 'benchmark',
+        PORT: 3000,
+        APPLICATION_ROLE: 'api',
+      },
     },
     {
       name: 'ecommerce-scheduler',
@@ -36,6 +41,10 @@ module.exports = {
       time: true,
       env_production: {
         NODE_ENV: 'production',
+        APPLICATION_ROLE: 'scheduler',
+      },
+      env_benchmark: {
+        NODE_ENV: 'benchmark',
         APPLICATION_ROLE: 'scheduler',
       },
     },

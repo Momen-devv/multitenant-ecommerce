@@ -1,8 +1,8 @@
-import { Environment } from '@/common/enums';
+import { isProductionEnvironment } from '@/common/utils/environment.util';
 import { format, transports, LoggerOptions } from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
 
-const IS_PRODUCTION: boolean = process.env.NODE_ENV === Environment.Production;
+const IS_PRODUCTION = isProductionEnvironment();
 const LOG_DIR: string = 'logs';
 // const IS_TEST = process.env.NODE_ENV === Environment.Test;
 

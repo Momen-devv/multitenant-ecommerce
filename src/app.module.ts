@@ -55,7 +55,9 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
       inject: [CACHE_CLIENT],
       useFactory: (redisClient: Redis) => ({
         throttlers: [{ name: 'default', ttl: seconds(60), limit: 60 }],
-        skipIf: () => process.env.NODE_ENV === Environment.Development,
+        skipIf: () =>
+          process.env.NODE_ENV === Environment.Development ||
+          process.env.NODE_ENV === Environment.Benchmark,
         storage: new ThrottlerStorageRedisService(redisClient),
         getTracker: (request) => {
           const { session, ip } = request as ThrottledRequest;

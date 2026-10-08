@@ -4,6 +4,7 @@ import { Job } from 'bullmq';
 import { Inject } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { appConfig } from '@/core/config';
+import { Environment } from '@/common/enums';
 import { OrderEmailDeliveryRepository } from '@/modules/orders/repos/order-email-delivery.repository';
 import { OrderEmailType } from '@/modules/orders/domain/order-email-intent';
 import {
@@ -60,6 +61,15 @@ export class EmailQueueProcessor extends WorkerHost {
   }
 
   async process(job: Job<EmailJobData, unknown, EmailJobName>) {
+    if (process.env.NODE_ENV === Environment.Benchmark) {
+      this.logger.log(
+        `Benchmark email skipped. Job ID: ${job.id} Name: ${job.name}`,
+        EmailQueueProcessor.name,
+        { to: job.data.to, deliveryId: job.data.deliveryId },
+      );
+      return;
+    }
+
     switch (job.name) {
       case JobNames.EMAIL.NOTIFICATION:
         await this.notificationDelivery.send(this.requireDeliveryId(job.data));
